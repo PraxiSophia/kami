@@ -1,35 +1,52 @@
-# P2P connectivity design
+# Kami P2P Connectivity
 
-Status: Draft — Pending Approval
+## Scope
 
-## Scope and proposed stack
+This document defines M1 connectivity behavior. Kami uses Rust and rust-libp2p. M1 supports authenticated direct peer communication, supported NAT traversal and hole punching, and fallback through multiple independently operated live relays. It does not provide an offline mailbox or inter-relay federation.
 
-The owner has selected Rust as Kami's sole implementation language. This is a proposed, untested Rust/Tokio + rust-libp2p design for the online First-Message Milestone (FM), not approval of particular crates, features, versions or network claims. The canonical communication design distinguishes discovery, NAT traversal, live relay and durable mailbox; the reconciled FM roadmap limits this milestone to two online, explicitly verified CLI endpoints and one separately running live relay. Offline delivery, permission-aware directory, organizations/projects, groups, artifacts and harness adapters are later full-v0.1 obligations, not capabilities of this network path.
+## Identity and reachability
 
-Start with one explicit libp2p transport stack: TCP, libp2p Noise for endpoint channel security, Yamux for multiplexed peer streams, and Circuit Relay v2 for online fallback. Tokio runs a continuously polled client Swarm; a distinct Tokio/rust-libp2p relay-server process forwards bounded circuits, never stores an offline message. Feature flags, version compatibility, secure-channel behavior, supported platforms and build integration are **unverified** until pinned and exercised. Avoid enabling unrelated transports by default. If an approved NAT profile requires coordinated hole punching, DCUtR starts on an existing relayed connection and may upgrade to direct; it is not proof that direct-first TCP address dialing traverses two private NATs. QUIC needs its own TLS/identity configuration and a separate measured case; it is not Noise-over-QUIC/Yamux by assumption. Neither DCUtR nor QUIC is an FM default or a universal reachability promise.
+A contact is addressed by its verified participant/device identity, not by a display name, IP address, or mutable network address. Contact invitations may contain public identity material, Peer ID binding evidence, candidate addresses, and relay hints. Invitations and reachability hints are untrusted until the identity fingerprint is independently verified.
 
-## Identity, addresses and the session boundary
+Every direct or relayed session must authenticate the expected device and verify its binding to the authenticated libp2p Peer ID. Relay authentication alone does not authenticate the recipient. Unknown, changed, or mismatched identity bindings fail closed.
 
-Address a correspondent by an opaque local `(participant_id, device_id)` record, not by display name, IP or current multiaddress. For FM, manually exchange a bounded public descriptor with libp2p identity public key/Peer ID, device and participant labels, candidate addresses, protocol capability and relay identity/address hints; import as pending. Confirm the fingerprint through an independent trusted channel before activation. A self-signed descriptor proves key possession only; it does not establish human identity, tenant membership or production revocation. Device-to-Peer-ID binding must be checked against the actual Noise-authenticated remote Peer ID on **every direct and inner relayed session**, including inbound sessions. Pin relay identity separately. Unknown, changed or mismatched keys fail closed without unverified fallback. An authenticated connection to the relay alone does not authenticate the recipient endpoint.
+Candidate addresses and relay hints are bounded and treated as untrusted input. They must not be derived from message content or permit arbitrary dialing. Presence and relay reservation are reachability hints, not delivery evidence.
 
-Candidates are untrusted reachability hints. Bound their count, length, component types, expiry and attempted dial count; never let chat content supply arbitrary dial targets. Sharing local/observed public addresses can disclose IP and topology; only export deliberately under an approved disclosure policy and avoid public DHT publication of private contacts. Presence/relay hints are not delivery evidence. A fresh session after address change or disconnect rechecks pinned identity; in full v0.1 a permission-aware directory, authorization version and revocation source must be added before tenant-scoped sends. FM local blocking cannot guarantee remote revocation against an offline or compromised peer.
+## Transport and path selection
 
-## Swarm/relay lifecycle and path policy
+- QUIC is preferred when the selected rust-libp2p configuration and target platform support it.
+- TCP is an alternative transport when QUIC is unavailable or unsuitable.
+- The client attempts an authenticated direct path first within a bounded policy.
+- Supported NAT traversal or hole-punching mechanisms may be used when enabled by the selected transport profile.
+- If direct delivery cannot complete, the client tries configured authorized relays in priority order and fails over between candidates.
+- Direct and relay attempts reuse the same logical message ID and content binding.
+- A security failure is not a reason to downgrade authentication or encryption.
+- If all paths fail, the encrypted message remains in the sender's local outbox until delivery or explicit cancellation.
 
-A single Tokio task owns each client Swarm and polls it continuously; bounded commands request dials and streams while authenticated session/path events flow back to a delivery owner. Neither SQLite work nor synchronous key-provider calls may block Swarm polling; bound workers and queues and reconcile cancellation with committed outbox/inbox facts. A client may have more than one connection to the same Peer ID, so identify the **actual connection** carrying each application frame and ACK, not merely an aggregate peer status. End-to-end app delivery is the delivery owner's concern; a successful stream write cannot emit `device_delivered`.
+The service must be manually started and maintain eligible relay reservations while running. M1 requires sender and recipient to be online concurrently; a relay does not store messages after the live path ends.
 
-The separate relay process owns its own identity, listener, reservation state, connection/rate/byte/duration budgets and safe health metrics. Both clients must reach it outbound. Bob's client first obtains and renews a reservation; only then can Alice dial a circuit address and negotiate a fresh **inner endpoint-to-endpoint Noise session** through the relay. Reservation expiry, refusal, relay restart, circuit exhaustion and partial forwarding return bounded explicit reasons; none implies offline recipient or mailbox acceptance. The relay observes Peer IDs, addresses, timing, volume and relationships despite not requiring message plaintext. Do not claim anonymity or enterprise proxy support from TCP on port 443.
+## Relay boundary
 
-Proposed `auto` path: after durable local enqueue and verified peer selection, attempt authorized direct candidates for a finite approved budget; retain enough overall time for relay fallback. If direct fails or drops before confirmed device delivery, dial the already-available relay reservation/circuit, authenticate the intended endpoint again, and retry the unchanged logical ID/content over a new session. ACK loss or concurrent paths can duplicate wire delivery but not the durable inbox/display. A security failure (wrong Peer ID, changed key or unsupported secure protocol) is a hard stop, not a trigger for weaker fallback. Direct/relay diagnostic restrictions may exist, but the acceptance test must use `auto` with a genuine injected direct-route failure. Exact timeout, racing/staggering policy, candidate count and retry ownership await G2/G3 approval; no illustrative number is normative. Failed paths retain local pending/unconfirmed status; after process exit no background retries occur until another engine session.
+Each relay is an independently operated process with its own identity, admission policy, resource limits, health state, and operator configuration. Relay admission uses authenticated allowlists and source/destination policy. Unauthorized reservations and forwarding attempts must be denied before useful forwarding.
 
-If approved real-network conditions show direct TCP is ineligible due to both peers behind NAT, run a **separately labeled** DCUtR feasibility case over the relayed channel, optionally with QUIC when UDP is allowed. Keep relay usable if upgrade fails; observe whether a message and ACK actually used the new direct connection. A relay-assisted hole punch is not the same evidence as an independently reachable direct TCP path; Product must decide which counts toward the named direct criterion. If neither endpoint can reach the relay, or an HTTPS-authenticated proxy blocks raw libp2p traffic, report unsupported/no-route and return for scope/design approval rather than pretending a port number solves it.
+A relay forwards live end-to-end-protected traffic. It may observe routing metadata such as addresses, timing, sizes, and transport identities, but must not require application plaintext or private keys. Relay operation is not recipient authentication, offline storage, anonymity, or an availability guarantee.
 
-## Rust-specific risks and proof gates
+## Client ownership and lifecycle
 
-1. Pin exact Rust toolchain, rust-libp2p crates and feature graph; compile the selected TCP/Noise/Yamux + relay client/server combination on claimed targets. Upstream module examples and failed docs builds do not establish Kami compatibility or failure.
-2. Prove relay admission before useful forwarding for **both** unauthorized reservation and unauthorized source→destination circuit attempts. Inspected Rust relay configuration exposes limits but not an established per-circuit application ACL hook; events after acceptance and a broad peer allowlist are not tenant authorization. No fork is preauthorized. Define the minimal FM allowlist policy and a later tenant-aware admission design separately.
-3. Approve frame/text and handshake/mux/ACK overhead budgets together with circuit byte, duration, rate and reservation limits on the pinned build. Do not inherit library defaults or equate a frame cap with available circuit bytes; test exact/over-limit, renewal, throttling and mid-stream failure.
-4. In a controlled matrix, use two endpoint hosts on distinct recorded networks plus an independent third relay process. Show direct-eligible *Kami frame and ACK* using an actual direct connection, then block direct while preserving both outbound relay paths and show automatic live-circuit frame and ACK, same ID and one durable display. Record selected connection, fault proof, NAT/egress condition, version/configuration and timing against **preapproved** bounds. Loopback, forced relay-only, a ping, or a fake transport alone is insufficient.
-5. Test wrong/changed keys, relay impersonation, address disclosure, malformed/oversize frames, reservation expiry, relay outage, ACK loss and cross-path retry. Inspect redacted client and library diagnostics for private payload/key leakage. No network success rate, NAT traversal, key-store viability, performance or production capacity is currently established.
+One background service owns each profile's connections, path selection, retry scheduling, receive processing, and local state. A continuously polled networking task must not be blocked by SQLite, key-provider calls, CLI input, or application work. Bounded command/event channels connect networking and delivery components.
 
-The later mailbox remains a separate durable ciphertext service with its own approval and E2EE contract (`Relay_And_Offline_Delivery.md`); relay circuits cannot be promoted into offline persistence by configuration.
+The delivery engine records the actual connection and path used for each frame and receipt. A successful socket write, relay reservation, or relay forwarding event cannot produce `device_delivered`; that state requires the recipient's durable commit and a validated receipt.
+
+## Verification requirements
+
+The implementation must qualify:
+
+- Direct delivery on a supported cross-network profile.
+- Supported NAT traversal or hole punching where claimed.
+- Automatic fallback after a genuine direct-path failure.
+- Multiple configured relay candidates and priority/failover behavior.
+- Unauthorized relay reservation and source/destination denial.
+- Relay restart, reservation renewal, quotas, and bounded resource exhaustion.
+- Wrong or changed identity, malformed input, lost ACK, duplicate cross-path delivery, and no-route behavior.
+
+Results apply only to the recorded OS, transport configuration, network profiles, and relay versions tested. They do not establish universal NAT reachability, anonymity, or an SLA.

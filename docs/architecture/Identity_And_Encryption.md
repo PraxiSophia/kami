@@ -1,34 +1,83 @@
-# Identity and encryption
+# Kami — Identity and Encryption Specification
 
-Status: Draft — Pending Approval
+**Status:** Owner-approved security requirements; specific cryptographic implementation requires validation  
+**Scope:** Milestone 1 (M1): two verified devices, one device per identity
 
-## Scope, authority and threat boundary
+## 1. Trust goals and threats
 
-Rust is Kami's owner-selected implementation language; no Rust crate, cryptographic suite or key-storage backend is thereby approved. The proposed First-Message Milestone (FM) is two online, explicitly verified, single-device human-operated CLI participants exchanging bounded text over authenticated live channels, including a third-process Circuit Relay v2 path. Its security claim is **endpoint-to-endpoint live session confidentiality**, subject to reviewed rust-libp2p TCP + Noise + Yamux configuration and actual peer binding. It is not a portable application ciphertext/signature scheme, remote offline mailbox, production identity authority, device recovery or full v0.1 release. The broader identity, org/project membership, groups, artifacts and agent authorization obligations in `../Kami_Project_Requirements.md` remain later gates. The historical `Architecture_Review.md` R1–R3 contrasts the earlier asynchronous-envelope proposal with the online FM boundary; do not conflate them.
+Kami must prove to an endpoint that the remote participant is the **same verified device identity** it intended to contact. The network, relay, contact invitation, IP address, display name, and DNS/address hint are not trusted proofs of this identity. The relay may be curious or malicious and can observe routing metadata, restrict service, or manipulate/interrupt transport; it must not obtain plaintext merely by forwarding an encrypted message. Endpoint compromise or malware with access to unlocked keys is not prevented by transport or database encryption.
 
-Network observers and a curious/compromised relay must not read live message content under the reviewed endpoint session. A relay can still drop, delay or replay traffic, and sees IPs/Peer IDs, relationships, timing and sizes. A compromised endpoint, stolen unlocked key, plaintext terminal/history, malicious authorized correspondent, traffic analysis and denial of service are outside the confidentiality guarantee. Selecting Rust does not prevent authorization, replay, lifecycle or operational mistakes. No custom cryptography or ad hoc signed JSON protocol is acceptable.
+## 2. Identity model
 
-## FM trust and transport identity
+- **Participant identity:** Stable human-facing contact identity in the M1 one-device model.
+- **Device identity:** Cryptographic public/private credential for the installed endpoint; explicitly modeled even though M1 permits only one active device per participant.
+- **Transport Peer ID:** Authenticated libp2p networking identity. The contact record binds the expected Peer ID to the independently verified Kami device identity, through a verifiable cryptographic association.
+- **Display name:** Untrusted presentation metadata, never proof of identity.
+- **Relay identity/authorization:** A separate authorization domain. Being admitted to a relay does not authenticate the end recipient.
 
-Each locally initialized profile has opaque participant and immutable device IDs and a protected libp2p transport identity key generated via a reviewed library/secure RNG. The public descriptor binds a version, participant/device labels, public transport identity/Peer ID, fingerprint, bounded address hints, validity information and a proof of possession under a schema to be approved. A self-signature only demonstrates possession, **not** a human identity, project permission or independent verification. A counterpart is imported as `pending`, then its exact fingerprint is compared over a separately trusted channel and the `(participant_id, device_id, public key/Peer ID)` association is pinned as `verified`; aliases/IPs are not identity. Inbound policy accepts only the approved verified counterpart. Relay public identity is pinned separately. Its certificate/transport session is not a substitute for verifying the remote endpoint across the *inner* relayed Noise handshake.
+Each accepted connection, direct or relayed, must validate the expected device identity and authenticated transport binding. Do not silently replace an expected binding with the identity offered by a new connection.
 
-On every direct or relayed endpoint connection, use rust-libp2p's reviewed Noise secure-channel implementation and compare the authenticated remote Peer ID/key with the pinned record before accepting or sending application text; bind frame sender/recipient IDs to that authenticated session and the local device. A new/unknown Peer ID, changed key, wrong device, invalid proof or unsupported secure protocol is blocked, logged safely and sent for explicit re-verification; never auto-accept or downgrade. Stop the affected session and new sends if the local user blocks a peer. Local FM blocking is only a controlled two-device policy, not prompt cross-device production revocation; there is no permission-aware server authority or offline synchronization. Transport Noise authenticates the endpoint key, not the real-world participant. The exact handshake/configuration, proof-of-possession details, fingerprint encoding and re-verification UX need security review and test vectors.
+## 3. Enrollment and initial contact
 
-Live channel bytes are encrypted between peer endpoints independently on each connection. Even if application logical ID/body remains fixed over a direct→relay retry, Noise ciphertext differs and cannot be saved for later decryption by an offline device. Sender origin and device-delivery ACK are authenticated by the currently pinned live session and checked against message/recipient correlation. FM ACKs are **not portable signatures** a future server can independently validate. A future mailbox must choose a reviewed asynchronous message-encryption/sender-authentication protocol and independently verifiable receipt contract before rollout; do not attribute those properties to Noise.
+1. Generate a new endpoint identity using a reviewed cryptographic implementation and an OS-backed secure key facility supported on that platform.
+2. Create a contact invitation/descriptor with public identity material, expected Peer ID or authenticated binding proof, and optional connection/relay hints; include a version and expiry/validity policy where engineering deems needed.
+3. Exchange invitations through an existing channel; treat the invitation as **untrusted** until its public identity is checked.
+4. Compare a strong fingerprint through an **independent trusted channel**, e.g., in person or on a previously authenticated call. Require an explicit verification action before any private send.
+5. Store the verified contact identity, public keys, and transport binding durably. Refuse sends to unknown or unverified identities (no TOFU).
 
-## Local key and history protection
+A QR representation may be added later; it is not needed for M1. Network addresses and relay hints may become stale without invalidating the underlying verified identity.
 
-Keep the transport private key at the endpoint under an approved protected-key provider or reviewed encrypted-keystore scheme; never export it in descriptors, CLI arguments, normal config, logs, environment dumps or routine backups. If a headless provider is locked/unavailable, fail closed without silently regenerating identities or writing a plaintext fallback key. Define permissions, process/profile lock, backup/recovery and key-loss behavior on every *claimed* target OS before using real private data. No specific Rust keyring crate/backend or portability path has been validated; native/linker/packaging behavior must be exercised. Stock SQLite stores plaintext local history, pending outbox, WAL and temporary pages unless a separately reviewed at-rest mechanism or explicitly bounded encrypted-volume **lab profile** protects them. File permissions alone are not encryption. A proposed lab exception must state its narrower claim, with no production at-rest guarantee. Recovery of lost keys or history is not implicitly available.
+## 4. Establishing E2EE conversations
 
-## Later identity and E2EE contracts (separate approval)
+The selected security direction is **established Signal-style authenticated key agreement and Double Ratchet**, not a bespoke crypto construction. The M1 protocol must:
 
-A full v0.1 identity authority must specify authenticated invitation/enrollment, multiple participant devices, org/project entitlements, narrowly scoped discovery, approval and proof of possession, authorization freshness, suspension/revocation/rotation, compromised-key response and audited all-devices-lost recovery. Operator control of the directory may substitute public keys unless endpoint verification/pinning detects it. Define whether an offline sender can safely send without current membership proof (otherwise fail closed), and commit revocation before claiming a cutoff. No authority can erase content already decrypted or ciphertext/keys already copied. An agent participant separately requires recipient-side capability, policy and human-approval enforcement: receiving task bytes never authorizes execution.
+- Bind initial authenticated session establishment to the independently verified identities of both endpoints.
+- Establish a shared secret/session state using an established, analyzed construction with suitable authenticated key exchange and replay resistance.
+- Derive fresh per-message encryption material through Double Ratchet-style progression, including appropriate skipped/out-of-order message-key handling and secure deletion of obsolete key material where supported.
+- Authenticate protocol envelopes and bind each accepted plaintext message to its immutable logical message ID, origin/destination, and relevant context, so a path switch/retry cannot substitute content.
+- Provide forward-secrecy and post-compromise recovery properties **only to the extent actually guaranteed by the selected and verified protocol**. Do not claim these properties merely because some key material is rotated.
+- Persist and restore ratchet/session state with crash-safe semantics so retries, out-of-order arrival, and client restarts do not reuse key/nonce material or lose the ability to decrypt legitimate in-flight messages.
 
-For durable mailbox messages, investigate a reviewed, maintained per-device asynchronous E2EE construction (for example an RFC 9180 HPKE-based design only after full protocol/security review, or a supported ratcheting suite). HPKE base mode alone does not authenticate the sender; an envelope needs verified origin, exact signed/authenticated bytes and context/recipient binding, replay/expiry, identity/key changes, state persistence and test vectors. Static recipient decryption keys do not imply forward secrecy or post-compromise recovery. For later small groups, per-recipient encryption may be viable with an authoritative membership snapshot and bounded device count; MLS (RFC 9420) is a distinct candidate only after provider, suite, epoch/commit ordering and offline catch-up/rejoin validation. A Rust library's availability is not evidence of suitability, security audit coverage or approved crate version. Encrypted artifacts require independent object-key distribution and access/integrity checks. No later choice is required to meet online FM.
+**Engineering validation gate:** Before shipping, identify a viable, maintained Rust implementation and a documented interoperable session-establishment profile. Confirm licensing, maintainability, protocol completeness, cross-platform support, persistence, and security review. `libsignal` should not be presumed to provide a supported general-purpose embedding API. If no defensible supported implementation exists, **escalate before implementation**; do not silently substitute stable shared-secret encryption or write an unreviewed custom protocol.
 
-## Approval and evidence gates
+## 5. Message encryption and independent transports
 
-- Security/Product G1: approve FM two-person authorization/verification ceremony, trust-state and changed-key policy, exact Noise/Peer-ID-to-device binding, supported target key provider and local history/WAL/backup protection. Prove wrong-device, substituted-key, relay-impersonation and no-downgrade rejection on both paths; inspect the *inner* relay secure session. Do not claim that a plaintext-sentinel scan alone proves E2EE.
-- Protocol G2: bind session identity, immutable message/recipient/content and session-authenticated ACK; reject replay/conflicts after SQLite dedup commit; specify late-ACK and lost-key handling. Never infer successful receipt from a secure transport handshake.
-- Network G3/G4: pin crate/toolchain/features and verify exact configuration and key backend on named OSes, plus two separate-network direct and direct-blocked automatic Circuit Relay v2 tests. QUIC's TLS identity configuration and DCUtR are separate investigations only if approved NAT profiles demand them; neither is interchangeable with Noise/TCP by name.
-- Later full-v0.1 gate: obtain specialist review and reproducible tests for asynchronous E2EE, portable authentication, mailbox/server authorization, revocation and rotation, group/device lifecycle, key compromise/recovery and encrypted artifact access before making those claims. No production cryptographic or key-storage assurance is asserted by this draft.
+Message bodies and private application fields are encrypted for the verified recipient. Relays may require nonsecret routing information, but relay access must not grant ciphertext-decryption capability. The same logical message remains authenticated when transmitted through QUIC, TCP, direct P2P, or a live relay. Transport authentication is necessary but **not a substitute** for application E2EE.
+
+A retry must preserve the logical content and message identity. The implemented ratchet and message-state design must explicitly define how retransmissions use safely persisted ciphertext or equivalent protocol-defined replay-safe handling. Never create a new application message merely because a packet or relay attempt was retried.
+
+## 6. Local message storage and key custody
+
+- Store local inbox, outbox, history, receipts, and ratchet metadata in SQLite with encryption for sensitive message contents.
+- Protect private identity keys and local encryption keys through **OS secure storage**: suitable Secret Service/keyring mechanisms on Linux, Keychain on macOS, and an appropriate Windows credential/key protection facility.
+- OS credential stores may be locked, unavailable, or inaccessible to noninteractive/headless services. M1 fails safely and displays a clear error rather than silently writing plaintext secrets or promising unsupported pre-login service operation.
+- Define key separation and safe access boundaries: a file/database copy alone should not automatically include all decrypting secrets when supported by the platform; do not overstate protection from malware under the same logged-in user.
+- Verify SQLite journal/WAL, temporary files, logs, memory/core dumps, backups, and migration paths do not casually expose secrets; treat database-at-rest encryption and identity-key custody as separate controls.
+- The manually started Kami background service holds needed unlocked state only for authorized runtime use; CLI and future adapters must not directly receive master/identity secrets.
+
+## 7. Identity changes, compromise, and loss
+
+- **Unexpected contact identity-key change:** Immediately block messages to that contact. Hold previously queued messages without redirecting them to new keys. Require independent fingerprint reverification and an explicit user action to adopt the replacement identity.
+- **Routine verified session-key changes:** Must not require identity reverification when authenticated by the established protocol.
+- **Loss of local identity keys:** Create a new identity and reverify with contacts. Do not promise restoration of old identity/history if required keys are lost.
+- **Recovery, backup, multi-device enrollment and revocation:** Deferred beyond M1. Security-critical invalidation/compromise must still fail closed and allow users to stop messaging.
+- **Deletion:** Local message/history deletion does not remotely erase previously delivered plaintext or copies retained by the recipient.
+
+## 8. Tests and acceptance
+
+Security qualification must include:
+
+1. Unknown/unchecked invitation and unknown identity refuse private sends.
+2. Verified binding rejects a wrong transport Peer ID, wrong device key, or unauthenticated binding.
+3. Unexpected identity replacement holds all queued sends until explicit reverification.
+4. Direct and relay connections provide equivalent application E2EE; relay sees no plaintext message body.
+5. Replayed ciphertext, forged receipts, message-ID/content conflicts, malformed envelopes, and tampered ciphertext are rejected safely.
+6. Encryption/decryption, ratchet state, duplicate detection, and skipped-message handling recover correctly across restarts, retries, and reordering.
+7. Supported OS key facilities on Linux, Windows, and macOS work; unavailable or locked facilities fail closed.
+8. Local database files and relevant sidecar/log paths are inspected for accidental plaintext exposure.
+
+These tests verify a security design; they do not establish resistance to a fully compromised endpoint or anonymity from relay metadata.
+
+## 9. Engineering-controlled design details
+
+The Architect owns the explicit selected Rust crypto implementation, key formats, fingerprint encoding, binding proof, key-store adapters, nonce/message-key handling, persistent state transitions, and threat-model tests. Any proposed weakening of explicit verification, E2EE, platform coverage, or ratcheting requires escalation rather than silent substitution.

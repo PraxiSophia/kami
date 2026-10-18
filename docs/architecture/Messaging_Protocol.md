@@ -1,43 +1,124 @@
-# Messaging protocol
+# Kami — Messaging Protocol and Durable Delivery
 
-Status: Draft — Pending Approval
+**Status:** Owner-approved M1 message semantics; concrete wire fields are engineering-owned  
+**Scope:** Versioned Protobuf one-to-one private text, receipts, local persistence, retry, and ordering
 
-## Two protocol epochs, one logical identity
+## 1. Protocol invariants
 
-The owner selected Rust as Kami's sole implementation language; this protocol proposal is not a frozen wire schema, crate selection or implementation authorization. For the online First-Message Milestone (FM), two explicitly verified CLI devices exchange bounded text through rust-libp2p TCP + Noise + Yamux peer streams, direct or via a live Circuit Relay v2 circuit. A recipient authenticates the *inner* peer session and its local device pin; it persists before ACK. FM is not the full proposed v0.1 release (`../Kami_Project_Requirements.md` §10). Offline mailbox, group, artifact and agent-task envelopes are separate later protocol extensions with additional reviewed asynchronous E2EE, authorization and receipt contracts; none can be claimed by parsing an FM frame. The historical `Architecture_Review.md` R1–R3 and `../planning/Master_Execution_Roadmap.md` identify the earlier signed mailbox-envelope/live-session conflict.
+- One user action creates **one logical message** with an immutable, stable `message_id`.
+- Switching from direct P2P to a live relay, reconnecting, or retransmitting after a lost ACK does not create another logical message.
+- The recipient must validate sender/recipient identity, cryptographic authenticity, content binding, version, size, and authorization before accepting a message.
+- **Device-delivered** means the recipient has durably saved the authenticated message and the sender has validated its corresponding ACK; sending to a socket/relay is not delivery.
+- Transport delivery attempts can be at-least-once; inbox persistence/display is deduplicated. This is **not** exactly-once physical transmission or future exactly-once task execution.
+- The server-side offline mailbox is not part of M1. The sender's local durable queue holds messages until successful delivery or cancellation.
 
-For FM, preserve one immutable **logical** message ID, authenticated sender/recipient binding and content across attempts and paths. Noise ciphertext necessarily can change with each fresh session. `../planning/First_Communication_MVP.md` J2's “same ciphertext” wording requires Product reconciliation before a normative FM contract; do not claim identical wire ciphertext or silently implement the earlier `kami.event.v1` signed per-device mailbox envelope. Session authentication is not a portable signature, and captured stream bytes are not offline ciphertext. A future mailbox protocol needs a separately reviewed version and migration rule; keep domain IDs and meaning stable while changing wire protection explicitly.
+## 2. Wire framing and versioning
 
-## Proposed FM frame and validation boundary
+M1 encodes protocol frames using **Protocol Buffers**. A network message's total encoded size, envelope included, must not exceed **65,536 bytes**. The usable application text is therefore smaller than 64 KiB. Incoming frames must be bounded before allocation/decoding; malformed or unknown mandatory/unsupported versions fail safely.
 
-Candidate peer stream protocol ID `/kami/chat/1.0.0` and a length-prefixed bounded UTF-8 JSON frame are **design notation**, not verified rust-libp2p APIs or approved serialization. Approve exact framing, encoding, field rules, ID format and golden vectors at G2. Bound length before allocation/deserialization and reject invalid UTF-8, malformed input, unknown required fields, unsupported major versions, wrong type, oversize and trailing/ambiguous data. JSON is not canonical signing material; FM uses authenticated live session context. Security-required features cannot be silently ignored; optional extension rules require explicit negotiation. Never accept plaintext or a changed/unverified peer to work around negotiation errors.
+Provide explicit version/feature negotiation and deterministic parsing rules. Choose field numbering/compatibility semantics that permit forward-compatible additions without silently reinterpreting unknown security-critical data. The engineer-owned `.proto` schema must specify at least:
 
-Proposed FM message fields: protocol major/minor; opaque collision-resistant `message_id` generated and durably reserved before first send; `sender_participant_id`, `sender_device_id`, `recipient_device_id`; `event_type = chat.message`; creation time and sender-owned absolute delivery deadline; bounded UTF-8 body; and an immutable content-binding digest/equivalent local comparison fact specified in the approved contract. IDs are scoped to sender/device, not a human display name. Bind every claimed sender to the Noise-authenticated, pinned device; bind the recipient to the local active device. A same `(sender_device_id, message_id, recipient_device_id)` with **different logical content** is `id_conflict`, not a new message. Authenticated transport and protected local storage are distinct: SQLite is not automatically encrypted. No organization/project/conversation identifiers are invented for FM; later scoped envelopes require their own authority and migration decision.
+| Concept | Required meaning |
+|---|---|
+| `protocol_version` | Version/compatibility boundary |
+| `message_id` | Globally collision-resistant logical message identifier |
+| `conversation_id` | The authenticated 1:1 conversation scope |
+| `sender_device`, `recipient_device` | Verified cryptographic identity references, not display names |
+| `sender_sequence` | Monotonic ordering per sender in the conversation |
+| `message_kind` | M1 text or device-delivery receipt; future kinds are separately authorized |
+| `created_at` | Sender-generated timestamp for display/diagnostics, not an authentication or total-order oracle |
+| `protected_payload` | End-to-end authenticated and encrypted message content |
+| `authentication/context` | Verifiable binding between payload, routing intent, participants and logical ID |
 
-The proposed FM device ACK is a bounded frame with protocol version, unique receipt/event ID (or an approved deterministic persisted receipt identity), original `message_id`, original sender and recipient device IDs, issuer device ID, status `device_delivered`, and safe emission/commit correlation. Its issuer is authenticated through the pinned **endpoint** session, not merely the relay. Sender verifies outbox/issuer/recipient/message correlation before committing receipt fact; a forwarded session-only ACK is not independently verifiable by a later mailbox. Exact fields, restart-stable receipt identity, replay window and clock rules require G2 vectors. No `mailbox_accepted`, `task.accepted` or human `read` state is emitted in FM.
+The actual schema may combine or encrypt fields differently to minimize metadata. The above table specifies **semantics**, not an exact plaintext wire layout. Routing intermediaries see only fields strictly needed to forward traffic.
 
-## Durable facts, retry and conflict semantics
+## 3. Sender-side state and behavior
 
-| Fact / status | Prerequisite | Meaning |
-|---|---|---|
-| `local_outbox` | Sender commits immutable message, binding and deadline in SQLite before any send | Locally retained; no remote claim |
-| `in_flight` | A bounded authenticated path/frame attempt | Transport observation only, not device delivery |
-| `device_delivered` | Valid ACK from the pinned recipient correlated to durable sender record | Recipient claims durable device receipt; not read or task acceptance |
-| `delivery_unconfirmed` | No valid ACK within foreground wait/path budget | Recipient may have received it; outbox remains under approved policy |
-| `delivery_rejected` / `delivery_expired` / `delivery_failed` | Authenticated rejection or approved finite local terminal policy with reason | Preserve facts and distinguish proven refusal from outcome uncertainty |
+1. Validate caller permissions, verified contact identity, message type, text encoding, and encoded-size bound.
+2. Allocate a stable message ID and sender-sequence number.
+3. Generate protocol-protected content using the established E2EE session; bind immutable application content to logical identity and context.
+4. **Transactionally persist** the encrypted message to the local SQLite outbox before attempting a network send.
+5. Attempt bounded authenticated direct connectivity; if unsuccessful, try reachable/authorized relay candidates by priority.
+6. On failed attempt, lost ACK, closed connection, or unavailable recipient, preserve the queue record and retry using bounded backoff after reconnect/restart.
+7. On authentic ACK for the expected message and recipient, transactionally update the outbox to Delivered. Discarding/compacting committed delivery records must not undermine receipt conflict detection.
+8. If explicitly canceled before delivery, stop future attempts; cancellation cannot recall a message already delivered.
 
-Recipient checks bounds/version, session identity/trust, recipient and immutable-content consistency before a single SQLite transaction commits inbox row, dedup key, durable receipt fact and one replayable display event. Only after that commit can it send `device_delivered`. A matching duplicate after commit or restart re-emits the previously stored receipt without re-displaying or invoking another action. A same-ID/different-content attempt is rejected even when arriving over another connection; retain replay-safe dedup facts across the **approved** full retry/late-arrival horizon. An expired unseen message is rejected under approved clock rules; a committed duplicate must not turn into a second event merely because cleanup ran.
+The crypto/session implementation must safely reuse stored retransmission material or another reviewed scheme: a retry must not accidentally re-encrypt or ratchet in a way that creates a conflicting logical payload or repeats insecure nonces.
 
-Sender keeps per-recipient delivery facts, path/attempt observations and an absolute deadline; attempts across direct and relay share finite budgets. On failed write, session drop or lost ACK, retry the same logical content/ID through an eligible endpoint-authenticated session. Failure to see an ACK is not proof of nondelivery. Duplicate or reordered receipts are idempotent; a late authenticated device ACK after local expiry preserves both facts and yields an explicit late-confirmation projection rather than erasing the original uncertainty or displaying another message. A proven authenticated permanent rejection must not be silently overwritten; define the contradiction/reconciliation rule before implementation. No untrusted device clock alone decides the physical order of a lost ACK and expiry. A short-lived CLI process retains committed pending state but schedules no background retry once exited; reopening reconciles pending records. Disk-full, key-provider failure or unavailable profile must fail before sending/ACKing the affected record.
+## 4. Recipient-side validation and durability
 
-Path (`direct_p2p` or `live_relay`) is per-frame/connection observation, not message identity. A third-process relay reservation, circuit forwarding or socket write never yields a device-delivered fact. CLI/JSON status separates retryable/unconfirmed, permanent reason and optional late confirmation; logs include safe correlation IDs, chosen actual path, version and reason class, not bodies, secrets, unredacted private addresses or unsafe terminal control characters. Exact text/frame, circuit, attempt, expiry, outbox/inbox/dedup and log limits are separate finite owner-approved values; a proposed 256 KiB frame cannot be assumed to fit the default relay circuit plus handshakes/ACK. No inherited full-v0.1 numeric SLA applies.
+On receipt, Kami:
 
-## Later v0.1 evolution (conditional, not FM)
+1. Checks frame length/version, authenticated remote device/Peer-ID binding, intended recipient and conversation, cryptographic integrity, and message-ID/content binding.
+2. Atomically checks/inserts the deduplication key (authenticated sender identity + logical message ID), accepted immutable-content binding, sequence/state, and encrypted inbox record.
+3. Rejects same-ID/different-content conflicts rather than accepting a revised message as a retry.
+4. Only after the durable transaction commits, emits an authenticated `device_delivered` receipt.
+5. If a previously accepted same-ID/same-content message returns, does not create a second inbox item or duplicate display; may resend the appropriate ACK.
 
-Durable offline delivery requires a new reviewed per-recipient application ciphertext envelope with origin authentication, immutable logical ID/scope/expiry/key binding, replay policy and separate independently verifiable **service** `mailbox_accepted` and **device** `device_delivered` receipts. Service acceptance follows a durable transaction and cannot imply device/read/task acceptance. Server checks org/project entitlement at enqueue/fetch; endpoint verifies origin/decrypts before durable inbox ACK. Preserve distinct ciphertexts per recipient if needed. New protocol/version and migration vectors must be specified, not an assumption that FM JSON can be signed or its Noise bytes queued.
+A process crash before durable commit must not produce a valid Delivered receipt. A crash after commit but before sending ACK is recovered through same-ID sender retry and replay-safe deduplication.
 
-Groups require authoritative membership/recipient snapshot and version, group-crypto selection, per-device fanout and outcome ledger, committed ordering/gap rules and join/remove/offline recovery. A failed recipient means “complete with failures,” not “fully delivered.” Artifacts require encrypted object references and independent access/integrity checks; resume/chunking is a separately prioritized capability. Agent events (`task.request`, `task.status`, `task.result`, rejection/approval) require versioned capability negotiation and explicit local execution policy. `task_id` is not `message_id`; retry never automatically re-executes external side effects. Two named harness adapters and A2A claims require independent evidence. None is activated by an FM `chat.message` frame.
+## 5. Delivery states and acknowledgments
 
-## Approval and validation gates
+| State / event | Meaning |
+|---|---|
+| `queued` | Local sender transaction has durably retained the message |
+| `in_flight` | A direct or relayed attempt is underway |
+| `attempt_failed` | A particular path or attempt failed; queued message can still retry |
+| `device_delivered` | Authenticated recipient durably saved it and sender verified recipient receipt |
+| `blocked_identity` | Verified contact identity no longer matches; delivery is suspended |
+| `blocked_authorization` | An authorization condition prevents current delivery |
+| `canceled` | Sender explicitly terminated retry attempts |
 
-G0 Product resolves online FM scope and J2 wording. G1 Security approves exact verified descriptor/Peer-ID-to-device binding, Noise configuration and key/history protection; wrong/changed key and relay impersonation must be rejected. G2 Protocol/Product/QA freeze framing and vector bytes, identity fields, receipt issuer/correlation, error taxonomy, SQLite transaction/sync/profile-lock guarantees, late-ACK semantics, bounds, skew and dedup retention. G3 Network/operations pin Rust/Tokio/rust-libp2p features and prove circuit budget/admission, actual direct and automatic fallback on two separate endpoint networks with a third relay. G4 QA executes ACK loss, duplicate/path race, restart after inbox commit before ACK, same-ID content conflict, malformed/oversize/unknown fields, no-route, store-full, cancellation/liveness and redacted-output tests. All of crate compatibility, relay ACL and limits, NAT traversal, key storage, throughput and packaging are unverified until tested; this draft reports no passed tests or security audit.
+Receipts must bind to authenticated sender/recipient, message ID, conversation, and appropriate integrity/authentication context. The sender must reject forged, stale, or mismatched receipts. Relay admission or raw socket write never promotes a message to `device_delivered`.
+
+Read/display, user acknowledgment, future agent task acceptance and task completion are **separate semantics**; M1 does not make them implicit delivery receipts.
+
+## 6. Ordering and missing sequence handling
+
+Ordering is **per sender per conversation**, never a global total order across different people. The sender commits a monotonically increasing sequence with each new logical message. The recipient may durably accept authenticated sequence `N+2` before `N+1`, but:
+
+- Temporarily buffer **presentation** of later messages for a bounded wait.
+- If the earlier sequence is still missing, reveal the later message with an explicit gap indication.
+- If the missing message later arrives, reconcile the displayed history deterministically without duplicating or discarding either item.
+- Avoid indefinite head-of-line blocking; the concrete gap wait and bounds are engineering-owned and covered by tests.
+
+Sequence values do not replace message IDs, cryptographic anti-replay checks, or per-contact authorization.
+
+## 7. Retry and resource discipline
+
+Messages stay in the sender's local encrypted outbox **until delivered or manually canceled**, not until an arbitrary time-to-live. Use bounded retry rates (backoff, jitter, per-peer and relay throttles), connection/resource limits, maximum queued message count/bytes, and explicit queue-pressure errors. When capacity is reached, do not silently drop accepted queued messages; instead reject new enqueue operations or request explicit user action per a defined safe policy.
+
+On service restart, reconstruct pending queues and ratchet/message state transactionally, resume only authorized sends, and validate current contact keys before retry. When a contact's identity unexpectedly changes, hold—not redirect—queued messages pending reverification.
+
+## 8. Local persistence and history
+
+Use SQLite for durable per-endpoint data: verified contacts/reference identities, immutable logical message records, sender sequence allocation, outbox state, inbox/deduplication records, authenticated receipts, presentation ordering/gaps, persistent encrypted history, and supported crypto session state.
+
+- Sensitive message content is encrypted locally; key custody uses approved OS secure-storage integration.
+- Crash consistency must cover durable enqueue-before-send, inbox-before-ACK, ratchet-state consistency, and duplicate detection after restart.
+- A locally deleted message/history item must not silently cancel still-pending transmission. Conversely, explicit cancel must stop outbox retries without claiming remote deletion.
+- Retain compact, protected deduplication evidence as needed after history deletion so delayed retries do not reappear as newly delivered messages.
+- Handle WAL/temporary data, backups, and logs in the local security design.
+
+## 9. Error cases and test matrix
+
+| Case | Required result |
+|---|---|
+| Direct network blocked | Attempt compatible authorized relay; same message ID |
+| All relays unavailable | Message remains queued locally; retry later |
+| Recipient offline | No server mailbox; sender queues until both are online |
+| Sender restarts with pending outbox | Safely resume scheduled attempts with same logical ID |
+| Recipient crashes before persistence | No durable delivery ACK; sender retries |
+| Recipient crashes after persistence before ACK | Retry suppressed as duplicate; ACK can be resent |
+| Duplicate received by direct and relay paths | One durable logical inbox item and visible message |
+| Same ID but conflicting authenticated content | Reject and surface security/protocol error |
+| Forged / wrong-device receipt | Reject; no false Delivered state |
+| Message sequences 1, 3, then 2 | Bounded wait/gap; deterministic reconciliation |
+| Oversized / malformed Protobuf | Reject without excessive allocation or crash |
+| Changed identity key | Suspend pending delivery until explicit reverification |
+| Service restart during crypto exchange | No unsafe nonce reuse or broken ratchet persistence |
+| Cancel queued message | Stop retries, with no promise of recalling already delivered data |
+
+## 10. Engineering contracts to finalize before code integration
+
+Engineering agents own the exact Protobuf field numbers/encoding, canonical signature/authentication context, ID generation, clock handling, SQLite DDL/migrations, receipt signature/MAC details, transaction and crash-recovery design, ordering timeout, retry schedules, and resource bounds. Each choice requires tests and must remain consistent with the canonical identity and architecture contracts. Material violations of approved confidentiality, trust, portability, or M1 scope require owner escalation, not silent substitution.

@@ -13,8 +13,91 @@ different AI agent harnesses, and organization-based collaboration.
 Read these documents before planning or implementing changes:
 - docs/Kami_Project_Requirements.md
 - docs/Kami_Communication_Design.md
+- docs/architecture/Identity_And_Encryption.md
+- docs/architecture/Messaging_Protocol.md
 
 Do not assume proposed features are approved requirements.
+
+## Workflow Policy
+
+### 1. Investigation and study
+
+- Investigation is read-only by default.
+- Report findings, explanations, comparisons, and recommendations in chat.
+- Do not create investigation reports, study Markdown, planning documents, Jira issues, or Obsidian notes without explicit authorization.
+- Investigation does not authorize implementation or changes to project records.
+
+### 2. Pending decisions
+
+- Present unresolved decisions, options, trade-offs, and recommendations in chat.
+- Do not record pending decisions as approved requirements.
+- Do not create Jira issues or Markdown documents merely to track pending approvals.
+- Never make a decision on the owner's behalf.
+- Questions, requested changes, or deferral do not constitute approval.
+- Stop work that depends on an unresolved decision.
+
+### 3. Repository file changes — one-stage approval required
+
+#### Before changing repository files
+
+- This applies to creating, modifying, deleting, renaming, or moving any files or directories in the Kami repository.
+- Briefly summarize the intended changes, their purpose, and affected files.
+- Never present a proposed code diff, patch, or line-by-line change preview.
+- Immediately present an interactive approval menu using `clarify(decision=true)` with exactly two options: `Approve` and `Deny`.
+- Selecting an option immediately records the decision; no extra confirmation is required.
+- This is an immediate, session-local approval. Do not create persistent approval requests or use a dashboard approval queue.
+
+#### If approved
+
+- Make only the authorized file changes.
+- Perform relevant verification or tests.
+- Give a concise completion summary.
+- Do not show a diff unless explicitly requested.
+- Do not request post-change approval.
+- Do not ask for approval again for individual files within the already approved scope.
+
+#### If denied or unanswered
+
+- Do not modify any repository files.
+- Do not interpret silence, discussion, or timeouts as approval.
+- If interactive approval is unavailable, stop dependent work and report the blocker.
+
+#### Version control and deployment
+
+- Never commit, push, merge, or deploy without separate explicit authorization.
+- Permission to change repository files does not imply permission to commit, push, merge, or deploy.
+
+### 4. Approved technical decisions
+
+- After the owner approves a requirement or architecture decision, propose which existing Kami Markdown and Obsidian documents should change; obtain authorization before editing them.
+- Update relevant technical documentation directly rather than creating separate decision logs.
+- Do not turn unapproved proposals into finalized requirements.
+- Keep approved documentation consistent with the implementation and agreed architecture.
+
+### 5. Jira
+
+- Jira is only for actionable coding work: implementation epics, stories, tasks, bugs, and tests.
+- Do not create Jira issues for research, study, planning, governance, approval tracking, or pending decisions.
+- Obtain approval before creating, editing, transitioning, or closing Jira issues.
+- Jira approval does not authorize code implementation, and code approval does not authorize Jira changes.
+- Do not mark a coding issue complete until its implementation satisfies the shared Definition of Done.
+- Each coding issue should include:
+  - A clear summary and expected behavior.
+  - Concise technical context and actionable implementation guidance.
+  - Specific, testable acceptance criteria.
+  - Relevant dependencies and references to approved technical documentation.
+  - A reference to the shared Definition of Done in `AGENTS.md`.
+- Jira implementation guidance must remain short and actionable. Do not duplicate full architecture documentation in Jira.
+
+### 6. Enforcement
+
+- Apply this policy to all Kami agents, including delegated workers and automated Kanban execution.
+- If approval is missing, stop dependent work and ask the owner.
+- Independent, already-authorized work may continue within its approved scope.
+- Do not bypass approval by delegating work; approvals are scoped authorizations, not permanent permissions.
+- A delegated worker's completion report or successful test does not replace the shared Definition of Done.
+- Work awaiting repository-change approval remains blocked until the owner explicitly approves it. After authorized changes are completed, no additional owner approval is required.
+- If an automated worker cannot obtain interactive approval, it reports the pending request and stops dependent work.
 
 ## Project Scope
 Repository: /home/phu/dev/kami
@@ -26,15 +109,30 @@ Only work on Kami when operating under a kami-* profile.
 Do not modify unrelated repositories or projects.
 
 ## Development Rules
-- Use Jira to track planned work.
+- Use Jira only for approved, actionable coding work.
 - Use GitHub branches and pull requests for implementation.
 - Do not push directly to main.
 - Do not merge pull requests without authorization.
 - Keep implementation aligned with approved requirements.
 - Add tests for new behavior and bug fixes.
-- Document architectural decisions and protocol changes.
+- Update architectural and protocol documentation only after an approved decision and explicit authorization to edit.
 - Never commit credentials, tokens, or secrets.
 - Report blockers rather than silently changing requirements.
+
+### Obsidian Architecture Maintenance
+
+- When an authorized repository change materially affects architecture, identify the affected Obsidian architecture notes and diagrams.
+- Update Obsidian only with separate explicit owner authorization; repository-change approval does not authorize vault edits.
+- Keep Obsidian focused on components, interfaces, dependencies, runtime behavior, and implementation evidence rather than Jira tasks or trivial code changes.
+
+### Git Branch Policy
+
+- Determine the current working Git branch dynamically using `git branch --show-current` before making repository changes.
+- Perform authorized repository file changes on the currently checked-out Git branch.
+- Do not assume `main` is always the working branch.
+- Do not automatically create, switch, or merge Git branches without explicit owner authorization.
+- If the repository is in detached HEAD state or the working branch cannot be determined, stop and ask for instructions.
+- When using a separate Git worktree, verify the active branch in that specific worktree.
 
 ## Agent Collaboration
 - Project Manager coordinates task assignments and progress.
@@ -46,9 +144,12 @@ Do not modify unrelated repositories or projects.
 - Evaluator independently reviews deliverables.
 
 ## Completion Requirements
-A development task is complete only when:
-1. Its acceptance criteria are satisfied.
-2. Relevant tests pass.
-3. Documentation is updated when needed.
-4. The implementation is reviewed.
-5. Its Jira issue and GitHub PR are linked.
+The shared Definition of Done for coding issues is:
+
+1. Acceptance criteria are satisfied.
+2. The implementation follows approved requirements and architecture.
+3. Relevant automated tests pass.
+4. Code quality, error handling, and security are reviewed as applicable.
+5. The agent summarizes completed changes and reports relevant verification results. No code diff or post-implementation owner approval is required.
+6. Required technical documentation is updated with authorization.
+7. The Jira issue and GitHub PR are linked where applicable.
