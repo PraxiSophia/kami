@@ -1,0 +1,11 @@
+[package]
+name = "kami-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kami-core = { path = "../kami-core" }
+
+[lints]
+workspace = true

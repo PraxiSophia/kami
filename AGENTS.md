@@ -125,6 +125,16 @@ Do not modify unrelated repositories or projects.
 - Update Obsidian only with separate explicit owner authorization; repository-change approval does not authorize vault edits.
 - Keep Obsidian focused on components, interfaces, dependencies, runtime behavior, and implementation evidence rather than Jira tasks or trivial code changes.
 
+### Kanban-First Coordination
+
+- For substantial implementation, architecture, QA, evaluation, and documentation work, create and assign a task on the existing `kami` Kanban board before execution.
+- `kami-manager` primarily coordinates, obtains owner authorization, assigns specialists, synthesizes results, and verifies completion evidence. It may perform small mechanical actions, short investigations, and read-only audits directly when a Kanban task would add no value.
+- Each Kanban task must identify its owner profile, bounded scope, expected deliverable, verification requirements, applicable approval restrictions, and a Jira issue key when relevant. Jira references provide traceability; do not duplicate Jira's backlog, acceptance criteria, or status model.
+- Record actual execution through Kanban worker runs. Do not create retrospective tasks or attribute direct work to historical Kanban workers.
+- Prefer `kami-senior-dev` for implementation, `kami-qa` for testing, `kami-architect` for architecture, and `kami-evaluator` for independent review when those roles add value; do not require every task to use every profile.
+- Verify worker results and available artifacts before reporting completion.
+- Kanban assignment is coordination only, not authorization to edit repository files, Jira, Obsidian, or Git. Preserve the single-stage `Approve`/`Deny` repository workflow and separate repository, Jira, Obsidian, and Git authorizations.
+
 ### Git Branch Policy
 
 - Determine the current working Git branch dynamically using `git branch --show-current` before making repository changes.

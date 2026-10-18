@@ -3,7 +3,7 @@ title: Kami Module Architecture
 type: architecture
 status: intended-architecture
 ---
-
+q
 # Module Architecture
 
 No Rust workspace or source modules are present in the current repository. The map below is therefore a planned architectural decomposition, not an inventory of existing crates.

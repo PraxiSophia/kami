@@ -1,0 +1,45 @@
+# Rust / Cargo build artifacts
+/target/
+**/target/
+**/*.rs.bk
+*.pdb
+rustc-ice-*.txt
+**/mutants.out*/
+
+# Editor and temporary files
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/shelf/
+.idea/httpRequests/
+.vscode/*.log
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+credentials.json
+credentials.yaml
+credentials.yml
+secrets.json
+secrets.yaml
+secrets.yml
+**/secrets/
+**/private_keys/
+**/key-material/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+
+# Cargo.lock is intentionally tracked.
