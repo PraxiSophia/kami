@@ -11,17 +11,10 @@
             "id": "c7e5ea93c9163b87",
             "type": "leaf",
             "state": {
-              "type": "canvas",
-              "state": {
-                "file": "00 — Architecture Home/Kami Architecture.canvas",
-                "viewState": {
-                  "x": 1140,
-                  "y": 100.00000000000003,
-                  "zoom": -0.6924087906149111
-                }
-              },
-              "icon": "lucide-layout-dashboard",
-              "title": "Kami Architecture"
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
         ]
@@ -193,6 +186,7 @@
   },
   "active": "c7e5ea93c9163b87",
   "lastOpenFiles": [
+    "00 — Architecture Home/Kami Architecture.canvas",
     "01 — System Architecture/System Boundaries.md",
     "00 — Architecture Home/Kami Architecture Home.md",
     "07 — Implementation Map/Implementation Map.md",
@@ -204,7 +198,6 @@
     "03 — Communication Flows/Contact Verification.md",
     "03 — Communication Flows/Communication Flows.md",
     "02 — Module Architecture/Module Architecture.md",
-    "00 — Architecture Home/Kami Architecture.canvas",
     "Reference/Architecture Sources.md",
     "07 — Implementation Map",
     "06 — Runtime and Deployment",

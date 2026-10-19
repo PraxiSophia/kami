@@ -119,6 +119,17 @@ Do not modify unrelated repositories or projects.
 - Never commit credentials, tokens, or secrets.
 - Report blockers rather than silently changing requirements.
 
+### Architecture-First Development Workflow
+
+- Before substantial implementation, assign an appropriate architecture specialist through Kanban to review cohesive module/file boundaries, responsibilities, public interfaces, dependency direction, test organization, and future extensibility.
+- Prefer cohesive Rust modules and appropriately organized crates. Avoid unnecessarily large, highly coupled modules, but do not impose arbitrary file-size limits or split cohesive code solely to reduce line counts.
+- Assign substantial implementation work to suitable development specialists through Kanban and use the reviewed architecture plan.
+- For each substantially changed crate, maintain a concise `crates/<crate>/README.md` describing its current purpose, modules, major interfaces, dependencies, implemented behavior, limitations, and verified manual-test commands.
+- Assign substantial crate README work to an appropriate existing specialist through Kanban; do not create a new agent profile unnecessarily.
+- Before reporting completion, run applicable Cargo compilation/checks, tests, formatting, and Clippy; verify acceptance criteria and report unverified checks or remaining failures explicitly.
+- `kami-manager` must verify worker execution evidence, actual repository changes, and test results before reporting completion.
+- Kanban assignment never bypasses owner authorization. Preserve the existing one-stage `Approve`/`Deny` repository gate and separate repository, Jira, Obsidian, and Git authorization requirements.
+
 ### Obsidian Architecture Maintenance
 
 - When an authorized repository change materially affects architecture, identify the affected Obsidian architecture notes and diagrams.

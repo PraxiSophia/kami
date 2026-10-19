@@ -1,54 +1,22 @@
 #![forbid(unsafe_code)]
 
-use core::fmt;
+//! Pure message-domain facts and deterministic outbox transitions.
+//!
+//! Callers own collision-resistant ID generation, per-sender/conversation
+//! sequence allocation, identity/receipt authentication, durable transactions,
+//! scheduling, and resource accounting. No type here proves cryptographic
+//! authenticity or performs persistence. Replay committed events to reconstruct
+//! a projection; do not reset attempt counters on retry or service restart.
 
-/// Stable identifier for one logical message.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct MessageId(u128);
+mod delivery;
+mod ids;
+mod message;
+mod queue;
 
-impl MessageId {
-    /// Creates an identifier from an already validated value.
-    pub const fn from_u128(value: u128) -> Self {
-        Self(value)
-    }
-
-    /// Returns the underlying identifier value.
-    pub const fn as_u128(self) -> u128 {
-        self.0
-    }
-}
-
-impl fmt::Display for MessageId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{:032x}", self.0)
-    }
-}
-
-/// Monotonic sender sequence within one conversation.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct SenderSequence(u64);
-
-impl SenderSequence {
-    pub const fn new(value: u64) -> Self {
-        Self(value)
-    }
-
-    pub const fn value(self) -> u64 {
-        self.0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{MessageId, SenderSequence};
-
-    #[test]
-    fn identifiers_preserve_values() {
-        let message_id = MessageId::from_u128(7);
-        let sequence = SenderSequence::new(3);
-
-        assert_eq!(message_id.as_u128(), 7);
-        assert_eq!(message_id.to_string(), "00000000000000000000000000000007");
-        assert_eq!(sequence.value(), 3);
-    }
-}
+pub use delivery::{
+    AttemptFailure, Delivery, DeliveryEvent, DeliveryPath, DeliveryState, ReceiptEvidence,
+    TransitionError,
+};
+pub use ids::{ConversationId, DeviceId, MessageId, SenderSequence};
+pub use message::{ContentBinding, MessageConflict, MessageFacts, MessageMatch};
+pub use queue::{QueueLimits, QueuePressure, QueueUsage};
