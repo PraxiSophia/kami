@@ -8,6 +8,18 @@ status: verified-against-repository
 
 This map separates architectural intent from repository evidence. It must be updated when source code materially changes a component boundary or interface.
 
+## Jira implementation dependency maps
+
+Snapshot: live KAMI Jira data retrieved 2026-10-19T02:02:28-04:00. These are point-in-time documentation views, not live Jira dashboards.
+
+- [[Kami Implementation Dependencies]] — native Canvas of Epics, implementation tasks, and verified dependencies.
+- [[Epic Hierarchy Map]] — Epic ownership, kept separate from blocking links.
+- [[Milestone 1 Dependency Graph]] — complete M1 dependency graph.
+- [[Core Protocol Storage]]
+- [[Identity Trust E2EE]]
+- [[Delivery Transport Relays]]
+- [[Integration Runtime Qualification]]
+
 ## Repository evidence
 
 The current `/home/phu/dev/kami` repository contains Markdown documentation and project instructions only. It has no Rust files, `Cargo.toml`, Cargo workspace, crates, modules, database schema, service binary, CLI, or automated tests.

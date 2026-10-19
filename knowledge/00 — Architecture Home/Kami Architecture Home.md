@@ -17,6 +17,13 @@ Kami is a communication-first platform for secure communication between people a
 - [[05 — Data and State/Data and State]] — durable entities, inbox/outbox, receipts, and state transitions.
 - [[06 — Runtime and Deployment/Runtime and Deployment]] — service lifecycle, CLI/IPC, operating systems, and topology.
 - [[07 — Implementation Map/Implementation Map]] — evidence-based implemented versus architecturally defined capabilities.
+- [[07 — Implementation Map/Kami Implementation Dependencies]] — native Canvas of Jira Epics, tasks, and dependencies.
+- [[07 — Implementation Map/Epic Hierarchy Map]] — Jira capability hierarchy; membership is not a blocker.
+- [[07 — Implementation Map/Milestone 1 Dependency Graph]] — complete M1 Jira dependency graph.
+- [[07 — Implementation Map/Core Protocol Storage]] — protocol and persistence workstream.
+- [[07 — Implementation Map/Identity Trust E2EE]] — identity, trust, and session workstream.
+- [[07 — Implementation Map/Delivery Transport Relays]] — delivery and networking workstream.
+- [[07 — Implementation Map/Integration Runtime Qualification]] — runtime and qualification workstream.
 - [[Reference/Architecture Sources]] — canonical sources and maintenance boundary.
 - [[Reference/Glossary]] — shared terminology.
 
