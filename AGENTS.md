@@ -38,7 +38,7 @@ Do not assume proposed features are approved requirements.
 
 ### 3. Repository file changes — one-stage approval required
 
-#### Before changing repository files
+#### Before changing repository files 
 
 - This applies to creating, modifying, deleting, renaming, or moving any files or directories in the Kami repository.
 - Briefly summarize the intended changes, their purpose, and affected files.

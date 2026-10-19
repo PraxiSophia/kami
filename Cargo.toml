@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "crates/kami-core",
     "crates/kami-protocol",
-    "crates/kami-cli",
+    "crates/kami-cli", "crates/kami-security",
 ]
 
 [workspace.package]
