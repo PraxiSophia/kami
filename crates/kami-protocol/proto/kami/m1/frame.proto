@@ -1,0 +1,32 @@
+syntax = "proto3";
+package kami.m1;
+
+// Strict M1 structural profile, NOT a final relay routing or E2EE envelope.
+// All singular fields have explicit presence; tags ascend, minimal varints only.
+// No unknown/duplicate fields, maps, repetition, nesting or strings. IDs are binary
+// big-endian u128 (message/conversation) or opaque 32-byte device references.
+// TEXT requires sequence and forbids receipt_target; DEVICE_DELIVERED reverses this.
+// Both require every other field except mandatory_features (must be absent).
+// Total encoded Frame <= 65536, including all fields; no outer prefix is supplied.
+// Transport must subtract any future outer envelope/prefix from its network budget.
+// Metadata is provisional endpoint-only input: do NOT expose wholesale to relays.
+enum MessageKind {
+  UNSPECIFIED = 0;
+  TEXT = 1;
+  DEVICE_DELIVERED = 2;
+}
+message Frame {
+  optional uint32 protocol_version = 1; // exactly 1
+  optional MessageKind message_kind = 2;
+  optional bytes message_id = 3; // 16 bytes
+  optional bytes conversation_id = 4; // 16 bytes
+  optional bytes sender_device = 5; // 32 bytes
+  optional bytes recipient_device = 6; // 32 bytes
+  optional uint64 sender_sequence = 7; // text only, >0
+  optional uint64 created_at_ms = 8; // 0..253402300799999, display only
+  optional bytes protected_payload = 9; // 1..65536 bytes, total cap further restricts
+  optional bytes authentication_context = 10; // 16..1024 opaque bytes, NOT verified
+  optional bytes receipt_target = 11; // receipt only, 16 bytes
+  optional uint32 mandatory_features = 12; // M1: absent; nonzero unsupported
+  reserved 13 to 31;
+}

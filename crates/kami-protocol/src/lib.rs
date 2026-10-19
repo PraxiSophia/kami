@@ -1,5 +1,19 @@
 #![forbid(unsafe_code)]
 
+mod codec;
+mod error;
+mod frame;
+mod scan;
+mod wire;
+
+pub use codec::{decode_frame, encode_frame, MAX_ENCODED_FRAME_SIZE};
+pub use error::{Field, ProtocolError};
+pub use frame::{validate_for_context, ExpectedContext, FrameInput, StructurallyValidFrame};
+
+/// Supported profile versions; no implicit downgrade or feature negotiation.
+pub const fn supported_versions() -> &'static [u16] {
+    &[M1_PROTOCOL_VERSION]
+}
 pub use kami_core::{MessageId, SenderSequence};
 
 /// M1 protocol version boundary.
