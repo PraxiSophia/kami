@@ -4,20 +4,20 @@
     "type": "split",
     "children": [
       {
-        "id": "6dd8fa4dcac08d0b",
+        "id": "01be622cea21cee6",
         "type": "tabs",
         "children": [
           {
-            "id": "c7e5ea93c9163b87",
+            "id": "2fea1079858e2638",
             "type": "leaf",
             "state": {
               "type": "canvas",
               "state": {
                 "file": "07 — Implementation Map/Kami Implementation Dependencies.canvas",
                 "viewState": {
-                  "x": -529.7564356974561,
-                  "y": -739.0885673745406,
-                  "zoom": -1
+                  "x": 673.2546651307667,
+                  "y": 71.36890977236416,
+                  "zoom": -0.19999999999999984
                 }
               },
               "icon": "lucide-layout-dashboard",
@@ -191,32 +191,37 @@
       "bases:Create new base": false
     }
   },
-  "active": "c7e5ea93c9163b87",
+  "active": "2fea1079858e2638",
   "lastOpenFiles": [
-    "07 — Implementation Map/Identity Trust E2EE.md",
     "07 — Implementation Map/Epic Hierarchy Map.md",
     "07 — Implementation Map/Delivery Transport Relays.md",
     "07 — Implementation Map/Core Protocol Storage.md",
-    "07 — Implementation Map/Implementation Map.md",
-    "07 — Implementation Map/Kami Implementation Dependencies.canvas",
-    "07 — Implementation Map/Integration Runtime Qualification.md",
+    "Code Analyzing/kami-core.md",
+    "Code Analyzing/kami-cli.md",
+    "Code Analyzing/kami-identity.md",
+    "Code Analyzing/kami-storage.md",
+    "Code Analyzing/kami-protocol.md",
+    "Code Analyzing/kami-key-provider.md",
+    "Code Analyzing/Code Analysis Home.md",
+    "Untitled.base",
+    "Code Analyzing",
+    "02 — Module Architecture/Module Architecture.md",
+    "Owner-Notes/Change Log.md",
     "07 — Implementation Map/Milestone 1 Dependency Graph.md",
+    "07 — Implementation Map/Kami Implementation Dependencies.canvas",
+    "07 — Implementation Map/Identity Trust E2EE.md",
+    "07 — Implementation Map/Implementation Map.md",
+    "07 — Implementation Map/Integration Runtime Qualification.md",
     "Reference/Update Workflow.md",
     "Reference/Glossary.md",
     "Reference/Architecture Sources.md",
     "Owner-Notes/README.md",
-    "Owner-Notes/Change Log.md",
     "00 — Architecture Home/Kami Architecture.canvas",
     "01 — System Architecture/System Boundaries.md",
     "00 — Architecture Home/Kami Architecture Home.md",
     "06 — Runtime and Deployment/Runtime and Deployment.md",
     "05 — Data and State/Data and State.md",
     "04 — Security and Identity/Security and Identity.md",
-    "03 — Communication Flows/Service Lifecycle.md",
-    "03 — Communication Flows/Relay Fallback and Retry.md",
-    "03 — Communication Flows/Contact Verification.md",
-    "03 — Communication Flows/Communication Flows.md",
-    "02 — Module Architecture/Module Architecture.md",
     "07 — Implementation Map",
     "06 — Runtime and Deployment",
     "05 — Data and State",
@@ -224,9 +229,6 @@
     "03 — Communication Flows",
     "02 — Module Architecture",
     "01 — System Architecture",
-    "00 — Architecture Home",
-    "Jira/KAMI-9.md",
-    "Jira/KAMI-7.md",
-    "Jira/KAMI-5.md"
+    "00 — Architecture Home"
   ]
 }

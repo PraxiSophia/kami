@@ -4,6 +4,9 @@ members = [
     "crates/kami-core",
     "crates/kami-protocol",
     "crates/kami-cli",
+    "crates/kami-key-provider",
+    "crates/kami-identity",
+    "crates/kami-storage",
 ]
 
 [workspace.package]

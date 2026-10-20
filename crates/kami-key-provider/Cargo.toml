@@ -1,0 +1,17 @@
+[package]
+name = "kami-key-provider"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[features]
+default = []
+test-provider = []
+
+[dependencies]
+zeroize = "=1.9.1"
+
+[lints.rust]
+unsafe_code = "forbid"
+[lints.clippy]
+all = "deny"

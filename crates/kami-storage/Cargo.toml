@@ -1,0 +1,23 @@
+[package]
+name = "kami-storage"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+kami-core = { path = "../kami-core" }
+kami-key-provider = { path = "../kami-key-provider" }
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled-sqlcipher-vendored-openssl", "limits"] }
+zeroize = "=1.9.1"
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "=1.1.5", features = ["fs", "process"] }
+
+[dev-dependencies]
+kami-key-provider = { path = "../kami-key-provider", features = ["test-provider"] }
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+[lints.clippy]
+all = "deny"
