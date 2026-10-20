@@ -47,6 +47,14 @@ Do not assume proposed features are approved requirements.
 - Selecting an option immediately records the decision; no extra confirmation is required.
 - This is an immediate, session-local approval. Do not create persistent approval requests or use a dashboard approval queue.
 
+#### Delegated Kanban approval relay
+
+- An interactive `kami-manager` approval may authorize an existing Kanban implementation task only through an explicit recorded approval created after the owner selects `Approve`.
+- The recorded approval must name the repository, exact Kanban task ID(s), exact permitted file paths, permitted file operations, and any required serialization constraint. It must identify `kami-manager` as the approving profile and remain bound to the approved task scope.
+- Before editing, a worker must read back and verify that approval record. Missing, denied, expired, malformed, ambiguous, or mismatched approval blocks execution. Workers cannot create, approve, extend, or reinterpret their own authorization.
+- Approval does not cover future or unrelated tasks. Any path, operation, task, or scope expansion requires a new interactive owner approval and a new recorded approval.
+- This relay changes only how the mandatory owner approval reaches an explicitly named worker task; it does not authorize Jira, Obsidian, Git, commits, pushes, merges, deployments, or other external operations, which remain separately authorized.
+
 #### If approved
 
 - Make only the authorized file changes.

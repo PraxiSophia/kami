@@ -1,0 +1,14 @@
+[package]
+name = "kami-storage-plaintext-negative-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+[workspace]
+[dependencies]
+kami-key-provider = { path = "../../../kami-key-provider" }
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled", "limits"] }
+zeroize = "=1.9.1"
+rustix = { version = "=1.1.5", features = ["fs", "process"] }
+tempfile = "3"
+[lints.rust]
+unsafe_code = "forbid"

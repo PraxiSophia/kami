@@ -6,6 +6,10 @@ license.workspace = true
 
 [dependencies]
 kami-core = { path = "../kami-core" }
+prost = "=0.14.4"
+
+[dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
 
 [lints]
 workspace = true
