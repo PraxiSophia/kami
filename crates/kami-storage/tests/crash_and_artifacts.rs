@@ -18,6 +18,20 @@ fn crash_child() {
         Config::default(),
     )
     .unwrap();
+    if mode == "trust" {
+        s.compare_and_swap_contact(
+            None,
+            kami_storage::ContactTrustRow::new(
+                [7; 32],
+                kami_storage::TrustState::Blocked,
+                1,
+                Some(b"SECRET-CONTENT-storage-regression-marker".to_vec()),
+                b"SECRET-CONTENT-storage-regression-marker".to_vec(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    }
     if mode == "outbox" {
         s.enqueue(message(facts(1, 1))).unwrap();
     }
@@ -51,7 +65,7 @@ impl Drop for Child {
 }
 #[test]
 fn kill_restart_recovers_committed_facts_and_discards_uncommitted_work() {
-    for mode in ["outbox", "inbox", "uncommitted"] {
+    for mode in ["outbox", "inbox", "uncommitted", "trust"] {
         let dir = directory();
         let mut child = Child(
             std::process::Command::new(std::env::current_exe().unwrap())
@@ -75,6 +89,15 @@ fn kill_restart_recovers_committed_facts_and_discards_uncommitted_work() {
         child.0.kill().unwrap();
         child.0.wait().unwrap();
         let s = open(&dir);
+        if mode == "trust" {
+            let row = s.load_contact([7; 32]).unwrap().unwrap();
+            assert_eq!(row.state(), kami_storage::TrustState::Blocked);
+            assert_eq!(row.candidate(), b"SECRET-CONTENT-storage-regression-marker");
+            assert_eq!(
+                row.pinned(),
+                Some(b"SECRET-CONTENT-storage-regression-marker".as_slice())
+            );
+        }
         if mode == "outbox" {
             assert_eq!(s.pending(1).unwrap()[0].facts(), facts(1, 1));
         }

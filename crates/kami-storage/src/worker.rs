@@ -25,6 +25,8 @@ impl Default for Config {
     }
 }
 enum Request {
+    LoadContact([u8; 32], Reply<Option<crate::ContactTrustRow>>),
+    CasContact(Option<u64>, crate::ContactTrustRow, Reply<()>),
     #[cfg(test)]
     Pause(mpsc::SyncSender<()>, mpsc::Receiver<()>),
     Cipher(Reply<String>),
@@ -53,6 +55,23 @@ pub struct Storage {
     thread: Option<JoinHandle<()>>,
 }
 impl Storage {
+    /// Load one bounded neutral trust row. The service must revalidate its
+    /// cryptographic contents; a stored Verified tag alone is not authentication.
+    pub fn load_contact(
+        &self,
+        contact: [u8; 32],
+    ) -> Result<Option<crate::ContactTrustRow>, StorageError> {
+        self.call(|reply| Request::LoadContact(contact, reply))
+    }
+    /// Atomic durable insert/CAS on the existing encrypted worker. None inserts
+    /// generation 1; Some(n) requires n+1. Service owns trust-transition policy.
+    pub fn compare_and_swap_contact(
+        &self,
+        expected: Option<u64>,
+        next: crate::ContactTrustRow,
+    ) -> Result<(), StorageError> {
+        self.call(|reply| Request::CasContact(expected, next, reply))
+    }
     pub fn create(
         lease: ProfileLease,
         profile: ProfileKeyId,
@@ -103,6 +122,12 @@ impl Storage {
                 let _ = ready.send(Ok(()));
                 while let Ok(request) = receiver.recv() {
                     match request {
+                        Request::LoadContact(contact, reply) => {
+                            let _ = reply.send(crate::contact_trust::load(&db, contact));
+                        }
+                        Request::CasContact(expected, next, reply) => {
+                            let _ = reply.send(crate::contact_trust::cas(&mut db, expected, next));
+                        }
                         Request::NextSequence(c, s, reply) => {
                             let _ = reply.send(crate::transactions::next_sequence(&db, c, s));
                         }

@@ -1,8 +1,10 @@
 # kami-identity
 
-Protected one-device **identity/key-custody boundary**, not contact trust, transport,
-E2EE, SQL, or full profile enrollment. Depends on `kami-key-provider` only for the
-shared storage-key contract; never depends on `kami-storage` or `kami-protocol`.
+Protected one-device **identity/key-custody and explicit contact-trust boundary**.
+No transport, E2EE, SQL, or full profile enrollment. Production project dependency
+is `kami-key-provider`; never depends on `kami-storage` or `kami-protocol`. Binding
+uses `libp2p-identity = 0.3.0` (Ed25519/PeerId only); fingerprints use `sha2 = 0.11.1`.
+These are cryptographic primitives/identity encodings, not a network runtime.
 
 ## Modules and interfaces
 
@@ -21,9 +23,82 @@ shared storage-key contract; never depends on `kami-storage` or `kami-protocol`.
 - `native`: explicitly target-selected `NativeStore`; no process-global keyring
   builder, in-memory fallback, plaintext credential file, reset or deletion API.
 
-These Ed25519 descriptors are not a Signal session profile or a Peer-ID binding
-proof. Later trust/binding/session components must define and review those
-contracts; this crate does not sign arbitrary IPC requests or export seeds.
+- `fingerprint`: validates canonical nonweak Ed25519 keys through dalek and
+  derives `DeviceFingerprint` using SHA-256. `parse_display` accepts only the full
+  canonical lowercase grouped comparison value, never an abbreviation.
+- `binding`: checked `PeerBindingProof` parsing and `verify_peer_binding` require
+  canonical libp2p transport-key/PeerId derivation, strict device signatures and
+  the actual authenticated recipient PeerId. `Custody::create_peer_binding` signs
+  only this fixed transcript after checking the protected seed against enrollment.
+- `descriptor`: `Invitation` checks bounded public descriptors and self-signatures;
+  every import remains untrusted. v1 has no names, addresses, relay hints or expiry;
+  routing configuration belongs to transport composition and never conveys trust.
+- `trust`: checked `ContactTrust` snapshots, `TrustTransition`, snapshot-bound
+  `VerificationEvidence`, `ContactTrustRepository` and pure `send_decision`.
+  No network assertion or valid self-signature promotes a contact automatically.
+
+## Version-1 fingerprint and binding encoding
+
+Fingerprint transcript is exactly `b"kami-device-fingerprint-v1\0" || key[32]`.
+Display the entire SHA-256 digest as eight lowercase eight-hex-digit groups,
+separated by one space. The version is carried by the descriptor/type contract.
+RFC8032 public key
+`d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a`
+yields `126dea50 6043ab05 799ddbc6 de4d4e74 3a798401 ad1cfe32 5b4a9106 e6d84b67`.
+Both RFC vectors were independently checked with shell byte escapes/sha256sum.
+
+Binding signature transcript is exactly `b"kami-peer-binding-v1\0" ||
+u16be(public_key_protobuf_len) || canonical_public_key_protobuf ||
+u16be(peer_id_len) || PeerId::to_bytes()`. Wire encoding is byte `1`, those
+length-delimited fields, then the 64-byte Ed25519 signature. Only canonical,
+nonweak Ed25519 transport keys are supported in v1. Each field is at most 128
+bytes, proof at most 325 bytes; trailing bytes and unknown versions fail closed.
+`Invitation` wire is `b"KINV" || 1u8 || device_key[32] || u16be(proof_len) || proof`;
+input is capped at 512 bytes before allocation. It contains only public data but
+Debug/errors still redact it. Detached signature validity is **not** live transport
+private-key possession, independent human verification, or E2EE.
+
+## Trust, durability and send integration
+
+Each endpoint independently compares the other endpoint's full fingerprint over
+an already trusted external channel and performs an affirmative **local** action.
+Pass that independently obtained value to `VerificationEvidence::independent_comparison`;
+never auto-fill it from a received invitation/network assertion. An API cannot
+prove that a human actually used an independent channel or that the remote human
+verified their side. Tests simulate both independent actions rather than claiming
+one endpoint can attest the other.
+
+New imports create `Pending`. Fresh explicit comparison/action permits `Verified`;
+identity or pinned Peer-ID change becomes `Changed`, preserving prior pin and
+candidate separately. `Blocked` survives import/restart. Explicit unblock returns
+to pending/changed, never directly verified; fresh verification is still required.
+Evidence is single-use and bound to the candidate plus generation. Every successful
+transition advances the checked generation; no silent pin replacement or TOFU.
+
+`ContactTrustRepository` is the service composition seam. Use the existing
+SQLCipher storage worker's bounded neutral `ContactTrustRow`/`load_contact`/
+`compare_and_swap_contact`, mapping state enums explicitly and serializing pinned
+and candidate invitations separately. Restore through `ContactTrust::from_persisted`
+to revalidate all signatures/bounds/invariants; do not trust a database state tag
+alone. Insert generation 1 with expected None, subsequent CAS uses prior generation
+and next generation n+1. Publish a transition only after commit. On conflict/error,
+reload/recompute, never blind overwrite. `kami-storage/tests/identity_trust.rs`
+contains an exercised service-adapter example, including restarts in all states;
+there is no production identity/storage dependency or identity-local database.
+
+`send_decision` denies unknown, pending, changed, blocked, unauthenticated or forged
+bindings. Pass the immutable queued recipient's original **device public key**,
+not the current candidate; maintain the service's authenticated DeviceId-to-key
+mapping. After adopting a different device key, old sends remain held, not retargeted.
+Authenticated PeerId must come from the actual secure connection's remote endpoint,
+including the end-to-end peer on a relay circuit, not the relay or invitation.
+Services must observe changes durably, check fresh trust before enqueue **and every
+retry/receive**, and serialize trust/check/enqueue/send authorization (or integrate
+an atomic generation guard). A pure snapshot decision alone cannot close that race.
+**No sender/service or direct/relayed transport path is implemented here.** KAMI-27/
+KAMI-30 own actual-path validation; KAMI-51 owns E2EE/session integration. No live
+network, Signal/ratchet, cross-OS or physical-network qualification is claimed.
+
 
 ## Enrollment, restart, and key loss
 
@@ -86,6 +161,17 @@ never on network tasks or inside SQL transactions.
 ## Verification
 
 From repository root, after the sole integrator resolves Cargo.lock:
+
+Focused KAMI-50 vectors, import/binding negatives, local bilateral actions,
+state histories, redaction and no-redirect decisions:
+
+```sh
+cargo test --locked -p kami-identity --test fingerprint --test binding --test invitation --test trust
+cargo test --locked -p kami-storage --test contact_trust --test identity_trust
+```
+
+Workspace check/build/test/fmt/strict Clippy were also run with all features;
+the existing ignored native probes are separate qualification, not KAMI-50 evidence.
 
 ```sh
 cargo check --locked -p kami-key-provider -p kami-identity --all-targets --all-features

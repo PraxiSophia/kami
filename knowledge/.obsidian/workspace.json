@@ -11,17 +11,14 @@
             "id": "2fea1079858e2638",
             "type": "leaf",
             "state": {
-              "type": "canvas",
+              "type": "markdown",
               "state": {
-                "file": "07 — Implementation Map/Kami Implementation Dependencies.canvas",
-                "viewState": {
-                  "x": 673.2546651307667,
-                  "y": 71.36890977236416,
-                  "zoom": -0.19999999999999984
-                }
+                "file": "Code Analyzing/kami-core.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-layout-dashboard",
-              "title": "Kami Implementation Dependencies"
+              "icon": "lucide-file",
+              "title": "kami-core"
             }
           }
         ]
@@ -193,22 +190,22 @@
   },
   "active": "2fea1079858e2638",
   "lastOpenFiles": [
-    "07 — Implementation Map/Epic Hierarchy Map.md",
-    "07 — Implementation Map/Delivery Transport Relays.md",
-    "07 — Implementation Map/Core Protocol Storage.md",
-    "Code Analyzing/kami-core.md",
-    "Code Analyzing/kami-cli.md",
-    "Code Analyzing/kami-identity.md",
+    "07 — Implementation Map/Kami Implementation Dependencies.canvas",
     "Code Analyzing/kami-storage.md",
     "Code Analyzing/kami-protocol.md",
     "Code Analyzing/kami-key-provider.md",
+    "Code Analyzing/kami-identity.md",
+    "Code Analyzing/kami-core.md",
+    "Code Analyzing/kami-cli.md",
     "Code Analyzing/Code Analysis Home.md",
-    "Untitled.base",
     "Code Analyzing",
+    "07 — Implementation Map/Epic Hierarchy Map.md",
+    "07 — Implementation Map/Delivery Transport Relays.md",
+    "07 — Implementation Map/Core Protocol Storage.md",
+    "Untitled.base",
     "02 — Module Architecture/Module Architecture.md",
     "Owner-Notes/Change Log.md",
     "07 — Implementation Map/Milestone 1 Dependency Graph.md",
-    "07 — Implementation Map/Kami Implementation Dependencies.canvas",
     "07 — Implementation Map/Identity Trust E2EE.md",
     "07 — Implementation Map/Implementation Map.md",
     "07 — Implementation Map/Integration Runtime Qualification.md",

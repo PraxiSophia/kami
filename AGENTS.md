@@ -144,6 +144,15 @@ Do not modify unrelated repositories or projects.
 - Update Obsidian only with separate explicit owner authorization; repository-change approval does not authorize vault edits.
 - Keep Obsidian focused on components, interfaces, dependencies, runtime behavior, and implementation evidence rather than Jira tasks or trivial code changes.
 
+### Critical-Task Policy
+
+- Classify a task as security-critical or architecturally critical when failure could materially compromise cryptographic confidentiality, integrity, authentication, key management, identity/trust/access control, encrypted persistence or crash recovery, secure transport/relay boundaries, protocol/session/replay invariants, message correctness, delivery guarantees, or durable security state.
+- Classify conservatively when uncertain.
+- For critical tasks, Kanban must sequence: focused `kami-architect` review → independent `kami-evaluator` security/feasibility review → `kami-senior-dev` implementation → independent `kami-qa` verification → independent `kami-evaluator` final review → `kami-manager` reconciliation.
+- Evaluator findings block progression until fixed or explicitly escalated to the owner.
+- Routine documentation, formatting, isolated low-risk refactoring, and ordinary CLI presentation are not critical by default.
+- Kanban assignment does not authorize repository, Jira, Obsidian, or Git changes; the existing scoped `Approve`/`Deny` repository gate remains mandatory.
+
 ### Kanban-First Coordination
 
 - For substantial implementation, architecture, QA, evaluation, and documentation work, create and assign a task on the existing `kami` Kanban board before execution.

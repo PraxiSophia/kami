@@ -51,6 +51,47 @@ late receipt may record actual delivery after cancellation. Terminal outbox payl
 are cleared; compact immutable dedup/receipt evidence remains encrypted. This is
 logical deletion, **not forensic erasure**.
 
+## Contact trust (KAMI-50)
+
+`migrations/002_contact_trust.sql` adds encrypted neutral contact rows; existing
+v1 databases upgrade atomically to v2 on open, and fresh create applies both
+migrations in one transaction. Existing profile namespace is checked before schema
+migration, so a wrong namespace cannot rewrite a v1 database. A failed upgrade leaves the old schema/version/data
+intact. No sidecar, second database, plaintext trust store or message-payload reuse.
+
+`contact_trust` exports `ContactTrustRow`, `TrustState` and the 512-byte descriptor
+bound. A row has a stable service-owned 32-byte contact ID, format version, state,
+positive checked generation, optional prior pinned descriptor and separate candidate.
+Bounds/state-shape constraints are checked in Rust, SQL and on load (lengths before
+copying). `Storage::load_contact` and `compare_and_swap_contact` use the existing
+bounded worker/SQLCipher connection. None inserts generation 1; Some(n) commits
+only generation n+1 against the current generation, rejecting stale block/change/
+verification writers. Results return only after durable commit. The existing page
+and command queue limits apply; there is no unbounded contact-list API.
+
+These neutral public-descriptor blobs are NOT cryptographically authenticated by
+storage. Trusted service composition must enforce identity transitions and map
+rows through `kami_identity::ContactTrust::from_persisted` to recheck signatures,
+versions and invariants. `tests/identity_trust.rs` is an exercised adapter example;
+identity is a **dev dependency only**, never a production storage dependency.
+Do not expose the neutral row constructor/CAS or trusted restoration path as IPC
+"set verified". Current enqueue/pending behavior remains unchanged: callers must
+check current durable trust before enqueue/retry and serialize that check with
+sending; no runtime sender enforcement or E2EE is claimed.
+
+Focused executed commands (from repository root):
+
+```sh
+cargo test --locked -p kami-storage --test contact_trust --test identity_trust
+cargo test --locked -p kami-storage --test crash_and_artifacts
+cargo test --locked -p kami-storage --lib
+```
+
+Coverage includes encrypted v1 upgrade preserving outbox facts, all trust-state
+restarts, stale/concurrent CAS writers, malformed durable descriptors/oversized
+rows, checked generations, redacted Debug, process-kill recovery of blocked trust,
+and absence of fixture trust/payload/key bytes in inspected live DB/WAL/sidecars.
+
 ## Bounds and local protection
 
 Default `Config`: 32 queued requests (permitted range 1..=1024), 4,096 pending outbox

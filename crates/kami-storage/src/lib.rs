@@ -1,4 +1,6 @@
 //! SQLCipher-only, synchronous-command storage on one bounded worker thread.
+mod contact_trust;
+pub use contact_trust::{ContactTrustRow, TrustState, MAX_CONTACT_DESCRIPTOR_BYTES};
 mod error;
 mod inbox;
 mod lease;

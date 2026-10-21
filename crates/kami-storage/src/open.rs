@@ -140,6 +140,19 @@ pub(crate) fn connect(
     if actual_pages > max_pages {
         return Err(StorageError::Full);
     }
+    // Existing encrypted profiles must be namespace-bound BEFORE an additive
+    // migration can mutate their schema. Unknown/empty schemas retain migration's
+    // existing fail-closed diagnostics.
+    let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    if !create && (1..=migrations::VERSION).contains(&version) {
+        let namespace: String =
+            db.query_row("SELECT namespace FROM profile WHERE singleton=1", [], |r| {
+                r.get(0)
+            })?;
+        if namespace != profile.as_str() {
+            return Err(StorageError::WrongKeyOrCorrupt);
+        }
+    }
     migrations::migrate(&mut db, create)?;
     // Schema identity binds a keyed database to the requested credential namespace.
     if create {

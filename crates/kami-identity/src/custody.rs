@@ -63,6 +63,22 @@ impl<S: SecretStore> Custody<S> {
         }
     }
 
+    /// Sign only the fixed v1 Peer-ID binding transcript. Run on a bounded
+    /// blocking custody worker, never inside a storage transaction/network task.
+    pub fn create_peer_binding(
+        &self,
+        record: &EnrollmentRecord,
+        public: &libp2p_identity::PublicKey,
+    ) -> Result<crate::PeerBindingProof, crate::IdentityError> {
+        let seed =
+            read_key(&self.0, record.identity_handle()).map_err(crate::IdentityError::Custody)?;
+        let key = ed25519_dalek::SigningKey::from_bytes(&seed);
+        if key.verifying_key().to_bytes() != *record.public_key() {
+            return Err(crate::IdentityError::Custody(KeyError::Corrupt));
+        }
+        crate::PeerBindingProof::sign(public, &key)
+    }
+
     /// Ordinary startup: read-only, no provisioning, replacement or downgrade.
     pub fn open_existing(&self, record: &EnrollmentRecord) -> Result<(), KeyError> {
         self.check_identity(record)?;
