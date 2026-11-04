@@ -7,6 +7,7 @@ members = [
     "crates/kami-key-provider",
     "crates/kami-identity",
     "crates/kami-storage",
+    "crates/kami-e2ee",
 ]
 
 [workspace.package]

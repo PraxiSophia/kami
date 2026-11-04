@@ -7,11 +7,21 @@ pub(crate) fn enqueue(
     quota: u64,
     count_quota: u32,
 ) -> Result<(), StorageError> {
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    enqueue_in(&tx, msg, quota, count_quota)?;
+    tx.commit()?;
+    Ok(())
+}
+pub(crate) fn enqueue_in(
+    tx: &rusqlite::Transaction<'_>,
+    msg: StoredMessage,
+    quota: u64,
+    count_quota: u32,
+) -> Result<(), StorageError> {
     let f = msg.facts();
     let id = f.message_id().as_u128().to_be_bytes();
     let conversation = f.conversation_id().as_u128().to_be_bytes();
     let encoded = message::encode(f);
-    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let existing: Option<(Vec<u8>, Option<Vec<u8>>, i64)> = tx
         .query_row(
             "SELECT facts,payload,direction FROM message WHERE sender=?1 AND id=?2",
@@ -23,7 +33,6 @@ pub(crate) fn enqueue(
         if facts != encoded || direction != 0 || payload.as_deref() != Some(msg.payload()) {
             return Err(StorageError::Conflict);
         }
-        tx.commit()?;
         return Ok(());
     }
     let count: i64 = tx.query_row(
@@ -61,7 +70,6 @@ pub(crate) fn enqueue(
         "INSERT INTO history VALUES(?1,?2,?3)",
         params![f.sender().as_bytes(), id, msg.payload()],
     )?;
-    tx.commit()?;
     Ok(())
 }
 
@@ -89,7 +97,7 @@ pub(crate) fn pending(db: &Connection, limit: usize) -> Result<Vec<StoredMessage
     if limit == 0 || limit > 1024 {
         return Err(StorageError::InvalidInput);
     }
-    let mut statement = db.prepare("SELECT facts,payload FROM message WHERE direction=0 AND state=0 ORDER BY conversation,sender,sequence LIMIT ?1")?;
+    let mut statement = db.prepare("SELECT facts,payload FROM message m WHERE direction=0 AND state=0 AND NOT EXISTS(SELECT 1 FROM e2ee_frame f WHERE f.sender=m.sender AND f.id=m.id) ORDER BY conversation,sender,sequence LIMIT ?1")?;
     let mut rows = statement.query([limit as i64])?;
     let mut messages = Vec::new();
     while let Some(row) = rows.next()? {

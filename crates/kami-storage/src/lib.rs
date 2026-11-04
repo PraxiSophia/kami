@@ -1,4 +1,6 @@
 //! SQLCipher-only, synchronous-command storage on one bounded worker thread.
+mod contact_trust;
+pub use contact_trust::{ContactTrustRow, TrustState, MAX_CONTACT_DESCRIPTOR_BYTES};
 mod error;
 mod inbox;
 mod lease;
@@ -9,6 +11,9 @@ pub use inbox::Acceptance;
 mod ordering;
 mod outbox;
 mod transactions;
+// Private until provider imports, runtime provenance and rollback policy qualify.
+#[allow(dead_code)]
+mod session_state;
 pub use ordering::OrderedMessage;
 mod worker;
 pub use message::StoredMessage;
