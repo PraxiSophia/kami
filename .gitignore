@@ -43,3 +43,10 @@ secrets.yml
 *.jks
 
 # Cargo.lock is intentionally tracked.
+
+
+# Local AI agent configurations and skills
+.agents/
+
+# Archify generated JSON artifacts
+knowledge/Code Analyzing/Visualizations/**/*.json
