@@ -6,6 +6,7 @@ license = "MIT"
 
 [dependencies]
 kami-core = { path = "../kami-core" }
+kami-e2ee = { path = "../kami-e2ee" }
 kami-key-provider = { path = "../kami-key-provider" }
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled-sqlcipher-vendored-openssl", "limits"] }
 zeroize = "=1.9.1"
@@ -14,6 +15,7 @@ zeroize = "=1.9.1"
 rustix = { version = "=1.1.5", features = ["fs", "process"] }
 
 [dev-dependencies]
+kami-identity = { path = "../kami-identity" }
 kami-key-provider = { path = "../kami-key-provider", features = ["test-provider"] }
 tempfile = "3"
 

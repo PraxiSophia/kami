@@ -1,8 +1,24 @@
 # kami-identity
 
-Protected one-device **identity/key-custody boundary**, not contact trust, transport,
-E2EE, SQL, or full profile enrollment. Depends on `kami-key-provider` only for the
-shared storage-key contract; never depends on `kami-storage` or `kami-protocol`.
+Protected one-device **identity/key-custody and explicit contact-trust boundary**.
+No transport, E2EE, SQL, or full profile enrollment. Production project dependency
+is `kami-key-provider`; never depends on `kami-storage` or `kami-protocol`. Binding
+uses `libp2p-identity = 0.3.0` (Ed25519/PeerId only); fingerprints use `sha2 = 0.11.1`.
+These are cryptographic primitives/identity encodings, not a network runtime.
+
+## Implementation and qualification status
+
+KAMI-23 is functionally implemented in the current Rust tree. Its local identity,
+custody, trust, fingerprint, Peer-ID binding, and WP2-A1 binding tests pass on the
+tested Linux checkout, and KAMI-50's trust/binding scope has separate implementation
+evidence. Jira last reported KAMI-23 as **In Progress** on 2026-11-03 because native
+Windows/macOS and broader platform qualification remain incomplete; that workflow
+status does not mean the core Rust implementation is unfinished. Independent review
+and owner acceptance are separate claims and must not be inferred from Jira status.
+
+Production readiness is not claimed. Native Windows/macOS behavior, Linux logged-in
+secure-store qualification, cross-process enrollment/lease integration, live transport
+Peer-ID provenance, and full M1 qualification remain pending.
 
 ## Modules and interfaces
 
@@ -21,9 +37,145 @@ shared storage-key contract; never depends on `kami-storage` or `kami-protocol`.
 - `native`: explicitly target-selected `NativeStore`; no process-global keyring
   builder, in-memory fallback, plaintext credential file, reset or deletion API.
 
-These Ed25519 descriptors are not a Signal session profile or a Peer-ID binding
-proof. Later trust/binding/session components must define and review those
-contracts; this crate does not sign arbitrary IPC requests or export seeds.
+- `fingerprint`: validates canonical nonweak Ed25519 keys through dalek and
+  derives `DeviceFingerprint` using SHA-256. `parse_display` accepts only the full
+  canonical lowercase grouped comparison value, never an abbreviation.
+- `binding`: checked `PeerBindingProof` parsing and `verify_peer_binding` require
+  canonical libp2p transport-key/PeerId derivation, strict device signatures and
+  the actual authenticated recipient PeerId. `Custody::create_peer_binding` signs
+  only this fixed transcript after checking the protected seed against enrollment.
+- `olm_binding`: WP2-A1 `OlmBindingData`, `OlmBindingProof`, `OlmPrekeyKind` and
+  `verify_olm_binding` associate a device with selected public Olm account/prekey
+  data. `Custody::create_olm_binding` is the only public signing entry point; it
+  exports neither the protected identity seed nor an arbitrary-signing API.
+- `descriptor`: `Invitation` checks bounded public descriptors and self-signatures;
+  every import remains untrusted. v1 has no names, addresses, relay hints or expiry;
+  routing configuration belongs to transport composition and never conveys trust.
+- `trust`: checked `ContactTrust` snapshots, `TrustTransition`, snapshot-bound
+  `VerificationEvidence`, `ContactTrustRepository` and pure `send_decision`.
+  No network assertion or valid self-signature promotes a contact automatically.
+
+## Version-1 fingerprint and binding encoding
+
+Fingerprint transcript is exactly `b"kami-device-fingerprint-v1\0" || key[32]`.
+Display the entire SHA-256 digest as eight lowercase eight-hex-digit groups,
+separated by one space. The version is carried by the descriptor/type contract.
+RFC8032 public key
+`d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a`
+yields `126dea50 6043ab05 799ddbc6 de4d4e74 3a798401 ad1cfe32 5b4a9106 e6d84b67`.
+Both RFC vectors were independently checked with shell byte escapes/sha256sum.
+
+Binding signature transcript is exactly `b"kami-peer-binding-v1\0" ||
+u16be(public_key_protobuf_len) || canonical_public_key_protobuf ||
+u16be(peer_id_len) || PeerId::to_bytes()`. Wire encoding is byte `1`, those
+length-delimited fields, then the 64-byte Ed25519 signature. Only canonical,
+nonweak Ed25519 transport keys are supported in v1. Each field is at most 128
+bytes, proof at most 325 bytes; trailing bytes and unknown versions fail closed.
+`Invitation` wire is `b"KINV" || 1u8 || device_key[32] || u16be(proof_len) || proof`;
+input is capped at 512 bytes before allocation. It contains only public data but
+Debug/errors still redact it. Detached signature validity is **not** live transport
+private-key possession, independent human verification, or E2EE.
+
+## WP2-A1 signed identity-to-Olm binding
+
+[`src/olm_binding.rs`](src/olm_binding.rs) implements a bounded detached device
+signature over one selected Olm account/prekey bundle. The exact signed transcript
+is fixed order (all integer encodings are big-endian):
+
+```text
+b"kami-olm-binding-v1\0" || version:u8=1 || device_key[32] ||
+peer_len:u16 || canonical_PeerId_bytes || olm_ed25519[32] ||
+olm_curve25519[32] || prekey_kind:u8 || reference_len:u16 || reference ||
+prekey_curve25519[32] || binding_generation:u64 || bundle_generation:u64 ||
+not_before_ms:u64 || expires_at_ms:u64
+```
+
+Wire bytes append the 64-byte Ed25519 signature; domain and version are signed.
+There are no optional/repeated/unknown fields or trailing bytes. The canonical
+PeerId encoding is bounded to 128 bytes; prekey references are opaque, nonempty
+1–64-byte values, not normalized text/base64. `OneTime = 1` and `Fallback = 2`
+are distinct signed purposes. `MAX_OLM_BINDING_BYTES` bounds parsing before
+allocation. Device and Olm Ed25519 keys must be canonical and nonweak; Curve25519
+keys are exact 32-byte provider encodings. DH validation/contribution and key
+possession checks remain the provider's responsibility, not the signature's.
+
+`Custody::create_olm_binding(record, peer_binding, data)` first verifies the
+separate Peer-ID proof under the enrolled device key and matches its publisher
+PeerId. It reads the protected seed, checks it against enrollment, and signs only
+this transcript. Missing/locked/unavailable/corrupt custody fails without key
+creation or replacement. Run it on the bounded blocking custody worker, outside
+SQL transactions and network tasks. Debug output redacts public proof data;
+errors do not expose native custody diagnostics. No private identity key is exported.
+
+Publisher-owned `binding_generation` and `bundle_generation` are positive and
+at most `i64::MAX`; they are **not** recipient-local `ContactTrust` generations.
+Signed timestamps are at most `i64::MAX`; validity is exactly
+`[not_before_ms, expires_at_ms)`, with a positive interval of at most seven days
+and no implicit clock skew. The caller supplies time and retains a trusted exact
+expected bundle selection. Never derive `expected` merely from the received
+`proof.data()`: a valid signature does not establish freshness or reject rollback
+by itself. `OlmBindingProof::verify` checks the pin, Peer-ID proof, signature,
+exact expected fields and validity; parsing alone is not authentication.
+
+For an operation involving a live peer, use `verify_olm_binding` with a **fresh**
+verified `ContactTrust`, the immutable intended device key and the actual secure
+connection's authenticated **end-peer** PeerId (not a relay identity/assertion).
+It reuses the existing no-TOFU `send_decision` contract, so unknown, pending,
+changed, blocked, unauthenticated and wrong-peer cases remain held. The service
+must still serialize fresh trust/bundle checks with later use; this pure check
+cannot prove snapshot freshness or close a concurrent trust-change race.
+
+This is a detached public association, not live DH possession, human verification,
+prekey publication/consumption, revocation, durable freshness or E2EE activation.
+The private [kami-e2ee WP2-A2 boundary](../kami-e2ee/README.md) consumes these
+proofs in in-memory qualification. Durable session/prekey persistence, atomic
+CAS/rollback handling, runtime/transport/delivery integration and cross-platform
+production qualification remain WP3/WP4/WP5 work. Public encryption stays
+fail-closed; production messaging is not enabled. Neither WP2 boundary establishes
+Signal/Matrix interoperability or a production security claim.
+
+## Trust, durability and send integration
+
+Each endpoint independently compares the other endpoint's full fingerprint over
+an already trusted external channel and performs an affirmative **local** action.
+Pass that independently obtained value to `VerificationEvidence::independent_comparison`;
+never auto-fill it from a received invitation/network assertion. An API cannot
+prove that a human actually used an independent channel or that the remote human
+verified their side. Tests simulate both independent actions rather than claiming
+one endpoint can attest the other.
+
+New imports create `Pending`. Fresh explicit comparison/action permits `Verified`;
+identity or pinned Peer-ID change becomes `Changed`, preserving prior pin and
+candidate separately. `Blocked` survives import/restart. Explicit unblock returns
+to pending/changed, never directly verified; fresh verification is still required.
+Evidence is single-use and bound to the candidate plus generation. Every successful
+transition advances the checked generation; no silent pin replacement or TOFU.
+
+`ContactTrustRepository` is the service composition seam. Use the existing
+SQLCipher storage worker's bounded neutral `ContactTrustRow`/`load_contact`/
+`compare_and_swap_contact`, mapping state enums explicitly and serializing pinned
+and candidate invitations separately. Restore through `ContactTrust::from_persisted`
+to revalidate all signatures/bounds/invariants; do not trust a database state tag
+alone. Insert generation 1 with expected None, subsequent CAS uses prior generation
+and next generation n+1. Publish a transition only after commit. On conflict/error,
+reload/recompute, never blind overwrite. `kami-storage/tests/identity_trust.rs`
+contains an exercised service-adapter example, including restarts in all states;
+there is no production identity/storage dependency or identity-local database.
+
+`send_decision` denies unknown, pending, changed, blocked, unauthenticated or forged
+bindings. Pass the immutable queued recipient's original **device public key**,
+not the current candidate; maintain the service's authenticated DeviceId-to-key
+mapping. After adopting a different device key, old sends remain held, not retargeted.
+Authenticated PeerId must come from the actual secure connection's remote endpoint,
+including the end-to-end peer on a relay circuit, not the relay or invitation.
+Services must observe changes durably, check fresh trust before enqueue **and every
+retry/receive**, and serialize trust/check/enqueue/send authorization (or integrate
+an atomic generation guard). A pure snapshot decision alone cannot close that race.
+**No sender/service or direct/relayed transport path is implemented here.** KAMI-27/
+KAMI-30 own actual-path validation; KAMI-51's WP2 boundaries are described above.
+No live network, Signal/Matrix interoperability, cross-OS messaging or production
+security qualification is claimed.
+
 
 ## Enrollment, restart, and key loss
 
@@ -60,7 +212,7 @@ otherwise well-sized database key through keyed SQLCipher open.
 
 ## Native adapters and limitations
 
-| Platform | Maintained dependencies / behavior | Evidence in this run |
+| Platform | Maintained dependencies / behavior | Prior native qualification evidence (not repeated by this documentation task) |
 |---|---|---|
 | Linux | `secret-service 5.2.0`, `zbus 5.19.0`; encrypted DH session, unlocked persistent default collection only, collection-scoped search with explicit per-item lock checks, no unlock call or session-collection fallback; add with `replace=false`, reject ambiguous results; structured denial/locked mapping | Linux compile/build/tests, real read-only missing-slot probe, invalid-bus headless subprocess, isolated native collection-boundary regression |
 | macOS | `apple-native-keyring-store 1.0.2`, `keyring-core 1.0.1`, `security-framework 3.7.0`; login/User Keychain, UI disabled under adapter mutex, add-only native creation rejects duplicates | x86_64-apple-darwin all-target check and strict Clippy only |
@@ -85,7 +237,33 @@ never on network tasks or inside SQL transactions.
 
 ## Verification
 
-From repository root, after the sole integrator resolves Cargo.lock:
+From repository root with the current lockfile:
+
+WP2-A1 canonical transcript/public-verifier checks, byte tampering, malformed and
+bounded parsing, account/prekey/generation/validity substitution, custody failures,
+redaction, and existing trust/Peer-ID rejection cases:
+
+```sh
+cargo test --locked -p kami-identity --test olm_binding
+```
+
+These are local deterministic tests, not live transport or native OS-store
+qualification. The WP2-A1 focused command passed on this Linux checkout.
+
+Focused KAMI-50 vectors, import/binding negatives, local bilateral actions,
+state histories, redaction and no-redirect decisions:
+
+```sh
+cargo test --locked -p kami-identity --test fingerprint --test binding --test invitation --test trust
+cargo test --locked -p kami-storage --test contact_trust --test identity_trust
+```
+
+Linux tests/build/check/fmt/strict Clippy and the focused storage trust tests were
+repeated for this documentation update. Earlier native/cross-target evidence in
+the table is historical: both cross-target check commands below currently fail
+with `E0463` (target `core`/`std` unavailable in this toolchain), so they were not
+requalified. The two ignored native probes remain separate, opt-in qualification
+and were not run by this documentation task.
 
 ```sh
 cargo check --locked -p kami-key-provider -p kami-identity --all-targets --all-features

@@ -157,3 +157,4 @@ PROPTEST_RNG_SEED=20 cargo test -p kami-core --test delivery_properties
 cargo fmt -p kami-core -- --check
 cargo clippy -p kami-core --all-targets --all-features -- -D warnings
 ```
+
