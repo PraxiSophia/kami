@@ -79,6 +79,28 @@ impl<S: SecretStore> Custody<S> {
         crate::PeerBindingProof::sign(public, &key)
     }
 
+    /// Sign only the canonical v1 Olm account/prekey binding, using the enrolled
+    /// device key. The separate Peer-ID proof must belong to that same device.
+    /// Run on a bounded blocking custody worker, outside storage transactions.
+    pub fn create_olm_binding(
+        &self,
+        record: &EnrollmentRecord,
+        peer_binding: &crate::PeerBindingProof,
+        data: crate::OlmBindingData,
+    ) -> Result<crate::OlmBindingProof, crate::IdentityError> {
+        peer_binding.verify_signature(*record.public_key())?;
+        if peer_binding.peer_id() != data.publisher_peer {
+            return Err(crate::IdentityError::WrongPeer);
+        }
+        let seed =
+            read_key(&self.0, record.identity_handle()).map_err(crate::IdentityError::Custody)?;
+        let key = ed25519_dalek::SigningKey::from_bytes(&seed);
+        if key.verifying_key().to_bytes() != *record.public_key() {
+            return Err(crate::IdentityError::Custody(KeyError::Corrupt));
+        }
+        crate::OlmBindingProof::sign(data, &key)
+    }
+
     /// Ordinary startup: read-only, no provisioning, replacement or downgrade.
     pub fn open_existing(&self, record: &EnrollmentRecord) -> Result<(), KeyError> {
         self.check_identity(record)?;

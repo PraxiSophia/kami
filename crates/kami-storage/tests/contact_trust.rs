@@ -6,8 +6,11 @@ fn wrong_profile_cannot_mutate_v1_schema_before_identity_check() {
     let dir = common::directory();
     common::create(&dir).shutdown().unwrap();
     let db = common::raw(&dir);
-    db.execute_batch("DROP TABLE contact_trust; PRAGMA user_version=1;")
-        .unwrap();
+    db.execute_batch(
+        "DROP TABLE e2ee_frame; DROP TABLE e2ee_session; DROP TABLE e2ee_account; \
+         DROP TABLE contact_trust; PRAGMA user_version=1;",
+    )
+    .unwrap();
     drop(db);
     let wrong = kami_key_provider::ProfileKeyId::new("1123456789abcdef0123456789abcdef").unwrap();
     let result = kami_storage::Storage::open(
@@ -35,8 +38,11 @@ fn encrypted_v1_upgrade_preserves_existing_delivery_and_adds_contacts() {
     storage.shutdown().unwrap();
     // Reconstruct the exact pre-KAMI-50 schema while retaining encrypted v1 data.
     let db = common::raw(&dir);
-    db.execute_batch("DROP TABLE contact_trust; PRAGMA user_version=1;")
-        .unwrap();
+    db.execute_batch(
+        "DROP TABLE e2ee_frame; DROP TABLE e2ee_session; DROP TABLE e2ee_account; \
+         DROP TABLE contact_trust; PRAGMA user_version=1;",
+    )
+    .unwrap();
     drop(db);
     let storage = common::open(&dir);
     assert_eq!(storage.pending(1).unwrap()[0].facts(), common::facts(1, 1));
@@ -50,7 +56,7 @@ fn encrypted_v1_upgrade_preserves_existing_delivery_and_adds_contacts() {
         common::raw(&dir)
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        2
+        3
     );
     assert_eq!(
         common::open(&dir).load_contact([1; 32]).unwrap(),

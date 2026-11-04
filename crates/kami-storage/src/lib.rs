@@ -11,6 +11,9 @@ pub use inbox::Acceptance;
 mod ordering;
 mod outbox;
 mod transactions;
+// Private until provider imports, runtime provenance and rollback policy qualify.
+#[allow(dead_code)]
+mod session_state;
 pub use ordering::OrderedMessage;
 mod worker;
 pub use message::StoredMessage;

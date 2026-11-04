@@ -7,6 +7,11 @@
 //! trust. No E2EE, session, networking or SQL implementation lives in this crate.
 mod binding;
 pub use binding::{verify_peer_binding, PeerBindingProof, MAX_BINDING_BYTES};
+mod olm_binding;
+pub use olm_binding::{
+    verify_olm_binding, OlmBindingData, OlmBindingProof, OlmPrekeyKind, MAX_OLM_BINDING_BYTES,
+    MAX_OLM_BINDING_VALIDITY_MS, MAX_OLM_PREKEY_REFERENCE_BYTES,
+};
 mod descriptor;
 pub use descriptor::{Invitation, MAX_INVITATION_BYTES};
 mod trust;

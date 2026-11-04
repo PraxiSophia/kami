@@ -105,3 +105,4 @@ cargo clippy -p kami-protocol --all-targets --all-features -- -D warnings
 # Run allocation and memory probe (verifies zero allocations on malformed inputs)
 python3 crates/kami-protocol/tests/resource_probe.py
 ```
+

@@ -6,6 +6,7 @@ license = "MIT"
 
 [dependencies]
 kami-core = { path = "../kami-core" }
+kami-e2ee = { path = "../kami-e2ee" }
 kami-key-provider = { path = "../kami-key-provider" }
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled-sqlcipher-vendored-openssl", "limits"] }
 zeroize = "=1.9.1"

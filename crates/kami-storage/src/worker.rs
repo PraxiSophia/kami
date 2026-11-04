@@ -25,6 +25,31 @@ impl Default for Config {
     }
 }
 enum Request {
+    Authenticated(kami_e2ee::AuthenticatedCommit, Reply<Vec<u8>>),
+    #[allow(dead_code)]
+    E2eeLoad(
+        [u8; 32],
+        Reply<(
+            Option<crate::session_state::AccountRow>,
+            Option<crate::session_state::SessionRow>,
+        )>,
+    ),
+    #[allow(dead_code)]
+    E2eeAccount(
+        Option<crate::session_state::AccountRow>,
+        crate::session_state::AccountRow,
+        Reply<()>,
+    ),
+    #[allow(dead_code)]
+    E2eeCommit(Box<crate::session_state::Commit>, Reply<crate::Acceptance>),
+    #[allow(dead_code)]
+    E2eeReconcile(
+        crate::session_state::SessionRow,
+        MessageFacts,
+        Vec<u8>,
+        bool,
+        Reply<Option<Vec<u8>>>,
+    ),
     LoadContact([u8; 32], Reply<Option<crate::ContactTrustRow>>),
     CasContact(Option<u64>, crate::ContactTrustRow, Reply<()>),
     #[cfg(test)]
@@ -55,6 +80,15 @@ pub struct Storage {
     thread: Option<JoinHandle<()>>,
 }
 impl Storage {
+    /// Quarantined text-only stage commit/reconciliation on the SQLCipher worker.
+    /// Returned exact bytes prove persistence, not live provenance or ACK authority.
+    /// No receipt ratchet, Delivered transition, network send or profile restore.
+    pub fn commit_authenticated(
+        &self,
+        stage: kami_e2ee::AuthenticatedCommit,
+    ) -> Result<Vec<u8>, StorageError> {
+        self.call(|reply| Request::Authenticated(stage, reply))
+    }
     /// Load one bounded neutral trust row. The service must revalidate its
     /// cryptographic contents; a stored Verified tag alone is not authentication.
     pub fn load_contact(
@@ -122,6 +156,40 @@ impl Storage {
                 let _ = ready.send(Ok(()));
                 while let Ok(request) = receiver.recv() {
                     match request {
+                        Request::Authenticated(stage, reply) => {
+                            let _ = reply.send(crate::session_state::commit_authenticated(
+                                &mut db,
+                                stage,
+                                config.outbox_bytes,
+                                config.outbox_messages,
+                            ));
+                        }
+                        Request::E2eeLoad(id, reply) => {
+                            let result =
+                                crate::session_state::load_account(&db).and_then(|account| {
+                                    crate::session_state::load_session(&db, id)
+                                        .map(|session| (account, session))
+                                });
+                            let _ = reply.send(result);
+                        }
+                        Request::E2eeAccount(previous, next, reply) => {
+                            let _ = reply.send(crate::session_state::commit_account(
+                                &mut db, previous, next,
+                            ));
+                        }
+                        Request::E2eeCommit(command, reply) => {
+                            let _ = reply.send(crate::session_state::commit(
+                                &mut db,
+                                *command,
+                                config.outbox_bytes,
+                                config.outbox_messages,
+                            ));
+                        }
+                        Request::E2eeReconcile(session, facts, frame, incoming, reply) => {
+                            let _ = reply.send(crate::session_state::reconcile(
+                                &db, &session, facts, &frame, incoming,
+                            ));
+                        }
                         Request::LoadContact(contact, reply) => {
                             let _ = reply.send(crate::contact_trust::load(&db, contact));
                         }
@@ -140,17 +208,29 @@ impl Storage {
                             let _ = reply.send(crate::outbox::cancel(&mut db, sender, id));
                         }
                         Request::ApplyReceipt(f, device, reply) => {
-                            let _ = reply.send(crate::outbox::apply_receipt(&mut db, f, device));
+                            let result =
+                                crate::session_state::legacy_guard(&db, f.sender(), f.message_id())
+                                    .and_then(|()| {
+                                        crate::outbox::apply_receipt(&mut db, f, device)
+                                    });
+                            let _ = reply.send(result);
                         }
                         Request::Ordered(c, s, now, wait, limit, reply) => {
                             let _ = reply
                                 .send(crate::ordering::history(&mut db, c, s, now, wait, limit));
                         }
                         Request::Accept(msg, at, reply) => {
-                            let _ = reply.send(crate::inbox::accept(&mut db, msg, at));
+                            let f = msg.facts();
+                            let result =
+                                crate::session_state::legacy_guard(&db, f.sender(), f.message_id())
+                                    .and_then(|()| crate::inbox::accept(&mut db, msg, at));
+                            let _ = reply.send(result);
                         }
                         Request::Receipt(sender, id, reply) => {
-                            let _ = reply.send(crate::inbox::receipt(&db, sender, id));
+                            let _ = reply.send(
+                                crate::session_state::legacy_guard(&db, sender, id)
+                                    .and_then(|()| crate::inbox::receipt(&db, sender, id)),
+                            );
                         }
                         Request::DeleteHistory(sender, id, reply) => {
                             let _ = reply.send(crate::inbox::delete_history(&mut db, sender, id));
@@ -159,12 +239,18 @@ impl Storage {
                             let _ = reply.send(crate::inbox::history(&db, conversation, limit));
                         }
                         Request::Enqueue(msg, reply) => {
-                            let _ = reply.send(crate::transactions::enqueue(
-                                &mut db,
-                                msg,
-                                config.outbox_bytes,
-                                config.outbox_messages,
-                            ));
+                            let f = msg.facts();
+                            let _ = reply.send(
+                                crate::session_state::legacy_guard(&db, f.sender(), f.message_id())
+                                    .and_then(|()| {
+                                        crate::transactions::enqueue(
+                                            &mut db,
+                                            msg,
+                                            config.outbox_bytes,
+                                            config.outbox_messages,
+                                        )
+                                    }),
+                            );
                         }
                         Request::Pending(limit, reply) => {
                             let _ = reply.send(crate::transactions::pending(&db, limit));

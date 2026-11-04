@@ -88,3 +88,4 @@ cargo test -p kami-key-provider --all-features
 cargo fmt -p kami-key-provider -- --check
 cargo clippy -p kami-key-provider --all-targets --all-features -- -D warnings
 ```
+

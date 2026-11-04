@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Code Analyzing/kami-core.md",
+                "file": "Code Analyzing/kami-identity.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "kami-core"
+              "title": "kami-identity"
             }
           }
         ]
@@ -190,13 +190,14 @@
   },
   "active": "2fea1079858e2638",
   "lastOpenFiles": [
+    "Code Analyzing/kami-e2ee.md",
+    "Code Analyzing/kami-cli.md",
+    "Code Analyzing/kami-core.md",
     "07 — Implementation Map/Kami Implementation Dependencies.canvas",
     "Code Analyzing/kami-storage.md",
     "Code Analyzing/kami-protocol.md",
     "Code Analyzing/kami-key-provider.md",
     "Code Analyzing/kami-identity.md",
-    "Code Analyzing/kami-core.md",
-    "Code Analyzing/kami-cli.md",
     "Code Analyzing/Code Analysis Home.md",
     "Code Analyzing",
     "07 — Implementation Map/Epic Hierarchy Map.md",

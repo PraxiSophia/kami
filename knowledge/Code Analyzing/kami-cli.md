@@ -63,3 +63,4 @@ cargo test -p kami-cli
 # Run CLI binary build check
 cargo build -p kami-cli
 ```
+

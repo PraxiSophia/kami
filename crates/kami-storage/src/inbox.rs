@@ -13,13 +13,22 @@ pub(crate) fn accept(
     msg: StoredMessage,
     received_at: i64,
 ) -> Result<Acceptance, StorageError> {
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let result = accept_in(&tx, msg, received_at)?;
+    tx.commit()?;
+    Ok(result)
+}
+pub(crate) fn accept_in(
+    tx: &rusqlite::Transaction<'_>,
+    msg: StoredMessage,
+    received_at: i64,
+) -> Result<Acceptance, StorageError> {
     if received_at < 0 {
         return Err(StorageError::InvalidInput);
     }
     let f = msg.facts();
     let id = f.message_id().as_u128().to_be_bytes();
     let encoded = message::encode(f);
-    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let previous: Option<(Vec<u8>, i64)> = tx
         .query_row(
             "SELECT facts,direction FROM message WHERE sender=?1 AND id=?2",
@@ -31,7 +40,6 @@ pub(crate) fn accept(
         if old != encoded || direction != 1 {
             return Err(StorageError::Conflict);
         }
-        tx.commit()?;
         return Ok(Acceptance::Duplicate);
     }
     tx.execute("INSERT INTO message(sender,id,conversation,sequence,facts,direction,received_at) VALUES(?1,?2,?3,?4,?5,1,?6)", params![f.sender().as_bytes(),id,f.conversation_id().as_u128().to_be_bytes(),f.sequence().value() as i64,encoded,received_at])?;
@@ -43,7 +51,6 @@ pub(crate) fn accept(
         "INSERT INTO receipt VALUES(?1,?2,?3)",
         params![f.sender().as_bytes(), id, encoded],
     )?;
-    tx.commit()?;
     Ok(Acceptance::New)
 }
 pub(crate) fn receipt(

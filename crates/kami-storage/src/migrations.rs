@@ -3,7 +3,7 @@ use rusqlite::Connection;
 #[cfg(test)]
 mod tests;
 
-pub(crate) const VERSION: i64 = 2;
+pub(crate) const VERSION: i64 = 3;
 pub(crate) fn migrate(connection: &mut Connection, create: bool) -> Result<(), StorageError> {
     let version: i64 = connection.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if version > VERSION {
@@ -13,13 +13,19 @@ pub(crate) fn migrate(connection: &mut Connection, create: bool) -> Result<(), S
         return Err(StorageError::Migration);
     }
     if version < VERSION {
-        let tx = connection.transaction()?;
+        let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         if version == 0 {
             tx.execute_batch(include_str!("../migrations/001_initial.sql"))
                 .map_err(migration_error)?;
         }
-        tx.execute_batch(include_str!("../migrations/002_contact_trust.sql"))
-            .map_err(migration_error)?;
+        if version < 2 {
+            tx.execute_batch(include_str!("../migrations/002_contact_trust.sql"))
+                .map_err(migration_error)?;
+        }
+        if version < 3 {
+            tx.execute_batch(include_str!("../migrations/003_e2ee_state.sql"))
+                .map_err(migration_error)?;
+        }
         tx.pragma_update(None, "user_version", VERSION)?;
         tx.commit()?;
     }

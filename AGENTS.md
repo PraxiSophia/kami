@@ -181,6 +181,18 @@ Do not modify unrelated repositories or projects.
 - QA Engineer validates behavior and identifies defects.
 - Evaluator independently reviews deliverables.
 
+## Preferred Development Workflow
+
+- Superpowers is the preferred workflow for bounded planning, test-driven development, systematic debugging, code review, and verification. Use the relevant installed profile-local skills without creating a second coordinator or approval system.
+- For new or materially changed work, identify unresolved technical decisions, security trade-offs, dependencies, exact paths, and acceptance tests, then obtain owner approval through the existing `kami-manager` Decision Center before implementation.
+- Reuse previously approved plans and scopes. Do not repeatedly brainstorm, replan, or request an identical approval for already-authorized continuation work.
+- Ponytail guides `kami-senior-dev` and `kami-dev` toward the smallest correct and secure Rust change, reusing existing types, modules, and dependencies. Minimization must not sacrifice cryptographic security, validation, concurrency correctness, crash safety, error handling, or required tests; avoid speculative abstractions and unrelated refactors.
+- Before execution, verify that the relevant Superpowers and Ponytail skills are available in the assigned worker profile.
+- The existing `kami-manager` Decision Center, approval gates, Kanban ownership, dependency sequencing, and independent QA/Evaluator reviews remain authoritative.
+- If work requires a path or operation outside the approved scope, report the exact decision immediately, stop only the affected work, and avoid repeated automatic retries. Preserve the existing task ID, dependency edges, and execution history.
+- Synchronize relevant crate and root README documentation during an approved implementation when behavior or boundaries change.
+- Before completion, report changed files, actual verification evidence, independent review findings, and remaining security limitations. Passing tests do not establish production, interoperability, cross-platform, rollback-anchor, or public-encryption qualification unless those gates were explicitly verified.
+
 ## Completion Requirements
 The shared Definition of Done for coding issues is:
 
