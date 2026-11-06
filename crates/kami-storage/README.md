@@ -220,6 +220,51 @@ prekey publication/rotation/freshness policy, external rollback anchor,
 interoperability, native macOS/Windows and public/production qualification remain
 separate gates. See [E2EE limits](../kami-e2ee/README.md).
 
+## KAMI-24 sender persistence seam
+
+Migration `004_sender_state.sql` advances the SQLCipher schema to v4. It creates
+private sender reservation and attempt-state rows plus a per-database request-binding
+key. Migration setup requires the existing SQLCipher/key-provider opening path and
+working OS entropy: the worker generates the 32-byte binding key inside the same
+immediate migration transaction, and failure rolls the migration back. It is not a
+plaintext or separately managed sender-state store.
+
+`Storage::prepare_send` reserves one per-conversation/sender sequence lane before
+the quarantined E2EE stage is prepared. Its request binding makes a same-ID
+resubmission recoverable only when immutable request fields match. `commit_prepared`
+atomically consumes that reservation with the authenticated E2EE commit, durable
+outbox/history facts, exact frame, session advancement, and initial attempt row.
+`cleanup_prepared` expires uncommitted reservations; callers of the low-level API
+must invoke it explicitly. Expired reservations become retained tombstones rather
+than reusable IDs.
+
+`recover_sends` returns a bounded ordered durable projection, while `claim_send`
+leases exact persisted frame bytes, `record_send_failure` records retry eligibility,
+`hold_send`/`resume_send` implement current-trust holds and original-pin
+reverification, and `cancel_send` stops future attempts without discarding the
+authenticated immutable material. A crash or lost worker reply is reconciled from
+the stored exact frame; retry never asks this storage seam to re-encrypt it.
+
+Attempt leases are fenced for 30 seconds. Failure uses the shared one-second
+exponential backoff capped at five minutes and reaches `Exhausted` after eight
+attempts. This finite retry policy and the count quota consumed by retained
+preparation tombstones are intentionally bounded follow-up work; this crate does
+not itself provide automatic retry scheduling, transport, live end-peer provenance,
+authenticated receipts, or a `Delivered` transition.
+
+Focused KAMI-24 evidence was recorded on Linux:
+
+```sh
+cargo test --locked -p kami-sender -p kami-storage
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+```
+
+Those checks covered sender/storage behavior and passed in the recorded QA and
+Evaluator runs. They do not qualify Windows/macOS, real networks, public/production
+encryption, end-peer authentication, authenticated receipts, or an external
+rollback anchor.
+
 ## Bounds and local protection
 
 Default `Config`: 32 queued requests (permitted range 1..=1024), 4,096 pending outbox

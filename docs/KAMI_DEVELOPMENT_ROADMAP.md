@@ -1,8 +1,8 @@
 # Kami Development Roadmap
 
-Status: documentation synchronization draft for owner review
-Last repository inspection: 2026-11-03
-Last Jira evidence read: 2026-11-03
+Status: documentation synchronized after owner acceptance of the bounded KAMI-24 implementation
+Last repository inspection: 2026-11-05
+Last Jira evidence read: 2026-11-05
 Implementation language: Rust only
 
 This roadmap is the default local planning reference for Kami. It summarizes repository evidence, recorded KAMI-51 implementation/review evidence, canonical requirements, and the latest reconciled Jira reads. Jira remains authoritative for Jira issue fields, workflow status, and issue links; this document does not change or replace Jira.
@@ -320,30 +320,32 @@ KAMI-34 + KAMI-35 + KAMI-36 + KAMI-37 -> KAMI-39
 
 The live Jira graph contains contradictory links, including reciprocal KAMI-22/KAMI-23 links, reciprocal KAMI-51/KAMI-24 and KAMI-51/KAMI-25 links, and a KAMI-31 -> KAMI-28 link that conflicts with KAMI-28's stated dependencies. This roadmap uses the technically coherent DAG above and does not silently alter Jira. The `||` notation means independent bounded planning/implementation, not that later integration can omit either result.
 
-## 8. Current next milestone: KAMI-24
+## 8. Current next milestone: KAMI-25
 
-KAMI-24 is the next implementation milestone after its bounded authorization and Git integration prerequisites are resolved.
+KAMI-24 is owner-accepted as a bounded, runtime-neutral sender lifecycle implementation. The accepted scope covers durable SQLCipher sender persistence, authenticated-commit integration, stable request identity and sequencing, exact-frame recovery, leases, bounded retry state, cancellation, and identity holds. Evidence is preserved in implementation task `t_3caec9e9`, pre-implementation review `t_903b8e19`, independent QA `t_d1b015bb`, independent Evaluator `t_4c8b8ad4`, and the synchronized root/storage/sender READMEs.
 
-Bounded scope:
+Accepted bounded scope:
 
 - sender-side durable enqueue and recovery;
 - existing `kami-core` facts/reducer and `kami-storage` outbox/worker seams;
 - existing KAMI-51 session/commit contracts;
 - stable logical ID/sequence/content binding;
 - outbox-before-network ordering seam;
-- retry, restart, lost-ACK, cancellation, queue-pressure, ambiguous-commit, and identity-change behavior.
+- exact-frame retry/recovery, cancellation, queue pressure, ambiguous-commit handling, and identity-change holds.
 
-Explicit exclusions:
+Explicit exclusions and remaining qualification:
 
 - no new cryptographic protocol;
 - no public production encryption activation;
-- no Tokio service ownership;
-- no IPC;
-- no direct P2P or relay implementation;
+- no Tokio service ownership, timers, or automatic retry scheduler;
+- no IPC, direct P2P, relay, or network implementation;
+- no live end-peer provenance, authenticated receipts, or `Delivered` authority;
 - no KAMI-26 responsibilities;
+- no cross-platform, real-network, interoperability, external rollback-anchor, or production-security qualification;
+- finite eight-attempt retry state and retained preparation-tombstone quota/compaction policy remain bounded follow-up work;
 - no replacement for WP2-B authenticated storage composition.
 
-The implementation requires a focused architecture review, exact path approval, and independent QA/Evaluator review because sender retry and identity-change behavior are security-critical.
+The implementation and documentation were independently verified; this bounded acceptance does not close the full end-to-end delivery path or imply Jira workflow closure. KAMI-25 is the next technically dependency-ready implementation milestone under the coherent roadmap DAG. It may proceed against the accepted shared core, protocol, identity/trust, KAMI-51, and storage contracts; KAMI-26 remains gated on both KAMI-24 and KAMI-25.
 
 ## 9. Security limitations and non-bypassable gates
 
@@ -387,7 +389,7 @@ No Git or GitHub action is authorized by this roadmap.
 
 ## 11. Status table
 
-Jira statuses below were last read on 2026-11-03. `Functionally implemented` and `tested` refer to repository evidence; `independent` and `owner accepted` are not inferred from Jira workflow status.
+Jira statuses below were last read on 2026-11-05. `Functionally implemented` and `tested` refer to repository evidence; `independent` and `owner accepted` are not inferred from Jira workflow status.
 
 | Issue | Implementation state | Verification state | Remaining qualification | Dependencies | Evidence/source |
 |---|---|---|---|---|---|
@@ -396,7 +398,7 @@ Jira statuses below were last read on 2026-11-03. `Functionally implemented` and
 | KAMI-21 | Functionally implemented | Vectors, negative corpus, properties, bounds/allocation | Authenticated integration and cross-platform | KAMI-19/20 | `kami-protocol/README.md`; Jira issue |
 | KAMI-22 | Functionally implemented | Linux focused/workspace tests passed | Windows/macOS native, broader platform, production qualification | KAMI-19/20; key-provider interface | `kami-storage/README.md`; Jira issue, In Progress |
 | KAMI-23 | Functionally implemented | Linux/local identity, custody, trust, binding tests | Native OS, cross-process, live transport, M1 qualification | KAMI-19; identity contract | `kami-identity/README.md`; Jira issue, In Progress |
-| KAMI-24 | Not implemented | Readiness audit complete; no implementation dispatched | Sender enqueue/recovery and fault/restart evidence | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50 | Jira issue; this roadmap; readiness audit |
+| KAMI-24 | Owner-accepted bounded implementation | Implementation `t_3caec9e9`; pre-review `t_903b8e19` PASS; QA `t_d1b015bb` PASS; Evaluator `t_4c8b8ad4` PASS; README synchronization `t_0f4d4791` done | Runtime/transport, live end-peer provenance, authenticated receipts/Delivered, cross-platform, network, rollback-anchor, and production qualification remain deferred; finite retry/tombstone quota policy remains bounded follow-up | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50 | Implementation/review Kanban evidence; root, storage, and sender READMEs; Jira issue remains unchanged |
 | KAMI-25 | Not implemented | Not started | Inbox/dedup/order/receipt/replay integration | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50; independent of KAMI-24 for bounded implementation, integrated with it for end-to-end flow | Jira issue |
 | KAMI-26 | Not implemented | Not started | Runtime, cancellation, shutdown, restart, provenance | KAMI-20..25 | Jira issue |
 | KAMI-27 | Not implemented | Not started | Real direct transport and Peer-ID path evidence | KAMI-2/3/19/23/26/50 | Jira issue |

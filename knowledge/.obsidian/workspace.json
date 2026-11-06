@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Code Analyzing/kami-identity.md",
+                "file": "Code Analyzing/kami-sender.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "kami-identity"
+              "title": "kami-sender"
             }
           }
         ]
@@ -190,25 +190,27 @@
   },
   "active": "2fea1079858e2638",
   "lastOpenFiles": [
+    "07 — Implementation Map/Kami Implementation Dependencies.canvas",
+    "Code Analyzing/kami-sender.md",
+    "07 — Implementation Map/Delivery Transport Relays.md",
+    "07 — Implementation Map/Epic Hierarchy Map.md",
+    "07 — Implementation Map/Core Protocol Storage.md",
+    "07 — Implementation Map/Implementation Map.md",
+    "07 — Implementation Map/Identity Trust E2EE.md",
+    "07 — Implementation Map/Milestone 1 Dependency Graph.md",
+    "04 — Security and Identity/Security and Identity.md",
+    "Code Analyzing/kami-identity.md",
     "Code Analyzing/kami-e2ee.md",
     "Code Analyzing/kami-cli.md",
     "Code Analyzing/kami-core.md",
-    "07 — Implementation Map/Kami Implementation Dependencies.canvas",
     "Code Analyzing/kami-storage.md",
     "Code Analyzing/kami-protocol.md",
     "Code Analyzing/kami-key-provider.md",
-    "Code Analyzing/kami-identity.md",
     "Code Analyzing/Code Analysis Home.md",
     "Code Analyzing",
-    "07 — Implementation Map/Epic Hierarchy Map.md",
-    "07 — Implementation Map/Delivery Transport Relays.md",
-    "07 — Implementation Map/Core Protocol Storage.md",
     "Untitled.base",
     "02 — Module Architecture/Module Architecture.md",
     "Owner-Notes/Change Log.md",
-    "07 — Implementation Map/Milestone 1 Dependency Graph.md",
-    "07 — Implementation Map/Identity Trust E2EE.md",
-    "07 — Implementation Map/Implementation Map.md",
     "07 — Implementation Map/Integration Runtime Qualification.md",
     "Reference/Update Workflow.md",
     "Reference/Glossary.md",
@@ -217,9 +219,6 @@
     "00 — Architecture Home/Kami Architecture.canvas",
     "01 — System Architecture/System Boundaries.md",
     "00 — Architecture Home/Kami Architecture Home.md",
-    "06 — Runtime and Deployment/Runtime and Deployment.md",
-    "05 — Data and State/Data and State.md",
-    "04 — Security and Identity/Security and Identity.md",
     "07 — Implementation Map",
     "06 — Runtime and Deployment",
     "05 — Data and State",

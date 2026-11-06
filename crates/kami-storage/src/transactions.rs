@@ -19,6 +19,10 @@ pub(crate) fn enqueue_in(
     count_quota: u32,
 ) -> Result<(), StorageError> {
     let f = msg.facts();
+    let reserved: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM sender_prepare WHERE conversation=?1 AND sender=?2 AND state=0)",params![f.conversation_id().as_u128().to_be_bytes(),f.sender().as_bytes()],|r|r.get(0))?;
+    if reserved {
+        return Err(StorageError::Busy);
+    }
     let id = f.message_id().as_u128().to_be_bytes();
     let conversation = f.conversation_id().as_u128().to_be_bytes();
     let encoded = message::encode(f);

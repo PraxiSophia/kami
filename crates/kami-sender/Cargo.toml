@@ -1,0 +1,22 @@
+[package]
+name = "kami-sender"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kami-core = { path = "../kami-core" }
+kami-storage = { path = "../kami-storage" }
+kami-e2ee = { path = "../kami-e2ee" }
+kami-identity = { path = "../kami-identity" }
+libp2p-identity = { version = "=0.3.0", features = ["peerid", "ed25519"] }
+
+[dev-dependencies]
+kami-key-provider = { path = "../kami-key-provider", features = ["test-provider"] }
+zeroize = "=1.9.1"
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled-sqlcipher-vendored-openssl"] }
+vodozemac = "=0.11.1"
+tempfile = "3"
+
+[lints]
+workspace = true

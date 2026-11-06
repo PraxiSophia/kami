@@ -100,12 +100,15 @@ fn quotas_and_sqlite_full_rollback_do_not_grant_send_or_ack() {
     assert_eq!(s.enqueue(message(facts(1, 1))), Err(StorageError::Full));
     assert!(s.pending(10).unwrap().is_empty());
     s.shutdown().unwrap();
+    let page_limit = raw(&dir)
+        .pragma_query_value(None, "page_count", |r| r.get::<_, u32>(0))
+        .unwrap();
     let s = Storage::open(
         ProfileLease::acquire(dir.path()).unwrap(),
         profile(),
         Arc::new(Provider(Ok(42))),
         Config {
-            max_database_pages: 16,
+            max_database_pages: page_limit,
             ..Config::default()
         },
     )
