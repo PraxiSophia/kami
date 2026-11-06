@@ -4,7 +4,7 @@ Kami is a self-hostable, communication-first Rust platform for private communica
 
 ## Current development status
 
-The repository contains the implemented and tested foundations for M1 identity/trust, bounded protocol validation, encrypted local storage, and the quarantined KAMI-51 E2EE-to-storage composition. KAMI-22 and KAMI-23 are functionally implemented; their Jira workflow status remains In Progress because native Windows/macOS and broader platform qualification are incomplete.
+The repository contains the implemented and tested foundations for M1 identity/trust, bounded protocol validation, encrypted local storage, quarantined KAMI-51 E2EE-to-storage composition, and the runtime-neutral KAMI-24 sender seam. KAMI-22, KAMI-23, and KAMI-24 are functionally implemented; native Windows/macOS and broader platform/network qualification remain incomplete.
 
 Status terms used in this repository:
 
@@ -41,7 +41,7 @@ kami-core + kami-protocol
         |
 kami-identity + kami-e2ee
         |
-kami-storage -> kami-key-provider
+kami-sender -> kami-storage -> kami-key-provider
         |
 background engine -> direct P2P / authorized live relay
 ```
@@ -52,6 +52,7 @@ background engine -> direct P2P / authorized live relay
 - `kami-identity`: protected device identity, enrollment contracts, fingerprints, contact trust, device-to-Peer-ID binding, and WP2-A1 identity-to-Olm binding.
 - `kami-e2ee`: KAMI-51 WP1/WP2-A2/WP3 foundations and the quarantined typed authenticated composition boundary. It has no transport, IPC, runtime, or production encryption activation.
 - `kami-storage`: SQLCipher persistence, profile lease, worker serialization, migrations, outbox/inbox/history, trust CAS, private WP3 state, and the WP2-B typed commit consumer.
+- `kami-sender`: runtime-neutral coordination of durable KAMI-24 enqueue, recovery, identity holds, cancellation, and retry eligibility through the quarantined E2EE/SQLCipher seam. It has no socket, timer, transport, receipt, or Delivered authority.
 - `kami-cli`: planned CLI and local IPC surface; final service integration remains downstream work.
 
 The approved WP2-B dependency is `kami-storage -> kami-e2ee`; E2EE must not depend on storage. Storage accepts only the opaque `AuthenticatedCommit` boundary and does not expose a neutral trusted-write API.
@@ -65,6 +66,7 @@ The approved WP2-B dependency is `kami-storage -> kami-e2ee`; E2EE must not depe
 - KAMI-23 protected identity/key-custody contracts and native adapters, plus explicit trust/binding interfaces. Functionally implemented; current tests are Linux/local unless stated otherwise; native cross-platform qualification remains pending.
 - KAMI-50 explicit fingerprint verification, trust transitions, changed-identity holds, and device-to-Peer-ID verification.
 - KAMI-51 WP1, WP2-A1, WP2-A2, WP3, and quarantined WP2-B typed E2EE-to-storage composition, implemented in that order. WP3 is accepted as a bounded private storage foundation; WP2-B has conditional owner acceptance within its quarantined scope, with implementation and independent QA/Evaluator evidence. The full KAMI-51 issue remains incomplete and production activation is a separate gate.
+- KAMI-24 runtime-neutral sender coordination: durable authenticated enqueue/recovery, exact-frame attempt leases, bounded retry state, cancellation, and changed-identity holds. It was tested and independently QA/Evaluator reviewed on Linux; it does not activate production messaging or E2EE.
 
 The recorded Rust workspace gates for the KAMI-51 foundation passed on the tested Linux checkout, including locked tests, workspace tests, all-target checking, formatting, Clippy, diff checks, and authenticated boundary fixtures. Two existing native secure-store probes were ignored because their external keyring/DBus prerequisites were unavailable.
 
@@ -77,6 +79,7 @@ The recorded Rust workspace gates for the KAMI-51 foundation passed on the teste
 - The accepted in-process snapshot custodian can technically consume full provider pickles, including private prekeys; this is not protection against a malicious custodian, native copies, dumps, or endpoint compromise.
 - Comprehensive zeroization, cross-platform secure-store behavior, interoperability, and real-network qualification remain open.
 - No sender/receiver runtime, direct transport, relay service, automatic fallback, local IPC, or production receipt/Delivered integration is enabled.
+- KAMI-24 uses a finite eight-attempt retry state and retains preparation tombstones under a bounded quota. The longer-term automatic retry/until-delivery and tombstone/compaction policy remain follow-up work.
 
 ## Canonical documentation
 

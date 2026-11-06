@@ -140,6 +140,7 @@ pub(crate) fn cas(
     }
     // No unrestricted KV or SQL API, and no storage -> identity dependency.
     tx.execute("INSERT INTO contact_trust(contact,format_version,state,generation,pinned,candidate) VALUES(?1,1,?2,?3,?4,?5) ON CONFLICT(contact) DO UPDATE SET state=excluded.state,generation=excluded.generation,pinned=excluded.pinned,candidate=excluded.candidate", params![next.contact.as_slice(), next.state as u8, next.generation as i64, next.pinned, next.candidate])?;
+    crate::sender_state::hold_contact(&tx, next.contact)?;
     tx.commit()?;
     Ok(())
 }

@@ -25,6 +25,25 @@ impl Default for Config {
     }
 }
 enum Request {
+    SenderRecord(DeviceId, MessageId, Reply<crate::QueuedSend>),
+    HoldSend(DeviceId, MessageId, Reply<()>),
+    ResumeSend(DeviceId, MessageId, u64, i64, Reply<()>),
+    RecoverSends(
+        Option<(ConversationId, DeviceId, kami_core::SenderSequence)>,
+        usize,
+        Reply<Vec<crate::QueuedSend>>,
+    ),
+    CancelSend(DeviceId, MessageId, Reply<()>),
+    ClaimSend(DeviceId, MessageId, i64, Reply<Option<crate::SendLease>>),
+    FailSend(crate::SendLease, kami_core::AttemptFailure, i64, Reply<()>),
+    CommitPrepared(
+        crate::PreparedSend,
+        kami_e2ee::AuthenticatedCommit,
+        i64,
+        Reply<Vec<u8>>,
+    ),
+    CleanupPrepared(i64, Reply<usize>),
+    PrepareSend(crate::SendRequest, i64, Reply<crate::Preparation>),
     Authenticated(kami_e2ee::AuthenticatedCommit, Reply<Vec<u8>>),
     #[allow(dead_code)]
     E2eeLoad(
@@ -80,6 +99,83 @@ pub struct Storage {
     thread: Option<JoinHandle<()>>,
 }
 impl Storage {
+    pub fn sender_record(
+        &self,
+        sender: DeviceId,
+        id: MessageId,
+    ) -> Result<crate::QueuedSend, StorageError> {
+        self.call(|reply| Request::SenderRecord(sender, id, reply))
+    }
+    pub fn hold_send(&self, sender: DeviceId, id: MessageId) -> Result<(), StorageError> {
+        self.call(|reply| Request::HoldSend(sender, id, reply))
+    }
+    /// Explicit service reverification of the ORIGINAL pin, never replacement adoption.
+    pub fn resume_send(
+        &self,
+        sender: DeviceId,
+        id: MessageId,
+        generation: u64,
+        now_ms: i64,
+    ) -> Result<(), StorageError> {
+        self.call(|reply| Request::ResumeSend(sender, id, generation, now_ms, reply))
+    }
+    /// Bounded ordered recovery projection, not authorization to transmit.
+    pub fn recover_sends(&self, limit: usize) -> Result<Vec<crate::QueuedSend>, StorageError> {
+        self.recover_sends_after(None, limit)
+    }
+    /// Continue strictly after the last returned conversation/sender/sequence key.
+    pub fn recover_sends_after(
+        &self,
+        after: Option<(ConversationId, DeviceId, kami_core::SenderSequence)>,
+        limit: usize,
+    ) -> Result<Vec<crate::QueuedSend>, StorageError> {
+        self.call(|reply| Request::RecoverSends(after, limit, reply))
+    }
+    /// Stop future attempts without discarding authenticated immutable material.
+    pub fn cancel_send(&self, sender: DeviceId, id: MessageId) -> Result<(), StorageError> {
+        self.call(|reply| Request::CancelSend(sender, id, reply))
+    }
+    /// Lease exact persisted bytes; stale leases are re-fenced, not counted again.
+    pub fn claim_send(
+        &self,
+        sender: DeviceId,
+        id: MessageId,
+        now_ms: i64,
+    ) -> Result<Option<crate::SendLease>, StorageError> {
+        self.call(|reply| Request::ClaimSend(sender, id, now_ms, reply))
+    }
+    pub fn fail_send(&self, lease: crate::SendLease, now_ms: i64) -> Result<(), StorageError> {
+        self.record_send_failure(lease, kami_core::AttemptFailure::Unavailable, now_ms)
+    }
+    pub fn record_send_failure(
+        &self,
+        lease: crate::SendLease,
+        reason: kami_core::AttemptFailure,
+        now_ms: i64,
+    ) -> Result<(), StorageError> {
+        self.call(|reply| Request::FailSend(lease, reason, now_ms, reply))
+    }
+    /// Atomically consume a reservation and the opaque authenticated stage.
+    pub fn commit_prepared(
+        &self,
+        reservation: crate::PreparedSend,
+        stage: kami_e2ee::AuthenticatedCommit,
+        now_ms: i64,
+    ) -> Result<Vec<u8>, StorageError> {
+        self.call(|reply| Request::CommitPrepared(reservation, stage, now_ms, reply))
+    }
+    /// Expire only uncommitted reservations; retain bounded request tombstones.
+    pub fn cleanup_prepared(&self, now_ms: i64) -> Result<usize, StorageError> {
+        self.call(|reply| Request::CleanupPrepared(now_ms, reply))
+    }
+    /// Reserve one durable lane before crypto preparation. No plaintext is persisted.
+    pub fn prepare_send(
+        &self,
+        request: crate::SendRequest,
+        now_ms: i64,
+    ) -> Result<crate::Preparation, StorageError> {
+        self.call(|reply| Request::PrepareSend(request, now_ms, reply))
+    }
     /// Quarantined text-only stage commit/reconciliation on the SQLCipher worker.
     /// Returned exact bytes prove persistence, not live provenance or ACK authority.
     /// No receipt ratchet, Delivered transition, network send or profile restore.
@@ -156,6 +252,51 @@ impl Storage {
                 let _ = ready.send(Ok(()));
                 while let Ok(request) = receiver.recv() {
                     match request {
+                        Request::SenderRecord(sender, id, reply) => {
+                            let _ = reply.send(crate::sender_state::load(&db, sender, id));
+                        }
+                        Request::HoldSend(sender, id, reply) => {
+                            let _ = reply.send(crate::sender_state::hold(&mut db, sender, id));
+                        }
+                        Request::ResumeSend(sender, id, generation, now, reply) => {
+                            let _ = reply.send(crate::sender_state::resume(
+                                &mut db, sender, id, generation, now,
+                            ));
+                        }
+                        Request::RecoverSends(after, limit, reply) => {
+                            let _ = reply.send(crate::sender_state::recover(&db, after, limit));
+                        }
+                        Request::CancelSend(sender, id, reply) => {
+                            let _ = reply.send(crate::sender_state::cancel(&mut db, sender, id));
+                        }
+                        Request::ClaimSend(sender, id, now, reply) => {
+                            let _ =
+                                reply.send(crate::sender_state::claim(&mut db, sender, id, now));
+                        }
+                        Request::FailSend(lease, reason, now, reply) => {
+                            let _ =
+                                reply.send(crate::sender_state::fail(&mut db, lease, reason, now));
+                        }
+                        Request::CommitPrepared(reservation, stage, now, reply) => {
+                            let _ = reply.send(crate::session_state::commit_prepared(
+                                &mut db,
+                                stage,
+                                config.outbox_bytes,
+                                config.outbox_messages,
+                                Some((&reservation, now)),
+                            ));
+                        }
+                        Request::CleanupPrepared(now, reply) => {
+                            let _ = reply.send(crate::sender_state::cleanup(&mut db, now));
+                        }
+                        Request::PrepareSend(request, now, reply) => {
+                            let _ = reply.send(crate::sender_state::prepare(
+                                &mut db,
+                                request,
+                                now,
+                                config.outbox_messages,
+                            ));
+                        }
                         Request::Authenticated(stage, reply) => {
                             let _ = reply.send(crate::session_state::commit_authenticated(
                                 &mut db,
@@ -205,7 +346,10 @@ impl Storage {
                             let _ = hold.recv();
                         }
                         Request::Cancel(sender, id, reply) => {
-                            let _ = reply.send(crate::outbox::cancel(&mut db, sender, id));
+                            let _ = reply.send(
+                                crate::session_state::legacy_guard(&db, sender, id)
+                                    .and_then(|()| crate::outbox::cancel(&mut db, sender, id)),
+                            );
                         }
                         Request::ApplyReceipt(f, device, reply) => {
                             let result =

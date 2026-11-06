@@ -182,7 +182,7 @@ pub(crate) fn commit(
     quota: u64,
     count: u32,
 ) -> Result<Acceptance, StorageError> {
-    commit_inner(db, c, quota, count, false)
+    commit_inner(db, c, quota, count, false, None)
 }
 fn commit_inner(
     db: &mut Connection,
@@ -190,6 +190,7 @@ fn commit_inner(
     quota: u64,
     count: u32,
     initialize: bool,
+    prepared: Option<(&crate::PreparedSend, i64)>,
 ) -> Result<Acceptance, StorageError> {
     if c.frame.is_empty()
         || c.frame.len() > 65536
@@ -210,6 +211,12 @@ fn commit_inner(
     )?;
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     check_trust(&tx, n)?;
+    if let Some((reservation, now)) = prepared {
+        if c.received_at.is_some() {
+            return Err(StorageError::Conflict);
+        }
+        crate::sender_state::consume(&tx, reservation, c.message.facts(), now)?;
+    }
     // Bootstrap only from the opaque authenticated command, inside this transaction.
     if initialize && load_account(&tx)?.is_none() {
         let existing: bool = tx.query_row(
@@ -303,6 +310,16 @@ fn commit_inner(
     )?;
     #[cfg(test)]
     test_pause("frame");
+    if prepared.is_some() {
+        tx.execute(
+            "INSERT INTO sender_attempt(sender,id,trust_generation) VALUES(?1,?2,?3)",
+            params![
+                f.sender().as_bytes(),
+                f.message_id().as_u128().to_be_bytes(),
+                n.trust_generation as i64
+            ],
+        )?;
+    }
     tx.commit()?;
     #[cfg(test)]
     test_pause("committed");
@@ -315,6 +332,15 @@ pub(crate) fn commit_authenticated(
     stage: kami_e2ee::AuthenticatedCommit,
     quota: u64,
     count: u32,
+) -> Result<Vec<u8>, StorageError> {
+    commit_prepared(db, stage, quota, count, None)
+}
+pub(crate) fn commit_prepared(
+    db: &mut Connection,
+    stage: kami_e2ee::AuthenticatedCommit,
+    quota: u64,
+    count: u32,
+    prepared: Option<(&crate::PreparedSend, i64)>,
 ) -> Result<Vec<u8>, StorageError> {
     let m = stage.into_material();
     let id = m.session_id();
@@ -356,6 +382,9 @@ pub(crate) fn commit_authenticated(
         |r| r.get(0),
     )?;
     if exists {
+        if let Some((reservation, _)) = prepared {
+            crate::sender_state::check_committed(db, reservation, facts)?;
+        }
         return reconcile(db, &next, facts, &frame, incoming)?.ok_or(StorageError::Conflict);
     }
     let c = Commit {
@@ -379,7 +408,7 @@ pub(crate) fn commit_authenticated(
         frame: frame.clone(),
         received_at,
     };
-    commit_inner(db, c, quota, count, true)?;
+    commit_inner(db, c, quota, count, true, prepared)?;
     Ok(frame)
 }
 
@@ -456,7 +485,7 @@ pub(crate) fn reconcile(
         || r.get::<_, i64>(3)? as u64 > account.generation
         || bytes != frame
         || r.get::<_, Vec<u8>>(6)? != crate::message::encode(facts)
-        || (!incoming && r.get::<_, i64>(7)? != 0)
+        || (!incoming && !matches!(r.get::<_, i64>(7)?, 0 | 2))
     {
         return Err(StorageError::Conflict);
     }

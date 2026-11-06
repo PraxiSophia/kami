@@ -15,6 +15,13 @@ mod transactions;
 #[allow(dead_code)]
 mod session_state;
 pub use ordering::OrderedMessage;
+mod sender_state;
+pub use sender_state::backoff_ms;
+pub use sender_state::SendState;
+pub use sender_state::{
+    Preparation, PreparedSend, QueuedSend, SendRequest, PREPARATION_LIFETIME_MS,
+};
+pub use sender_state::{SendLease, ATTEMPT_LEASE_MS, MAX_ATTEMPTS};
 mod worker;
 pub use message::StoredMessage;
 

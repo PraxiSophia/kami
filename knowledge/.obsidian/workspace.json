@@ -11,17 +11,14 @@
             "id": "2fea1079858e2638",
             "type": "leaf",
             "state": {
-              "type": "canvas",
+              "type": "markdown",
               "state": {
-                "file": "07 — Implementation Map/Kami Implementation Dependencies.canvas",
-                "viewState": {
-                  "x": 178.99566057379647,
-                  "y": -75.13371858891762,
-                  "zoom": -0.9632995246272728
-                }
+                "file": "Code Analyzing/kami-sender.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-layout-dashboard",
-              "title": "Kami Implementation Dependencies"
+              "icon": "lucide-file",
+              "title": "kami-sender"
             }
           }
         ]
@@ -193,8 +190,8 @@
   },
   "active": "2fea1079858e2638",
   "lastOpenFiles": [
-    "Code Analyzing/kami-sender.md",
     "07 — Implementation Map/Kami Implementation Dependencies.canvas",
+    "Code Analyzing/kami-sender.md",
     "07 — Implementation Map/Delivery Transport Relays.md",
     "07 — Implementation Map/Epic Hierarchy Map.md",
     "07 — Implementation Map/Core Protocol Storage.md",

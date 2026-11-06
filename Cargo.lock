@@ -827,15 +827,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "kami-storage"
+name = "kami-sender"
 version = "0.1.0"
 dependencies = [
  "kami-core",
  "kami-e2ee",
  "kami-identity",
  "kami-key-provider",
+ "kami-storage",
+ "libp2p-identity",
+ "rusqlite",
+ "tempfile",
+ "vodozemac",
+ "zeroize",
+]
+
+[[package]]
+name = "kami-storage"
+version = "0.1.0"
+dependencies = [
+ "getrandom",
+ "hmac",
+ "kami-core",
+ "kami-e2ee",
+ "kami-identity",
+ "kami-key-provider",
  "rusqlite",
  "rustix",
+ "sha2",
  "tempfile",
  "zeroize",
 ]

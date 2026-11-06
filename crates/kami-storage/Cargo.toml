@@ -10,6 +10,9 @@ kami-e2ee = { path = "../kami-e2ee" }
 kami-key-provider = { path = "../kami-key-provider" }
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled-sqlcipher-vendored-openssl", "limits"] }
 zeroize = "=1.9.1"
+getrandom = "=0.4.3"
+hmac = "=0.13.0"
+sha2 = "=0.11.1"
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "=1.1.5", features = ["fs", "process"] }

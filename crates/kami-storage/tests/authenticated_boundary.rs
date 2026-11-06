@@ -179,6 +179,170 @@ fn counts(dir: &tempfile::TempDir) -> [i64; 4] {
 fn prepared(s: &QuarantinedSession, id: u128, seq: u64, t: &ContactTrust) -> (AuthenticatedCommit, QuarantinedSession) {
     s.prepare_text(MessageId::from_u128(id), SenderSequence::new(seq), 1000, "WP2B-PRIVATE-TEXT", t, &t.pinned().unwrap().binding().peer_id(), 1000).unwrap()
 }
+fn committed_sender() -> (tempfile::TempDir, Storage, kami_storage::SendRequest, Vec<u8>) {
+    committed_sender_messages(1)
+}
+fn committed_sender_messages(count: u128) -> (tempfile::TempDir, Storage, kami_storage::SendRequest, Vec<u8>) {
+    let mut alice=Account::new(); alice.generate_one_time_keys(1);
+    let mut bob=Account::new(); bob.generate_one_time_keys(1);
+    let (a,_)=endpoint(&alice,7,false); let (b,tb)=endpoint(&bob,8,false);
+    let aid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([7;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
+    let bid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
+    let dir=common::directory(); let s=common::create(&dir); seed(&s,&tb,bid);
+    let request=kami_storage::SendRequest::new(MessageId::from_u128(91),ConversationId::from_u128(1),aid,bid,1000,"WP2B-PRIVATE-TEXT".into()).unwrap();
+    let kami_storage::Preparation::Prepared(reserved)=s.prepare_send(request.clone(),1000).unwrap() else { panic!() };
+    let source=QuarantinedSession::outbound(alice,a,b,ConversationId::from_u128(1),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let (stage,mut source)=prepared(&source,91,reserved.sequence().value(),&tb);
+    let frame=s.commit_prepared(reserved,stage,1000).unwrap();
+    for offset in 1..count {
+        let mut next=request.clone(); next.message=MessageId::from_u128(91+offset);
+        let kami_storage::Preparation::Prepared(reserved)=s.prepare_send(next,1000).unwrap() else {panic!()};
+        let (stage,advanced)=prepared(&source,91+offset,reserved.sequence().value(),&tb);
+        s.commit_prepared(reserved,stage,1000).unwrap(); source=advanced;
+    }
+    (dir,s,request,frame)
+}
+#[test]
+fn recovery_pages_progress_past_held_rows_without_duplicate_or_starvation() {
+    let (dir,s,r,_)=committed_sender_messages(3);
+    s.hold_send(r.sender,r.message).unwrap(); s.shutdown().unwrap(); let s=common::open(&dir);
+    let mut cursor=None; let mut sequences=Vec::new();
+    loop {
+        let page=s.recover_sends_after(cursor,1).unwrap();
+        if page.is_empty() {break;}
+        let f=page[0].facts(); sequences.push(f.sequence().value());
+        cursor=Some((f.conversation_id(),f.sender(),f.sequence()));
+        assert!(sequences.len()<=3);
+    }
+    assert_eq!(sequences,vec![1,2,3]);
+    assert_eq!(s.recover_sends_after(Some((r.conversation,r.sender,SenderSequence::new(u64::MAX))),1),Err(StorageError::InvalidInput));
+    s.shutdown().unwrap();
+}
+#[test]
+fn failures_persist_reason_eligibility_and_exhaustion_without_losing_frame() {
+    let (dir,s,r,frame)=committed_sender(); let mut now=1000;
+    for attempt in 1..=8 {
+        let lease=s.claim_send(r.sender,r.message,now).unwrap().unwrap();
+        assert_eq!(lease.message().attempts(),attempt);
+        s.record_send_failure(lease,kami_core::AttemptFailure::AckLost,now).unwrap();
+        let record=s.sender_record(r.sender,r.message).unwrap();
+        assert_eq!(record.last_failure(),Some(kami_core::AttemptFailure::AckLost));
+        assert_eq!(record.frame(),frame);
+        assert!(s.claim_send(r.sender,r.message,now).unwrap().is_none());
+        now=record.next_eligible_ms();
+    }
+    assert_eq!(s.sender_record(r.sender,r.message).unwrap().state(),kami_storage::SendState::Exhausted);
+    s.shutdown().unwrap();let s=common::open(&dir);
+    assert!(s.claim_send(r.sender,r.message,now).unwrap().is_none());s.shutdown().unwrap();
+}
+#[test]
+fn restart_enumeration_recovers_pending_exact_ciphertext_without_request_plaintext() {
+    let (dir,s,r,frame)=committed_sender(); s.shutdown().unwrap(); let s=common::open(&dir);
+    let pending=s.recover_sends(10).unwrap(); assert_eq!(pending.len(),1);
+    assert_eq!(pending[0].frame(),frame); assert_eq!(pending[0].facts().recipient(),r.recipient);
+    let f=pending[0].facts();
+    assert!(s.recover_sends_after(Some((f.conversation_id(),f.sender(),f.sequence())),10).unwrap().is_empty());
+    assert_eq!(s.recover_sends(0),Err(StorageError::InvalidInput));
+    s.cancel_send(r.sender,r.message).unwrap(); assert!(s.recover_sends(10).unwrap().is_empty()); s.shutdown().unwrap();
+}
+#[test]
+fn inconsistent_committed_state_never_returns_preparation_or_send_lease() {
+    for mutation in ["UPDATE sender_prepare SET state=0", "DELETE FROM sender_attempt", "UPDATE e2ee_frame SET frame=x'01'"] {
+        let (dir,s,r,_)=committed_sender(); common::raw(&dir).execute_batch(mutation).unwrap();
+        assert!(s.prepare_send(r.clone(),1001).is_err(),"{mutation}");
+        assert!(s.claim_send(r.sender,r.message,1001).is_err(),"{mutation}"); s.shutdown().unwrap();
+    }
+}
+#[test]
+fn cancellation_retains_frame_and_rejects_late_callbacks_and_legacy_cancel() {
+    let (dir,s,r,frame)=committed_sender();
+    let lease=s.claim_send(r.sender,r.message,1000).unwrap().unwrap();
+    assert_eq!(s.cancel(r.sender,r.message),Err(StorageError::Conflict));
+    s.cancel_send(r.sender,r.message).unwrap(); s.cancel_send(r.sender,r.message).unwrap();
+    assert_eq!(s.fail_send(lease,1001),Err(StorageError::Conflict));
+    assert!(s.claim_send(r.sender,r.message,1002).unwrap().is_none());
+    s.shutdown().unwrap(); let s=common::open(&dir);
+    let kami_storage::Preparation::Committed(canceled)=s.prepare_send(r.clone(),1002).unwrap() else {panic!()};
+    assert_eq!(canceled.state(),kami_storage::SendState::Canceled); assert_eq!(canceled.frame(),frame);
+    assert_eq!(canceled.facts().recipient(),r.recipient);
+    assert_eq!(common::raw(&dir).query_row("SELECT payload FROM message",[],|r|r.get::<_,Vec<u8>>(0)).unwrap(),frame);
+    s.shutdown().unwrap();
+}
+#[test]
+fn explicit_reverification_of_original_identity_resumes_without_resetting_attempts() {
+    let (dir,s,r,frame)=committed_sender();
+    let lease=s.claim_send(r.sender,r.message,1000).unwrap().unwrap();
+    let row=s.load_contact(*r.recipient.as_bytes()).unwrap().unwrap();
+    s.compare_and_swap_contact(Some(2),ContactTrustRow::new(*row.contact(),TrustState::Blocked,3,row.pinned().map(|p|p.to_vec()),row.candidate().to_vec()).unwrap()).unwrap();
+    assert!(s.resume_send(r.sender,r.message,3,1001).is_err());
+    s.compare_and_swap_contact(Some(3),ContactTrustRow::new(*row.contact(),TrustState::Verified,4,row.pinned().map(|p|p.to_vec()),row.candidate().to_vec()).unwrap()).unwrap();
+    assert!(s.resume_send(r.sender,r.message,3,1001).is_err());
+    s.resume_send(r.sender,r.message,4,1001).unwrap();
+    assert_eq!(s.fail_send(lease,1002),Err(StorageError::Conflict));
+    let retry=s.claim_send(r.sender,r.message,1002).unwrap().unwrap();
+    assert_eq!(retry.message().attempts(),2); assert_eq!(retry.message().frame(),frame);
+    s.shutdown().unwrap();
+}
+#[test]
+fn identity_change_holds_original_frame_and_fences_active_callback() {
+    let (dir,s,r,frame)=committed_sender();
+    let lease=s.claim_send(r.sender,r.message,1000).unwrap().unwrap();
+    let row=s.load_contact(*r.recipient.as_bytes()).unwrap().unwrap();
+    s.compare_and_swap_contact(Some(row.generation()),ContactTrustRow::new(*row.contact(),TrustState::Blocked,row.generation()+1,row.pinned().map(|p|p.to_vec()),row.candidate().to_vec()).unwrap()).unwrap();
+    assert_eq!(s.fail_send(lease,1001),Err(StorageError::Conflict));
+    assert!(s.claim_send(r.sender,r.message,1002).unwrap().is_none());
+    let kami_storage::Preparation::Committed(held)=s.prepare_send(r.clone(),1002).unwrap() else {panic!()};
+    assert_eq!(held.state(),kami_storage::SendState::HeldIdentity);
+    assert_eq!(held.facts().recipient(),r.recipient); assert_eq!(held.frame(),frame);
+    s.shutdown().unwrap(); let s=common::open(&dir);
+    assert!(s.claim_send(r.sender,r.message,100_000).unwrap().is_none()); s.shutdown().unwrap();
+}
+#[test]
+fn stale_attempt_reclaim_is_durable_and_does_not_count_twice() {
+    let (dir,s,r,frame)=committed_sender();
+    let first=s.claim_send(r.sender,r.message,1000).unwrap().unwrap();
+    assert_eq!(first.message().frame(),frame); assert_eq!(first.message().attempts(),1);
+    assert!(s.claim_send(r.sender,r.message,1001).unwrap().is_none());
+    s.shutdown().unwrap(); let s=common::open(&dir);
+    let reclaimed=s.claim_send(r.sender,r.message,first.expires_at_ms()).unwrap().unwrap();
+    assert_eq!(reclaimed.message().frame(),frame); assert_eq!(reclaimed.message().attempts(),1);
+    assert_ne!(first,reclaimed);
+    assert_eq!(s.fail_send(first,31_001),Err(StorageError::Conflict));
+    s.fail_send(reclaimed,31_001).unwrap();
+    assert!(s.claim_send(r.sender,r.message,31_002).unwrap().is_none());
+    let second=s.claim_send(r.sender,r.message,32_001).unwrap().unwrap();
+    assert_eq!(second.message().attempts(),2); assert_eq!(second.message().frame(),frame);
+    assert_eq!(counts(&dir),[1,1,1,1]); s.shutdown().unwrap();
+}
+#[test]
+fn sender_prepared_commit_recovery_preserves_exact_frame() {
+    let mut alice=Account::new(); alice.generate_one_time_keys(1);
+    let mut bob=Account::new(); bob.generate_one_time_keys(1);
+    let (a,_)=endpoint(&alice,7,false); let (b,tb)=endpoint(&bob,8,false);
+    let aid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([7;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
+    let bid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
+    let dir=common::directory(); let s=common::create(&dir); seed(&s,&tb,bid);
+    let request=kami_storage::SendRequest::new(MessageId::from_u128(91),ConversationId::from_u128(1),aid,bid,1000,"WP2B-PRIVATE-TEXT".into()).unwrap();
+    let kami_storage::Preparation::Prepared(reserved)=s.prepare_send(request.clone(),1000).unwrap() else { panic!() };
+    let source=QuarantinedSession::outbound(alice,a,b,ConversationId::from_u128(1),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let (stage,advanced)=prepared(&source,91,reserved.sequence().value(),&tb);
+    s.cleanup_prepared(61_000).unwrap();
+    let kami_storage::Preparation::Prepared(renewed)=s.prepare_send(request.clone(),61_000).unwrap() else {panic!()};
+    assert_eq!(s.commit_prepared(reserved,stage,61_000),Err(StorageError::Conflict));
+    assert_eq!(counts(&dir),[0;4]);
+    let (stage,_)=prepared(&source,91,renewed.sequence().value(),&tb);
+    let reserved=renewed;
+    let retry=advanced.prepare_retry(&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    // The old stage-only API cannot bypass a pending reservation.
+    assert_eq!(s.commit_authenticated(retry),Err(StorageError::Busy));
+    let frame=s.commit_prepared(reserved,stage,61_000).unwrap();
+    s.shutdown().unwrap(); let s=common::open(&dir);
+    let kami_storage::Preparation::Committed(recovered)=s.prepare_send(request,61_001).unwrap() else { panic!() };
+    assert_eq!(recovered.frame(),frame); assert_eq!(recovered.attempts(),0);
+    assert_eq!(counts(&dir),[1,1,1,1]);
+    assert_eq!(common::raw(&dir).query_row("SELECT state FROM sender_prepare",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    s.shutdown().unwrap();
+}
 #[test]
 fn outbound_inbound_atomic_retry_cas_prekey_and_receipt_boundaries() {
   for fallback in [false, true] {
