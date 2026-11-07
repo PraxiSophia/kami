@@ -470,6 +470,53 @@ fn typed_stale_durable_generation_pin_context_and_digest_never_write() {
   }
 }
 #[test]
+fn receiver_delivery_and_receipt_commit_are_atomic_and_recoverable() {
+    let mut alice=Account::new(); alice.generate_one_time_keys(1);
+    let mut bob=Account::new(); bob.generate_one_time_keys(1);
+    let (a,ta)=endpoint(&alice,7,false); let (b,tb)=endpoint(&bob,8,false);
+    let aid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([7;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
+    let bid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
+    let ad=common::directory(); let bd=common::directory();
+    let sa=common::create(&ad); let sb=common::create(&bd); seed(&sa,&tb,bid); seed(&sb,&ta,aid);
+    let source=QuarantinedSession::outbound(alice,a.clone(),b.clone(),ConversationId::from_u128(1),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let request=kami_storage::SendRequest::new(MessageId::from_u128(41),ConversationId::from_u128(1),aid,bid,1000,"WP2B-PRIVATE-TEXT".into()).unwrap();
+    let kami_storage::Preparation::Prepared(reserved)=sa.prepare_send(request,1000).unwrap() else {panic!()};
+    let (sent,sender)=prepared(&source,41,reserved.sequence().value(),&tb); let facts=sent.facts();
+    let frame=sa.commit_prepared(reserved,sent,1000).unwrap();
+    let expected=kami_protocol::ExpectedContext {message_id:facts.message_id(),conversation_id:facts.conversation_id(),sender:aid,recipient:bid,receipt_target:None};
+    let (delivery,receiver)=QuarantinedSession::inbound_delivery(bob,b,a,ConversationId::from_u128(1),&frame,&expected,MessageId::from_u128(42),&ta,&ta.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let ack=delivery.receipt_frame().to_vec();
+    let result=sb.commit_delivery(delivery).unwrap(); assert_eq!(result.receipt(),ack); assert_eq!(result.acceptance(),kami_storage::Acceptance::New);
+    assert_eq!(common::raw(&bd).query_row("SELECT generation FROM e2ee_session",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    assert_eq!(sb.history(facts.conversation_id(),10).unwrap().len(),1);
+    // A surviving in-memory receiver may not decrypt the committed frame again.
+    assert!(receiver.prepare_receive(&frame,&expected,&ta,&ta.pinned().unwrap().binding().peer_id(),1000).is_err());
+    sb.shutdown().unwrap(); let sb=common::open(&bd);
+    let permit=kami_e2ee::ReplayPermit::new(&ta,&ta.pinned().unwrap().binding().peer_id(),aid,bid,facts.conversation_id()).unwrap();
+    let recovered=sb.recover_delivery(permit,frame.clone()).unwrap().unwrap(); assert_eq!(recovered.receipt(),ack);
+    let expected_ack=kami_protocol::ExpectedContext {message_id:MessageId::from_u128(42),sender:bid,recipient:aid,receipt_target:Some(facts.message_id()),..expected};
+    let (receipt,_)=sender.prepare_receipt(&ack,&expected_ack,facts,&frame,&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    sa.shutdown().unwrap();
+    let sa=Storage::open(kami_storage::ProfileLease::acquire(ad.path()).unwrap(),common::profile(),std::sync::Arc::new(common::Provider(Ok(42))),kami_storage::Config {outbox_bytes:0,..Default::default()}).unwrap();
+    assert_eq!(sa.commit_delivery_receipt(receipt),Err(StorageError::Full));
+    sa.shutdown().unwrap(); let sa=common::open(&ad);
+    let (receipt,_)=sender.prepare_receipt(&ack,&expected_ack,facts,&frame,&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    common::raw(&ad).execute_batch("CREATE TRIGGER receipt_fault BEFORE INSERT ON receipt BEGIN SELECT RAISE(ABORT,'injected'); END").unwrap();
+    assert!(sa.commit_delivery_receipt(receipt).is_err());
+    assert_eq!(sa.sender_record(aid,facts.message_id()).unwrap().state(),kami_storage::SendState::Queued);
+    assert_eq!(common::raw(&ad).query_row("SELECT generation FROM e2ee_session",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(common::raw(&ad).query_row("SELECT count(*) FROM delivery_artifact",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    common::raw(&ad).execute_batch("DROP TRIGGER receipt_fault").unwrap();
+    let (receipt,_)=sender.prepare_receipt(&ack,&expected_ack,facts,&frame,&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    sa.commit_delivery_receipt(receipt).unwrap();
+    assert_eq!(sa.sender_record(aid,facts.message_id()).unwrap().state(),kami_storage::SendState::Delivered);
+    assert!(sa.recover_sends(10).unwrap().is_empty());
+    let (duplicate,_)=sender.prepare_receipt(&ack,&expected_ack,facts,&frame,&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    assert_eq!(sa.commit_delivery_receipt(duplicate).unwrap(),kami_storage::Acceptance::Duplicate);
+    assert_eq!(common::raw(&ad).query_row("SELECT generation FROM e2ee_session",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    sa.shutdown().unwrap(); sb.shutdown().unwrap();
+}
+#[test]
 fn typed_surface_exists() {
     let _: fn(&kami_storage::Storage, AuthenticatedCommit) -> Result<Vec<u8>, kami_storage::StorageError> = kami_storage::Storage::commit_authenticated;
 }

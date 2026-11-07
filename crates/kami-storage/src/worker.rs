@@ -25,6 +25,24 @@ impl Default for Config {
     }
 }
 enum Request {
+    RecoverDeliveryReceipt(
+        kami_e2ee::ReplayPermit,
+        Vec<u8>,
+        Reply<Option<MessageFacts>>,
+    ),
+    CommitDelivery(
+        Box<kami_e2ee::AuthenticatedDelivery>,
+        Reply<crate::DurableDelivery>,
+    ),
+    RecoverDelivery(
+        kami_e2ee::ReplayPermit,
+        Vec<u8>,
+        Reply<Option<crate::DurableDelivery>>,
+    ),
+    CommitDeliveryReceipt(
+        kami_e2ee::AuthenticatedReceiptCommit,
+        Reply<crate::Acceptance>,
+    ),
     SenderRecord(DeviceId, MessageId, Reply<crate::QueuedSend>),
     HoldSend(DeviceId, MessageId, Reply<()>),
     ResumeSend(DeviceId, MessageId, u64, i64, Reply<()>),
@@ -99,6 +117,38 @@ pub struct Storage {
     thread: Option<JoinHandle<()>>,
 }
 impl Storage {
+    pub fn recover_delivery_receipt(
+        &self,
+        permit: kami_e2ee::ReplayPermit,
+        frame: Vec<u8>,
+    ) -> Result<Option<MessageFacts>, StorageError> {
+        if frame.is_empty() || frame.len() > 65_536 {
+            return Err(StorageError::InvalidInput);
+        }
+        self.call(|reply| Request::RecoverDeliveryReceipt(permit, frame, reply))
+    }
+    pub fn commit_delivery(
+        &self,
+        stage: kami_e2ee::AuthenticatedDelivery,
+    ) -> Result<crate::DurableDelivery, StorageError> {
+        self.call(|reply| Request::CommitDelivery(Box::new(stage), reply))
+    }
+    pub fn recover_delivery(
+        &self,
+        permit: kami_e2ee::ReplayPermit,
+        frame: Vec<u8>,
+    ) -> Result<Option<crate::DurableDelivery>, StorageError> {
+        if frame.is_empty() || frame.len() > 65_536 {
+            return Err(StorageError::InvalidInput);
+        }
+        self.call(|reply| Request::RecoverDelivery(permit, frame, reply))
+    }
+    pub fn commit_delivery_receipt(
+        &self,
+        stage: kami_e2ee::AuthenticatedReceiptCommit,
+    ) -> Result<crate::Acceptance, StorageError> {
+        self.call(|reply| Request::CommitDeliveryReceipt(stage, reply))
+    }
     pub fn sender_record(
         &self,
         sender: DeviceId,
@@ -252,6 +302,28 @@ impl Storage {
                 let _ = ready.send(Ok(()));
                 while let Ok(request) = receiver.recv() {
                     match request {
+                        Request::RecoverDeliveryReceipt(permit, frame, reply) => {
+                            let _ = reply
+                                .send(crate::receiver_state::recover_receipt(&db, permit, frame));
+                        }
+                        Request::CommitDelivery(stage, reply) => {
+                            let _ = reply.send(crate::receiver_state::commit(
+                                &mut db,
+                                *stage,
+                                config.outbox_bytes,
+                                config.outbox_messages,
+                            ));
+                        }
+                        Request::RecoverDelivery(permit, frame, reply) => {
+                            let _ = reply.send(crate::receiver_state::recover(&db, permit, frame));
+                        }
+                        Request::CommitDeliveryReceipt(stage, reply) => {
+                            let _ = reply.send(crate::receiver_state::consume(
+                                &mut db,
+                                stage,
+                                config.outbox_bytes,
+                            ));
+                        }
                         Request::SenderRecord(sender, id, reply) => {
                             let _ = reply.send(crate::sender_state::load(&db, sender, id));
                         }

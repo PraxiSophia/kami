@@ -1,0 +1,29 @@
+[package]
+name = "kami-receiver"
+autotests = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kami-core = { path = "../kami-core" }
+kami-protocol = { path = "../kami-protocol" }
+kami-storage = { path = "../kami-storage" }
+kami-e2ee = { path = "../kami-e2ee" }
+kami-identity = { path = "../kami-identity" }
+libp2p-identity = { version = "=0.3.0", features = ["peerid", "ed25519"] }
+vodozemac = "=0.11.1"
+
+[dev-dependencies]
+kami-sender = { path = "../kami-sender" }
+kami-key-provider = { path = "../kami-key-provider", features = ["test-provider"] }
+zeroize = "=1.9.1"
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled-sqlcipher-vendored-openssl"] }
+tempfile = "3"
+
+[[test]]
+name = "receive"
+path = "tests/receive.rs"
+
+[lints]
+workspace = true

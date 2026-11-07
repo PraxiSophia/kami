@@ -166,7 +166,7 @@ pub(crate) fn commit_account(
     Ok(())
 }
 /// First inbound prekey consumption uses next_account in this SAME transaction.
-/// Receipt ratchet/Delivered operations deliberately have no command here.
+/// Receipt ratchet/Delivered commands have a dedicated typed receiver_state path.
 pub(crate) struct Commit {
     pub account: AccountRow,
     pub next_account: Option<AccountRow>,
@@ -182,7 +182,7 @@ pub(crate) fn commit(
     quota: u64,
     count: u32,
 ) -> Result<Acceptance, StorageError> {
-    commit_inner(db, c, quota, count, false, None)
+    commit_inner(db, c, quota, count, false, None, None)
 }
 fn commit_inner(
     db: &mut Connection,
@@ -191,6 +191,7 @@ fn commit_inner(
     count: u32,
     initialize: bool,
     prepared: Option<(&crate::PreparedSend, i64)>,
+    receipt: Option<crate::receiver_state::ReceiptTransition>,
 ) -> Result<Acceptance, StorageError> {
     if c.frame.is_empty()
         || c.frame.len() > 65536
@@ -262,6 +263,15 @@ fn commit_inner(
     if existing {
         return Err(StorageError::Conflict);
     }
+    if let Some(ref receipt) = receipt {
+        crate::receiver_state::limits(
+            &tx,
+            f,
+            c.frame.len() + receipt.frame.len() + c.message.payload().len(),
+            quota,
+            count,
+        )?;
+    }
     let remote = if c.received_at.is_some() {
         f.sender()
     } else {
@@ -320,6 +330,9 @@ fn commit_inner(
             ],
         )?;
     }
+    if let Some(receipt) = receipt {
+        crate::receiver_state::finish_inbound(&tx, n, f, receipt)?;
+    }
     tx.commit()?;
     #[cfg(test)]
     test_pause("committed");
@@ -341,6 +354,16 @@ pub(crate) fn commit_prepared(
     quota: u64,
     count: u32,
     prepared: Option<(&crate::PreparedSend, i64)>,
+) -> Result<Vec<u8>, StorageError> {
+    commit_prepared_inner(db, stage, quota, count, prepared, None)
+}
+pub(crate) fn commit_prepared_inner(
+    db: &mut Connection,
+    stage: kami_e2ee::AuthenticatedCommit,
+    quota: u64,
+    count: u32,
+    prepared: Option<(&crate::PreparedSend, i64)>,
+    receipt: Option<crate::receiver_state::ReceiptTransition>,
 ) -> Result<Vec<u8>, StorageError> {
     let m = stage.into_material();
     let id = m.session_id();
@@ -408,7 +431,7 @@ pub(crate) fn commit_prepared(
         frame: frame.clone(),
         received_at,
     };
-    commit_inner(db, c, quota, count, true, prepared)?;
+    commit_inner(db, c, quota, count, true, prepared, receipt)?;
     Ok(frame)
 }
 

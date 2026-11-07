@@ -213,7 +213,7 @@ fn wp3_process_kill_atomicity_and_encrypted_artifacts() {
 
 #[test]
 fn wp3_migrates_each_version_and_preserves_existing_rows() {
-    for version in 0..=3 {
+    for version in 0..=4 {
         let mut db = rusqlite::Connection::open_in_memory().unwrap();
         if version > 0 {
             db.execute_batch(include_str!("../../migrations/001_initial.sql"))
@@ -228,6 +228,15 @@ fn wp3_migrates_each_version_and_preserves_existing_rows() {
         if version >= 3 {
             db.execute_batch(include_str!("../../migrations/003_e2ee_state.sql"))
                 .unwrap();
+        }
+        if version >= 4 {
+            db.execute_batch(include_str!("../../migrations/004_sender_state.sql"))
+                .unwrap();
+            db.execute(
+                "INSERT INTO sender_binding_key VALUES(1,?1)",
+                [[7u8; 32].as_slice()],
+            )
+            .unwrap();
         }
         db.pragma_update(None, "user_version", version).unwrap();
         crate::migrations::migrate(&mut db, version == 0).unwrap();

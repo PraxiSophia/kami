@@ -21,7 +21,11 @@
 - **Requirements & Jira Traceability**:
   - **KAMI-24** (Outbox message lifecycle, sequence reservations, retry policies, and crash recovery): **Owner-accepted bounded implementation** (Implementation task `t_3caec9e9`, pre-review `t_903b8e19` PASS, QA `t_d1b015bb` PASS, Evaluator `t_4c8b8ad4` PASS).
   - Consumes the owner-accepted KAMI-51 WP3 storage foundation and WP2-B authenticated boundary.
-- **Git Context**: Branch `protocol-storage`, commit `0002406ea6e0c12789df74ff12e04c96a3b8f122`.
+- **Git Context**: Branch `protocol-storage`, HEAD commit `7bffc6fe8523161e2af3fd8d87b6fb3aadb92bc8` ("Merge KAMI-24 into main").
+
+### Interactive Architecture Diagrams
+- [KAMI-VIS-002: Rust Crate Dependency Graph](file:///home/phu/dev/kami/knowledge/Code%20Analyzing/Visualizations/01-System-Architecture/KAMI-VIS-002/crate-dependencies.html) — Explorable workspace dependency graph including `kami-sender` and `kami-receiver`.
+- [KAMI-VIS-025: End-to-End Messaging Lifecycle & Receipt Flow](file:///home/phu/dev/kami/knowledge/Code%20Analyzing/Visualizations/01-System-Architecture/KAMI-VIS-025/messaging-lifecycle.html) — Sequence diagram tracing sender preparation, inbound verification, same-session receipt staging, and storage commits.
 
 ---
 
@@ -93,10 +97,27 @@ Enforces attempt leases, fresh identity reverification, and exponential backoff 
     - Requires explicit independent reverification of the **original pinned identity** (matching the recipient's generation).
     - It **never adopts a replacement identity** for an existing queued message.
     - Unblocks the message back to `SendState::Queued` without resetting historical attempt counters.
+  - `pub fn receive_receipt(&self, frame: &EncryptedFrame, session: &QuarantinedSession, end_peer: &PeerId, now: i64) -> Result<ReceiptOutcome, Error>` (KAMI-25)
+    - Consumes an incoming `DeviceDelivered` delivery receipt frame targeting an outbound message.
+    - Checks fresh contact trust and verified `end_peer` context.
+    - Checks exact duplicate receipts using `storage.recover_delivery_receipt`. Replays return `ReceiptOutcome::Duplicate` without ratcheting the session.
+    - Drives `QuarantinedSession::prepare_receipt` to decrypt and authenticate receipt facts and the text frame SHA-256 digest.
+    - Executes `storage.commit_delivery_receipt`, atomically transitioning the target outbound message state to `DeviceDelivered` and marking attempt lanes terminal.
+    - Handles late receipts safely: genuine late receipts supersede stale failure or canceled attempt records.
 
 ---
 
-### 3. Module `error` ([crates/kami-sender/src/error.rs](file:///home/phu/dev/kami/crates/kami-sender/src/error.rs))
+### 3. Module `receipt` ([crates/kami-sender/src/receipt.rs](file:///home/phu/dev/kami/crates/kami-sender/src/receipt.rs))
+
+Introduced in KAMI-25 to define delivery receipt processing outcomes:
+
+- **Enum**: `ReceiptOutcome`
+  - `Delivered { facts: DeliveryReceiptFacts, proposed_session: QuarantinedSession }`: Receipt was novel, cryptographically verified, and committed. Returns updated session state to caller.
+  - `Duplicate(DeliveryReceiptFacts)`: Exact cryptographic replay; returns stored delivery facts without modifying Double Ratchet state.
+
+---
+
+### 4. Module `error` ([crates/kami-sender/src/error.rs](file:///home/phu/dev/kami/crates/kami-sender/src/error.rs))
 
 - **Enum**: `Error`
   - `Storage(StorageError)`: Underlying SQLCipher database error.
@@ -108,7 +129,7 @@ Enforces attempt leases, fresh identity reverification, and exponential backoff 
 
 ---
 
-### 4. Re-Exported Storage Types from `kami-storage`
+### 5. Re-Exported Storage Types from `kami-storage`
 
 To maintain a clean boundary, `kami-sender` re-exports the sender types defined in `kami_storage::sender_state`:
 
@@ -117,7 +138,7 @@ To maintain a clean boundary, `kami-sender` re-exports the sender types defined 
 - `Preparation`: Enum representing `Prepared(PreparedSend)` or `Committed(QueuedSend)`.
 - `QueuedSend`: Immutable readback struct holding exact ciphertext frame, delivery facts, attempt count, `SendState`, and next eligible timestamp.
 - `SendLease`: Opaque active lease handle holding `token` and `expires_at_ms`.
-- `SendState`: Enum with 5 states: `Queued (0)`, `InFlight (1)`, `Exhausted (2)`, `Canceled (3)`, `HeldIdentity (4)`.
+- `SendState`: Enum with 6 states: `Queued (0)`, `InFlight (1)`, `Exhausted (2)`, `Canceled (3)`, `HeldIdentity (4)`, `Delivered (5)`.
 
 ---
 
@@ -167,7 +188,7 @@ To maintain a clean boundary, `kami-sender` re-exports the sender types defined 
 - **No Async Runtime / Timers**: Contains no Tokio event loop, sleep timers, or background polling threads. The caller drives `Coordinator::enqueue`, `Coordinator::claim`, and `storage.cleanup_prepared` synchronously (deferred to KAMI-26).
 - **No Direct vs. Relay Selection**: Path selection is not handled here (deferred to KAMI-31).
 - **No Live End-Peer Provenance**: Caller-supplied `PeerId` is treated as verification evidence against local pinned trust, not as proof of live remote network connection.
-- **No Receipt / ACK Emission Authority**: Receiving an outbound lease confirms local disk persistence only; it does not authorize transitioning messages to `DeviceDelivered` (deferred to KAMI-25 / KAMI-26).
+- **Delivery Receipt Handling**: Delivery receipt processing is functionally implemented via `Coordinator::receive_receipt` (KAMI-25), while outbound receipt network dispatch and wire emission remain deferred to live transport (KAMI-26 / KAMI-27).
 - **Platform Qualification**: Tested on Linux; native Windows (DPAPI / ACLs) and macOS (Keychain / sandbox) qualification remain separate release gates.
 
 ---

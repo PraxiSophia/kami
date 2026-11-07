@@ -1,7 +1,7 @@
 //! Quarantined authenticated-envelope and bounded WP2-B custodian boundary.
 //!
-//! No public messaging activation, runtime import, prekey publication or ACK
-//! capability. Typed candidates feed the storage-owned durable transaction.
+//! No public messaging activation, runtime import, or prekey publication.
+//! Candidates alone never grant ACK eligibility; the storage transaction does.
 //! Callers must supply fresh trust
 //! and the authenticated END peer for every operation; a relay identity or an
 //! indirectly obtained signed prekey is never live authentication.
@@ -27,6 +27,9 @@ use vodozemac::{
     Curve25519PublicKey,
 };
 use zeroize::Zeroizing;
+
+pub(crate) mod receipts;
+pub use receipts::{AuthenticatedDelivery, AuthenticatedReceiptCommit, ReplayPermit};
 
 #[derive(Clone)]
 pub struct Endpoint {
@@ -565,7 +568,7 @@ fn finalize_stage(
         .matches_inner(inner, &session.session, session.initiator, !incoming)?;
     let outer = decode_frame(&frame).map_err(|_| Error::AuthenticationRejected)?;
     inner.matches_frame(&outer)?;
-    // Receipt ratchet/Delivered transitions are a separate, unimplemented boundary.
+    // Receipts use the dedicated typed path, never ordinary text finalization.
     if inner.kind != kami_protocol::MessageKind::Text {
         return Err(Error::AuthenticationRejected);
     }
@@ -732,7 +735,8 @@ impl InboundStage {
 /// Bounded-development preparation only. Not a network sender or provider activation.
 /// Supplied trust, selected bundles and end-peer require a trusted caller (KAMI-26).
 /// Proposed state must not be installed until storage confirms the commit. No
-/// automatic profile restore, key export, receipt preparation, or ACK operation.
+/// automatic profile restore, individual-key export, or transmission operation.
+/// Receipt candidates use dedicated opaque types and require a durable commit.
 pub struct QuarantinedSession {
     account: Account,
     bound: BoundSession,

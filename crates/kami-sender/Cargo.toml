@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 kami-core = { path = "../kami-core" }
+kami-protocol = { path = "../kami-protocol" }
 kami-storage = { path = "../kami-storage" }
 kami-e2ee = { path = "../kami-e2ee" }
 kami-identity = { path = "../kami-identity" }

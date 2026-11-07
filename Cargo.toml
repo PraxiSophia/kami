@@ -9,6 +9,7 @@ members = [
     "crates/kami-storage",
     "crates/kami-e2ee",
     "crates/kami-sender",
+    "crates/kami-receiver",
 ]
 
 [workspace.package]

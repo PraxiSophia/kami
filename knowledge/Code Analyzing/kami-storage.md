@@ -19,7 +19,12 @@
     - **WP3** (Migration `003_e2ee_state.sql` and private session state snapshots): Implemented and **owner accepted** as a bounded private storage foundation (`t_fd283614`, QA `t_2d834cf1`, Evaluator `t_82d8776a`).
     - **WP2-B** (Typed authenticated transaction commits): Implemented and **owner accepted with conditions** for quarantined scope only (task `t_b8cb3f89` run 126, QA `t_48119cc5` run 127, Evaluator `t_21f65076` run 128). Does not grant ACK emission authority or mark overall KAMI-51 complete.
   - **KAMI-24** (Outbound sender state, Migration `004_sender_state.sql`, sequence reservations, attempt leases, and crash recovery): **Owner-accepted bounded implementation** (Implementation `t_3caec9e9`, QA `t_d1b015bb` PASS, Evaluator `t_4c8b8ad4` PASS). Provides the durable persistence backend for [[kami-sender]].
-- **Git Context**: Branch `protocol-storage`, commit `0002406ea6e0c12789df74ff12e04c96a3b8f122`.
+  - **KAMI-25** (Inbound receiver state, Migration `005_receiver_state.sql`, delivery artifact persistence, replay recovery, gap observation, and receipt commit): **Owner-accepted bounded implementation**. Provides the durable persistence backend for [[kami-receiver]].
+- **Git Context**: Branch `protocol-storage`, commit `7bffc6fe8523161e2af3fd8d87b6fb3aadb92bc8`.
+
+### Interactive Architecture Diagrams
+- [KAMI-VIS-018: SQLCipher Database Schema](file:///home/phu/dev/kami/knowledge/Code%20Analyzing/Visualizations/03-Storage-And-Persistence/KAMI-VIS-018/sqlcipher-schema.html) — Physical ERD covering migrations 001-005, strict foreign keys, sender attempt state, and receiver delivery artifacts.
+- [KAMI-VIS-014: Authenticated E2EE Persistence](file:///home/phu/dev/kami/knowledge/Code%20Analyzing/Visualizations/03-Storage-And-Persistence/KAMI-VIS-014/authenticated-persistence.html) — Sequence diagram of in-process authenticated commit handoff, CAS verification, and retry invariants.
 
 ---
 
@@ -59,6 +64,9 @@ Controls opening, creating, and upgrading the encrypted database.
       - `sender_binding_key`: Singleton table holding a private 32-byte HMAC key for request authenticators.
       - `sender_prepare`: Monotonic sequence reservations with 60-second timeouts (`PREPARATION_LIFETIME_MS`) and partial unique index `sender_prepare_lane ON sender_prepare(conversation, sender) WHERE state=0` to serialize preparation in a conversation lane.
       - `sender_attempt`: Outbound transmission attempts, attempt counts, 30-second lease tokens (`ATTEMPT_LEASE_MS`), retry deadlines, and failure reasons (`AckLost`, `ConnectionLost`, `Unavailable`).
+    - `005_receiver_state.sql` (KAMI-25): Durable receiver state tables:
+      - `delivery_artifact`: Stores staged `DeviceDelivered` receipt frames, 32-byte `artifact_id`, session generation, and payload digests, with a foreign key referencing `e2ee_frame(sender, id) WITHOUT ROWID`.
+      - `receiver_gap`: Stores gap observations (`state`: `0 = Unresolved`, `1 = Permanent`) tracking missing sequence numbers, with a foreign key referencing `message(sender, id) WITHOUT ROWID`.
 
 ---
 
@@ -105,7 +113,7 @@ Durable state engine for outbound message preparation, sequence reservations, an
   - `Preparation`: Enum representing `Prepared(PreparedSend)` or `Committed(QueuedSend)`.
   - `QueuedSend`: Immutable readback struct holding exact ciphertext frame, delivery facts, attempt count, `SendState`, and next eligible timestamp.
   - `SendLease`: Active transmission lease containing an opaque 32-byte token and expiration timestamp.
-  - `SendState`: Enum with 5 states: `Queued (0)`, `InFlight (1)`, `Exhausted (2)`, `Canceled (3)`, `HeldIdentity (4)`.
+  - `SendState`: Enum with 6 states: `Queued (0)`, `InFlight (1)`, `Exhausted (2)`, `Canceled (3)`, `HeldIdentity (4)`, `Delivered (5)`.
 - **Key Invariants**:
   - *Keyed HMAC Request Binding*: Request fields are hashed with HMAC-SHA256 using a database-private key from `sender_binding_key`. Any tampering with request parameters causes `StorageError::Conflict`.
   - *Lane Fencing*: The `sender_prepare_lane` index permits only one active (`state=0`) preparation per `(conversation, sender)` lane.
@@ -113,7 +121,30 @@ Durable state engine for outbound message preparation, sequence reservations, an
 
 ---
 
-### 6. Module `worker` ([crates/kami-storage/src/worker.rs](file:///home/phu/dev/kami/crates/kami-storage/src/worker.rs))
+### 6. Module `receiver_state` ([crates/kami-storage/src/receiver_state.rs](file:///home/phu/dev/kami/crates/kami-storage/src/receiver_state.rs))
+
+Durable state engine for inbound delivery commits, replay recovery, gap observations, and delivery receipt commits (KAMI-25).
+
+- **Admission Quotas & Bounds**:
+  - `MAX_FRAME_BYTES: usize = 65_536` (64 KiB maximum encrypted frame size).
+  - `MAX_RETAINED_INBOUND_PER_CONTACT: usize = 1_024` messages per sender.
+  - `MAX_RETAINED_INBOUND_PER_CONVERSATION: usize = 512` messages per sender in a conversation.
+  - `MAX_FORWARD_SEQUENCE_DISTANCE: u64 = 4_096` sequence numbers.
+  - `MAX_PENDING_GAPS_PER_SENDER: usize = 128` unresolved gap observations.
+- **Functions & Invariants**:
+  - `pub fn commit_delivery(...) -> Result<DeliveryArtifact, StorageError>`: Atomically writes inbound message text, history record, updated Double Ratchet session state, consumed one-time keys, staged `DeviceDelivered` receipt frame in `delivery_artifact`, and gap observation in a single `BEGIN IMMEDIATE` transaction.
+  - `pub fn recover_delivery(permit: ReplayPermit, frame: Vec<u8>) -> Result<Option<DurableDelivery>, StorageError>`: Looks up previously committed delivery artifact for exact duplicate reconciliation without ratcheting session keys. Requires the full wire `frame: Vec<u8>` to verify byte-exact parity with stored `e2ee_frame`.
+  - `pub fn commit_delivery_receipt(stage: AuthenticatedReceiptCommit) -> Result<(), StorageError>`: Atomically updates outbound message attempt state to `Delivered` and marks attempt lane terminal (`Canceled`, `token=NULL`, `deadline=0`) upon receipt of an authenticated delivery receipt. Genuine late receipts supersede prior canceled/exhausted states.
+  - `pub fn recover_delivery_receipt(permit: ReplayPermit, frame: Vec<u8>) -> Result<Option<MessageFacts>, StorageError>`: Looks up previously processed delivery receipts for replay reconciliation.
+- **Gap Ordering Invariants (`ordering.rs`)**:
+  - Inbound messages arriving out-of-order are held in `receiver_gap` with `state = 0` (`Unresolved`).
+  - `ordered_history` enforces presentation eligibility: messages with unresolved gaps wait up to **60 seconds** (`GAP_TIMEOUT_MS = 60_000`).
+  - After 60 seconds from initial receipt, gaps age to `state = 1` (`Permanent`), allowing subsequent messages to be presented to users with a gap warning.
+  - If late preceding messages subsequently arrive, `reconcile_gaps` safely resolves existing gap records.
+
+---
+
+### 7. Module `worker` ([crates/kami-storage/src/worker.rs](file:///home/phu/dev/kami/crates/kami-storage/src/worker.rs))
 
 - **Struct**: `StorageWorker` & `WorkerHandle`
   - Actor-pattern worker executing SQLite operations sequentially on a dedicated background thread.
@@ -128,17 +159,22 @@ Durable state engine for outbound message preparation, sequence reservations, an
   - `pub fn hold_send(&self, sender: DeviceId, id: MessageId) -> Result<(), StorageError>`: Transitions message to `HeldIdentity`.
   - `pub fn resume_send(&self, sender: DeviceId, id: MessageId, expected_trust_generation: u64, now: i64) -> Result<(), StorageError>`: Resumes a held message after explicit reverification of original expected recipient.
   - `pub fn recover_sends(&self, limit: usize) -> Result<Vec<QueuedSend>, StorageError>`: Enumerates queued outbound messages across process reopen.
+- **Receiver Worker APIs (KAMI-25)**:
+  - `pub fn commit_delivery(&self, delivery: AuthenticatedDelivery, now_ms: i64) -> Result<DeliveryArtifact, StorageError>`
+  - `pub fn recover_delivery(&self, permit: kami_e2ee::ReplayPermit, frame: Vec<u8>) -> Result<Option<kami_storage::DurableDelivery>, StorageError>`
+  - `pub fn commit_delivery_receipt(&self, receipt: AuthenticatedReceiptCommit, now_ms: i64) -> Result<(), StorageError>`
+  - `pub fn recover_delivery_receipt(&self, permit: kami_e2ee::ReplayPermit, frame: Vec<u8>) -> Result<Option<kami_core::MessageFacts>, StorageError>`
 
 ---
 
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **Functionally Implemented & Owner-Accepted Bounded Foundations** (KAMI-22 storage engine, KAMI-50 contact trust migration 002, KAMI-51 WP3 migration 003, WP2-B authenticated commits, and KAMI-24 migration 004 sender state).
+  - *Milestone Status*: **Functionally Implemented & Owner-Accepted Bounded Foundations** (KAMI-22 storage engine, KAMI-50 contact trust migration 002, KAMI-51 WP3 migration 003, WP2-B authenticated commits, KAMI-24 migration 004 sender state, and KAMI-25 migration 005 receiver state).
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: Full SQLCipher v4 encrypted persistence, profile directory leasing, numbered migrations 001-004, atomic outbox/inbox queues, duplicate filtering, gap ordering, contact trust CAS, E2EE session transactions, sequence reservations, attempt leases, and exact-frame crash recovery.
-  - **Tested Behavior**: Linux is verified via unit tests, migration rollback tests, WAL file inspections, 12 subprocess kill checkpoints, contact trust tests, `sender_state` durability tests, `sender_input` quota tests, and negative plaintext probes.
+  - **Implemented Behavior**: Full SQLCipher v4 encrypted persistence, profile directory leasing, numbered migrations 001-005, atomic outbox/inbox queues, duplicate filtering, gap ordering, contact trust CAS, E2EE session transactions, sequence reservations, attempt leases, exact-frame crash recovery, delivery artifact persistence, and receipt commits.
+  - **Tested Behavior**: Linux is verified via unit tests, migration rollback tests, WAL file inspections, 12 subprocess kill checkpoints, contact trust tests, `sender_state` durability tests, `receiver_migration` tests, `sender_input` quota tests, and negative plaintext probes.
   - **Missing Behavior**: Native Windows and macOS profile leasing qualification.
   - **Known Limitations**: Database digests protect against corrupted data, but cannot detect full-database external rollback (e.g., restoring an entire old VM snapshot).
 
@@ -147,6 +183,9 @@ Durable state engine for outbound message preparation, sequence reservations, an
 ```sh
 # Run all unit and integration tests in kami-storage
 cargo test --locked -p kami-storage
+
+# Run KAMI-25 receiver migration and persistence tests
+cargo test --locked -p kami-storage --test receiver_migration
 
 # Run KAMI-24 sender persistence and reservation tests
 cargo test --locked -p kami-storage --test sender_state --test sender_input

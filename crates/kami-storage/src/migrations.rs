@@ -3,7 +3,7 @@ use rusqlite::Connection;
 #[cfg(test)]
 mod tests;
 
-pub(crate) const VERSION: i64 = 4;
+pub(crate) const VERSION: i64 = 5;
 pub(crate) fn migrate(connection: &mut Connection, create: bool) -> Result<(), StorageError> {
     migrate_with_entropy(connection, create, |key| {
         getrandom::fill(key).map_err(|_| StorageError::Io)
@@ -44,6 +44,10 @@ fn migrate_with_entropy(
                 "INSERT INTO sender_binding_key VALUES(1,?1)",
                 [key.as_slice()],
             )?;
+        }
+        if version < 5 {
+            tx.execute_batch(include_str!("../migrations/005_receiver_state.sql"))
+                .map_err(migration_error)?;
         }
         tx.pragma_update(None, "user_version", VERSION)?;
         tx.commit()?;
