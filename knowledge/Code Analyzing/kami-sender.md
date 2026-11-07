@@ -185,7 +185,7 @@ To maintain a clean boundary, `kami-sender` re-exports the sender types defined 
 > The bounded KAMI-24 implementation is strictly a **synchronous service coordination layer**. It deliberately defers all asynchronous, network, and transport responsibilities:
 
 - **No Network Transport / Sockets**: `kami-sender` contains no networking code. It does not open sockets, connect to libp2p swarms, or send bytes over the wire (deferred to KAMI-27 / KAMI-31).
-- **No Async Runtime / Timers**: Contains no Tokio event loop, sleep timers, or background polling threads. The caller drives `Coordinator::enqueue`, `Coordinator::claim`, and `storage.cleanup_prepared` synchronously (deferred to KAMI-26).
+- **No Async Runtime / Timers**: Contains no Tokio event loop, sleep timers, or background polling threads. In KAMI-26, the newly implemented [[kami-runtime]] supervisory layer hosts `Coordinator::enqueue`, `Coordinator::claim`, and `storage.cleanup_prepared` sequentially on a dedicated blocking thread worker, and drives periodic 1-second attempt retry sweeps, while preserving `kami-sender`'s synchronous boundaries and fail-closed live transport guarantees.
 - **No Direct vs. Relay Selection**: Path selection is not handled here (deferred to KAMI-31).
 - **No Live End-Peer Provenance**: Caller-supplied `PeerId` is treated as verification evidence against local pinned trust, not as proof of live remote network connection.
 - **Delivery Receipt Handling**: Delivery receipt processing is functionally implemented via `Coordinator::receive_receipt` (KAMI-25), while outbound receipt network dispatch and wire emission remain deferred to live transport (KAMI-26 / KAMI-27).

@@ -10,6 +10,7 @@ members = [
     "crates/kami-e2ee",
     "crates/kami-sender",
     "crates/kami-receiver",
+    "crates/kami-runtime",
 ]
 
 [workspace.package]

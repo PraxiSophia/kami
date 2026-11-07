@@ -165,6 +165,12 @@ Durable state engine for inbound delivery commits, replay recovery, gap observat
   - `pub fn commit_delivery_receipt(&self, receipt: AuthenticatedReceiptCommit, now_ms: i64) -> Result<(), StorageError>`
   - `pub fn recover_delivery_receipt(&self, permit: kami_e2ee::ReplayPermit, frame: Vec<u8>) -> Result<Option<kami_core::MessageFacts>, StorageError>`
 
+### 8. Runtime Supervisor Integration (KAMI-26)
+
+In [[kami-runtime]], `StorageWorker` is orchestrated by a dedicated single-thread blocking worker (`tokio::task::spawn_blocking`) over a bounded channel of capacity 8. The runtime guarantees:
+- **Flock Retention Across Timeout**: In the event of a graceful shutdown timeout (`ShutdownOutcome::TimedOut`), the runtime terminates asynchronous tasks but explicitly **retains** the `ProfileLease` file lock and worker handle in the dedicated thread until active kernel I/O completes or process termination, preventing split-brain database corruption.
+- **Startup Reconciliation**: On engine startup, `kami-runtime` executes storage reconciliation via `StorageWorker` to clean up expired uncommitted reservations (`cleanup_prepared`) and restore queued outbound attempts (`recover_sends`).
+
 ---
 
 ## Completion and Verification

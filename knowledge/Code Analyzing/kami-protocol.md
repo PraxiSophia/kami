@@ -89,6 +89,7 @@ A specialized, allocation-free Protobuf stream scanner.
 - **Status Breakdown**:
   - **Implemented Behavior**: Full M1 Protobuf wire format, zero-allocation pre-scan, strict canonical field ordering, exact 64 KB boundary check, redacted Debug formatting, and safe error classes.
   - **Tested Behavior**: Exhaustive unit tests, golden hex vectors, malformed wire fuzzing, and heap allocation count verification via `resource_probe.py`.
+  - **Runtime & Transport Status**: In KAMI-26, [[kami-runtime]] incorporates protocol definitions for internal queue typing, while public live ingress remains fail-closed until live network transports (KAMI-27) are connected.
   - **Missing Behavior**: Wire integration with network transports (libp2p/QUIC/TCP), which belongs to transport layers.
   - **Known Limitations**: This codec validates *structure*, not *authenticity*. It does not decrypt payloads or verify cryptographic signatures (handled by the security/identity layer).
 
