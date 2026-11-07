@@ -2,8 +2,10 @@
 
 SQLCipher-only encrypted local persistence for Kami's background service. One
 exclusive profile lease and one dedicated worker own the writable connection.
-This crate accepts already validated message/security facts: it does not parse
-Protobuf, authenticate identities/receipts, perform E2EE, or send network traffic.
+This crate accepts validated facts and opaque E2EE-authenticated stages. Its
+KAMI-25 recovery path checks bounded Protobuf correspondence against retained
+authenticated evidence; storage does not itself cryptographically authenticate
+identities/receipts, perform E2EE, or send network traffic.
 
 ## Implementation and qualification status
 
@@ -19,8 +21,8 @@ The WP3 private state is implemented and accepted as a bounded private storage
 foundation; its implementation and independent review evidence are separate from
 the later WP2-B evidence. The WP2-B typed authenticated commit consumer is also
 present and conditionally owner-accepted only within its quarantined scope.
-Production sender,
-receiver, runtime, network, receipt/Delivered activation, external rollback anchoring,
+KAMI-24/KAMI-25 add bounded sender/receiver and receipt/Delivered persistence below.
+Production runtime, network, receipt/Delivered activation, external rollback anchoring,
 and cross-platform qualification remain downstream work.
 
 ## Modules and interfaces
@@ -72,8 +74,8 @@ logical deletion, **not forensic erasure**.
 ## Contact trust (KAMI-50)
 
 `migrations/002_contact_trust.sql` adds encrypted neutral contact rows; existing
-v1/v2 databases upgrade atomically through schema v3 on open; fresh create applies
-all three numbered migrations in one transaction. Each migration has its own
+v1/v2 databases originally upgraded through schema v3; current open upgrades through
+v5 and fresh create applies all five numbered migrations in one transaction. Each migration has its own
 version guard, so opening v2 never reruns migration 002. Existing profile namespace
 is checked before schema migration, so a wrong namespace cannot rewrite a v1 database. A failed upgrade leaves the old schema/version/data
 intact. No sidecar, second database, plaintext trust store or message-payload reuse.
@@ -145,8 +147,9 @@ excludes quarantined frames. Cancel still prevents outbound reconciliation.
 DB/WAL copy is not detectable by these SQL checks. E2EE profile restoration fails
 with `RollbackAnchorUnsupported`; only separately retained in-process anchors
 support private snapshot qualification. Opening encrypted storage and recovering
-committed bytes is not permission to resume production cryptography. Receipt
-ratchet/Delivered integration and runtime send/ACK activation remain deferred.
+committed bytes is not permission to resume production cryptography. KAMI-25 adds
+the dedicated receipt ratchet/Delivered transactions below; runtime send/ACK
+activation remains deferred.
 
 `worker/tests.rs` covers v1/v2 upgrades and v3 reopen, v3 migration failure rollback,
 state bounds/corruption, stale/concurrent CAS, digest/byte forks, quota/fault
@@ -166,8 +169,9 @@ cargo test --locked -p kami-storage --test e2ee_state
 
 ## WP2-B typed authenticated commit
 
-`Storage::commit_authenticated(AuthenticatedCommit)` is the sole new public E2EE
-write/reconciliation operation. The acyclic normal dependency is
+`Storage::commit_authenticated(AuthenticatedCommit)` is the WP2-B ordinary-text
+write/reconciliation operation; KAMI-25 delivery/receipt operations are separate.
+The acyclic normal dependency is
 `kami-storage -> kami-e2ee`, never the reverse. E2EE owns authentication, stage
 finalization, immutable facts/frame and bounded snapshots; storage retains the
 KAMI-22 lease, SQLCipher/key-provider, single worker, quotas, CAS and transaction.
@@ -179,7 +183,8 @@ sequence and exact frame commit in one IMMEDIATE transaction. Fallback preserves
 the account generation. Existing-frame candidates reconcile exact authenticated
 facts/frame/branch with current durable trust and return original bytes without
 another ratchet update. Returned bytes confirm persistence, **not ACK authority**;
-receipt ratchet and Delivered transitions remain unsupported. `received_at` for
+receipt ratchet and Delivered transitions require the dedicated KAMI-25 types,
+not this ordinary text API. `received_at` for
 this bounded API uses the E2EE finalization's supplied local millisecond clock,
 not the sender's display timestamp or a live network arrival attestation.
 
@@ -215,7 +220,7 @@ cargo test --locked -p kami-e2ee --test privacy
 cargo test --locked -p kami-storage -p kami-e2ee
 ```
 
-Olm-v1 remains quarantined bounded-development only. Live transport/receipt,
+Olm-v1 remains quarantined bounded-development only. Live transport/ACK emission,
 prekey publication/rotation/freshness policy, external rollback anchor,
 interoperability, native macOS/Windows and public/production qualification remain
 separate gates. See [E2EE limits](../kami-e2ee/README.md).
@@ -249,8 +254,9 @@ Attempt leases are fenced for 30 seconds. Failure uses the shared one-second
 exponential backoff capped at five minutes and reaches `Exhausted` after eight
 attempts. This finite retry policy and the count quota consumed by retained
 preparation tombstones are intentionally bounded follow-up work; this crate does
-not itself provide automatic retry scheduling, transport, live end-peer provenance,
-authenticated receipts, or a `Delivered` transition.
+not itself provide automatic retry scheduling, transport, or live end-peer
+provenance. KAMI-25 adds authenticated receipt consumption and the durable
+`Delivered` projection through a separate typed path below.
 
 Focused KAMI-24 evidence was recorded on Linux:
 
@@ -264,6 +270,85 @@ Those checks covered sender/storage behavior and passed in the recorded QA and
 Evaluator runs. They do not qualify Windows/macOS, real networks, public/production
 encryption, end-peer authentication, authenticated receipts, or an external
 rollback anchor.
+
+## KAMI-25 receiver and receipt persistence
+
+`migrations/005_receiver_state.sql` advances the existing SQLCipher database to
+schema v5. Migration creates only `delivery_artifact` and `receiver_gap`; it does
+not create a second inbox, duplicate facts/payload, or another mutable session
+authority. `delivery_artifact` references the canonical `e2ee_frame` by sender/ID
+and retains the exact receipt frame, SHA-256 artifact ID, direction and post-receipt
+session generation/digest. `receiver_gap` references canonical `message` rows and
+owns only Unresolved/Permanent presentation observations. Existing account/session,
+message/history/receipt and sender rows remain their respective authorities.
+Upgrading v4 preserves canonical rows and the sender binding key; migration and
+version update are atomic. Failed migration leaves the old schema/version intact.
+
+The single bounded worker exposes four dedicated typed operations:
+
+- `commit_delivery(AuthenticatedDelivery)` commits authenticated text reception
+  and same-session outbound DeviceDelivered staging together. One IMMEDIATE
+  transaction checks current Verified trust/pin and exact source account/session,
+  performs optional account bootstrap/OTK consumption, then persists inbox,
+  dedup/history/receipt facts, exact text, both session-generation transitions,
+  receipt artifact and gap observations. A fallback prekey preserves the account
+  generation. No separate receipt commit can leave a partially accepted inbox.
+- `recover_delivery(ReplayPermit, frame)` returns `Option<DurableDelivery>` only
+  for exact retained authenticated text. It rechecks current trust, original pin,
+  canonical facts, exact frame, receipt facts, artifact digest and account/session
+  generation links. Legacy neutral inbox rows cannot be promoted into authenticated
+  ACK authority. `DurableDelivery::{facts, acceptance, receipt}` exposes durable
+  evidence; recovery returns Duplicate without ratcheting or recreating history.
+- `commit_delivery_receipt(AuthenticatedReceiptCommit)` validates the target's
+  exact stored frame/facts and same-session source, then atomically commits the
+  incoming receipt ratchet/artifact/facts, canonical Delivered message state and
+  terminal attempt lane. A genuine late receipt may supersede cancellation.
+- `recover_delivery_receipt(ReplayPermit, frame)` returns retained `MessageFacts`
+  only for an exact committed receipt and coherent Delivered projection, with
+  current trust/original pin checks. Alternate receipt ciphertext conflicts.
+
+Recovery is readback of committed evidence, not fresh ciphertext authentication or
+mutable profile/session restoration. A lost worker reply or ACK after commit is
+recoverable after reopen with the original exact frame; before commit, failure
+grants no ACK eligibility. Local history deletion retains message/dedup/receipt
+evidence. Caller/future-runtime supplied live end-peer provenance and serialization
+of trust checks with actual emission remain required. No qualified external
+rollback anchor exists; coherent old DB/WAL rollback is not detected by DB-only
+counters or digests, and fresh mutable cryptographic restoration remains restricted.
+
+`ordered_history` retains presentation eligibility per sender/conversation, waits
+0..=60,000 ms as requested, and returns `gap_before` plus
+`GapState::{Unresolved,Permanent}`. Querying ordering marks observations Permanent
+at 60,000 ms from local receipt; late predecessors still reconcile them. Deleted
+history's retained visible facts do not become false network gaps. Eligibility
+and gap metadata do not implement exactly-once terminal rendering.
+
+Receiver admission caps retained inbound messages at 1,024 per sender/contact and
+512 per sender/conversation, forward sequence distance at 4,096 from the retained
+high sequence, and outstanding gap observations at 128 per sender (including
+Permanent until resolved). Net gap resolution can admit a predecessor at the gap
+cap. Shared `Config::outbox_messages` and `outbox_bytes` also bound the retained
+authenticated-frame count and total text-frame/receipt-artifact/history bytes.
+Incoming receipt commits check the additional artifact bytes against that budget;
+database pages and worker queue remain independently bounded. `Full` rolls back
+without dropping prior messages or granting ACK eligibility. No active
+dedup/receipt cleanup or compaction exists: deleting history does not reclaim all
+retained evidence/count capacity, and exhaustion fails closed.
+
+Source coverage: `tests/receiver_migration.rs` checks encrypted v4-to-v5 upgrade,
+preserved key/history and failed-migration rollback. The
+[receiver integration target](../kami-receiver/tests/receive.rs), including its
+`failures.rs` module, covers real staged Olm-to-SQLCipher receipt flow, forged ACKs,
+concurrent duplicates/trust changes, insertion faults, process kills before/after
+commit, exact recovery after reopen/deletion, gap reconciliation, corruption,
+legacy isolation and capacity rejection. These are bounded local fixtures, not
+production, real-network, cross-platform or power-loss qualification. Commands
+from repository root (not rerun in this documentation-only task):
+
+```sh
+cargo test --locked -p kami-storage --test receiver_migration
+cargo test --locked -p kami-receiver --test receive
+```
 
 ## Bounds and local protection
 
@@ -290,7 +375,8 @@ Profile directories must be owner-private (0700 on Unix), with owner-only files
 rejected. Removable/network filesystems and external concurrent writers are not
 qualified. Same-user endpoint compromise is outside this protection boundary.
 
-Dependencies: `kami-core`, `kami-e2ee`, injected `kami-key-provider`, `rusqlite = 0.40.2`
+Dependencies include `kami-core`, `kami-e2ee`, `kami-protocol` (bounded recovery
+correspondence), `sha2`, injected `kami-key-provider`, `rusqlite = 0.40.2`
 with **only** `bundled-sqlcipher-vendored-openssl`/`limits` (not plain `bundled`),
 `zeroize = 1.9.1`, Unix `rustix = 1.1.5`; test-only `tempfile` and the explicit
 `test-provider` feature. Native keying and SQLite/OpenSSL memory copies/crash dumps

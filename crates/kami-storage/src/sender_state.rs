@@ -97,6 +97,7 @@ pub enum SendState {
     Exhausted,
     Canceled,
     HeldIdentity,
+    Delivered,
 }
 impl TryFrom<i64> for SendState {
     type Error = StorageError;
@@ -107,6 +108,7 @@ impl TryFrom<i64> for SendState {
             2 => Ok(Self::Exhausted),
             3 => Ok(Self::Canceled),
             4 => Ok(Self::HeldIdentity),
+            5 => Ok(Self::Delivered),
             _ => Err(StorageError::WrongKeyOrCorrupt),
         }
     }
@@ -136,7 +138,7 @@ pub(crate) fn load(
     sender: DeviceId,
     id: MessageId,
 ) -> Result<QueuedSend, StorageError> {
-    let mut statement=db.prepare("SELECT length(m.facts),length(f.frame),m.facts,f.frame,a.attempts,a.state,m.payload=f.frame,p.conversation,p.recipient,p.sequence,a.token,a.deadline,a.eligible,a.failure FROM sender_prepare p JOIN message m USING(sender,id) JOIN e2ee_frame f USING(sender,id) JOIN sender_attempt a USING(sender,id) WHERE p.sender=?1 AND p.id=?2 AND p.state=1 AND m.direction=0 AND f.direction=0")?;
+    let mut statement=db.prepare("SELECT length(m.facts),length(f.frame),m.facts,f.frame,a.attempts,CASE WHEN m.state=1 THEN 5 ELSE a.state END,m.payload=f.frame,p.conversation,p.recipient,p.sequence,a.token,a.deadline,a.eligible,a.failure FROM sender_prepare p JOIN message m USING(sender,id) JOIN e2ee_frame f USING(sender,id) JOIN sender_attempt a USING(sender,id) WHERE p.sender=?1 AND p.id=?2 AND p.state=1 AND m.direction=0 AND f.direction=0")?;
     let mut rows = statement.query(params![sender.as_bytes(), id.as_u128().to_be_bytes()])?;
     let row = rows.next()?.ok_or(StorageError::WrongKeyOrCorrupt)?;
     if row.get::<_, i64>(0)? != 136
@@ -247,7 +249,7 @@ pub(crate) fn hold(
 ) -> Result<(), StorageError> {
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let message = load(&tx, sender, id)?;
-    if message.state == SendState::Canceled {
+    if matches!(message.state, SendState::Canceled | SendState::Delivered) {
         return Err(StorageError::Conflict);
     }
     tx.execute("UPDATE sender_attempt SET state=4,token=NULL,deadline=0,eligible=0 WHERE sender=?1 AND id=?2",params![sender.as_bytes(),id.as_u128().to_be_bytes()])?;
@@ -283,7 +285,9 @@ pub(crate) fn cancel(
     id: MessageId,
 ) -> Result<(), StorageError> {
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    load(&tx, sender, id)?;
+    if load(&tx, sender, id)?.state == SendState::Delivered {
+        return Err(StorageError::Conflict);
+    }
     tx.execute(
         "UPDATE sender_attempt SET state=3,token=NULL,deadline=0 WHERE sender=?1 AND id=?2",
         params![sender.as_bytes(), id.as_u128().to_be_bytes()],

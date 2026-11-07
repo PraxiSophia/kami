@@ -17,7 +17,8 @@ pub mod types;
 pub mod vodozemac;
 
 pub use authenticated::{
-    AuthenticatedCommit, CommitMaterial, Endpoint, QuarantinedSession, SnapshotTransfer,
+    AuthenticatedCommit, AuthenticatedDelivery, AuthenticatedReceiptCommit, CommitMaterial,
+    Endpoint, QuarantinedSession, ReplayPermit, SnapshotTransfer,
 };
 pub use errors::{Error, ProviderError};
 pub use kami_core::{ConversationId, DeviceId, MessageId};

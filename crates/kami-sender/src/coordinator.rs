@@ -15,7 +15,7 @@ pub enum EnqueueOutcome {
 }
 /// Synchronous runtime-neutral coordinator for the quarantined authenticated seam.
 /// Run on a blocking service task. Peer/trust inputs are caller evidence, not live
-/// end-peer provenance; this API performs no transmission, timer, or receipt work.
+/// end-peer provenance; this API performs no transmission or timer scheduling.
 pub struct Coordinator<'a> {
     pub(crate) storage: &'a Storage,
 }

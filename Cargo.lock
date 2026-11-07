@@ -827,6 +827,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "kami-receiver"
+version = "0.1.0"
+dependencies = [
+ "kami-core",
+ "kami-e2ee",
+ "kami-identity",
+ "kami-key-provider",
+ "kami-protocol",
+ "kami-sender",
+ "kami-storage",
+ "libp2p-identity",
+ "rusqlite",
+ "tempfile",
+ "vodozemac",
+ "zeroize",
+]
+
+[[package]]
 name = "kami-sender"
 version = "0.1.0"
 dependencies = [
@@ -834,6 +852,7 @@ dependencies = [
  "kami-e2ee",
  "kami-identity",
  "kami-key-provider",
+ "kami-protocol",
  "kami-storage",
  "libp2p-identity",
  "rusqlite",
@@ -852,6 +871,7 @@ dependencies = [
  "kami-e2ee",
  "kami-identity",
  "kami-key-provider",
+ "kami-protocol",
  "rusqlite",
  "rustix",
  "sha2",

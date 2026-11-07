@@ -21,7 +21,7 @@ Do** on 2026-11-03; that record was not silently changed by implementation evide
 and must not be treated as a complete production-status record.
 
 WP3 acceptance and WP2-B conditional acceptance are bounded decisions only; full KAMI-51 owner acceptance is not recorded. Pending gates include runtime and transport
-integration, prekey lifecycle, receipt/Delivered persistence, external rollback
+integration, prekey lifecycle, production receipt/Delivered activation, external rollback
 authority, cross-platform qualification, interoperability, and production security
 review.
 
@@ -118,7 +118,9 @@ No recipient-local trust generation is sent as a shared wire counter.
 There are no optional/repeated/unknown fields or trailing bytes. Decode checks
 bounds and exact canonical re-encoding. Text requires a positive sender sequence,
 nonempty UTF-8 payload and no receipt target. A receipt requires a nonzero target,
-empty payload and no sequence. Context IDs/devices must be nonzero, sender and
+no sequence and either the historical empty qualification payload or the dedicated
+bounded KAMI-25 receipt payload described below. Empty historical receipts cannot
+finalize through the dedicated receipt commit path. Context IDs/devices must be nonzero, sender and
 recipient distinct, binding digests nonzero, and timestamp within the existing
 protocol range (at most `253_402_300_799_999` milliseconds). A timestamp is not a
 freshness or delivery oracle.
@@ -202,7 +204,8 @@ without source mutation, one-time/fallback and published-key handling, repeated
 prekey routing, in-memory replay rejection, receipts and exact frame limits.
 Tests named direct/relay supply end-peer identities at the API boundary; they do
 **not** execute real direct or relayed network connections. Receipt tests prove
-context binding, not durable delivery or ACK eligibility.
+context binding; the dedicated KAMI-25 tests below additionally exercise receipt
+staging. Neither set alone proves durable delivery or ACK eligibility.
 
 `tests/fixtures/olm-v1.json` contains **synthetic test-only secrets**, fixed
 sender/receiver pickles before/after a message, ciphertext, plaintext, session ID
@@ -304,8 +307,9 @@ There are no individual private-key getters. Do not send these values to IPC,
 CLI/adapters or logs; do not claim comprehensive zeroization of provider, native,
 allocator or error-path copies. SQLCipher/key-provider protects durable snapshots.
 
-Finalization rejects receipt kinds. The boundary emits no ACK, changes no Delivered
-state, and supplies no live transport provenance. KAMI-26 must enforce connection
+Ordinary text finalization rejects receipt kinds; KAMI-25 adds a separate typed
+receipt path below. E2EE alone emits no ACK, changes no durable Delivered state,
+and supplies no live transport provenance. KAMI-26 must enforce connection
 provenance, retained bundle freshness and serialized trust-to-send/re-ACK checks.
 `ProfileRestore` remains fail-closed. Public/production messaging is disabled.
 
@@ -321,6 +325,58 @@ cargo test --locked -p kami-e2ee --test privacy
 cargo test --locked -p kami-storage --test authenticated_boundary -- --nocapture
 ```
 
+## KAMI-25 dedicated delivery and receipt boundary
+
+[`src/authenticated/receipts.rs`](src/authenticated/receipts.rs) selectively exports
+`AuthenticatedDelivery`, `AuthenticatedReceiptCommit`, and `ReplayPermit` through
+the crate root; private fields prevent neutral construction. They are distinct
+from ordinary text `AuthenticatedCommit` finalization.
+
+- `QuarantinedSession::inbound_delivery` and `prepare_delivery` return an opaque
+  `AuthenticatedDelivery` and proposed session. They stage authenticated inbound
+  text and an outbound DeviceDelivered reply in the same bidirectional Olm
+  session, consuming two session generations. `facts()` and `receipt_frame()`
+  expose candidate data; `into_parts()` transfers the two typed stages. A staged
+  frame is not ACK authority: use storage's atomic `commit_delivery` and durable
+  readback before emission or installing advancement.
+- `QuarantinedSession::prepare_receipt` consumes one session generation and returns
+  `AuthenticatedReceiptCommit` plus a proposal. It authenticates the expected
+  reverse-direction session, target ID/conversation/devices, complete target
+  `MessageFacts`, and SHA-256 digest of the exact original text frame. Its payload
+  uses `KAMI-DEVICE-DELIVERED-V1\0` plus the target facts, frame digest and issuer's
+  positive local trust generation. Trust counters are local, not synchronized
+  between endpoints. `facts()`, `target_frame_digest()`, and consuming
+  `into_material()` are custodian interfaces, not neutral evidence constructors.
+- `ReplayPermit::new(trust, end_peer, remote, local, conversation)` validates
+  supplied current trust/Peer-ID admission context. It authorizes only lookup of
+  **exact previously authenticated durable material**; it does not authenticate
+  arbitrary new ciphertext. Storage rechecks durable trust/pin and retained
+  frame/facts/account/session evidence. `into_context()` transfers admission
+  fields, not a mutable cryptographic session.
+
+The [receiver](../kami-receiver/README.md) composes text/receipt persistence;
+the [sender](../kami-sender/README.md) validates and commits incoming receipts.
+Exact replay can recover retained ACK/Delivered evidence after reopen without
+re-ratcheting. Alternate ciphertext for the same logical content is rejected.
+This does not enable fresh mutable profile restoration: `ProfileRestore` still
+fails closed without a qualified external rollback anchor. Receipt/dedup evidence
+is bounded, with no active cleanup/compaction; admission fails closed at capacity.
+Live end-peer provenance remains caller/future-runtime supplied, not established
+by a detached binding or `ReplayPermit`.
+
+`tests/qualification/receipts.rs`, included by the authenticated unit-test module,
+checks same-session bidirectional receipt staging, wrong target binding, replay
+rejection, and continued reverse-direction text. It is not a standalone test target.
+Commands from repository root (not rerun for this documentation-only update):
+
+```sh
+cargo test --locked -p kami-e2ee --lib authenticated_tests
+cargo test --locked -p kami-receiver --test receive
+```
+
+No production provider activation, real-network/cross-platform qualification,
+runtime ACK emission, or exactly-once terminal rendering is implied.
+
 ## Deferred work and qualification (WP4/WP5)
 
 WP2-B supplies bounded typed composition, not production account custody/import,
@@ -328,9 +384,9 @@ publication/prekey lifecycle, trusted external rollback authority or retained
 bundle-freshness policy. Opening storage is not permission to restore cryptography.
 
 Also deferred: runtime/transport/relay integration and real end-peer provenance,
-service trust-change race guards, production orchestration of encrypted inbox/outbox
-and immutable logical-ID dedup/conflict policy, end-to-end durable retry/order/ACK delivery,
-receipt ratchet/Delivered commits, and integrated Linux/Windows/macOS and
+service trust-change race guards, production orchestration of the bounded
+sender/receiver inbox/outbox, exact-frame dedup/retry/order/receipt and Delivered
+commits now implemented by KAMI-24/KAMI-25, and integrated Linux/Windows/macOS and
 production security qualification. Private storage tests do not activate these
 capabilities. Staged candidates and receipt frames are neither commit nor delivery
 evidence.

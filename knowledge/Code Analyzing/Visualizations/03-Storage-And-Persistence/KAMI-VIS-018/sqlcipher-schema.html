@@ -5196,7 +5196,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <div class="pulse-dot"></div>
         <h1>KAMI-VIS-018: SQLCipher Database Schema</h1>
       </div>
-      <p class="subtitle">Physical Tables, Strict Foreign Keys, Contact Trust, and Encrypted E2EE State</p>
+      <p class="subtitle">Physical Tables, Strict Foreign Keys, Contact Trust, and Encrypted E2EE State (Migrations 001-005)</p>
     </div>
 
 
@@ -5204,9 +5204,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / PLATE 04">
-      <svg viewBox="0 0 1150 1048" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+      <svg viewBox="0 0 1156 1128" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
         <title id="archify-diagram-title">KAMI-VIS-018: SQLCipher Database Schema</title>
-        <desc id="archify-diagram-description">Physical Tables, Strict Foreign Keys, Contact Trust, and Encrypted E2EE State</desc>
+        <desc id="archify-diagram-description">Physical Tables, Strict Foreign Keys, Contact Trust, and Encrypted E2EE State (Migrations 001-005)</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -5289,37 +5289,52 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <!-- Domain bands (behind the routes so a channel is never washed out) -->
         <g data-domain-band="Messaging" class="er-hue-database">
-          <rect x="20" y="22" width="294" height="976" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="20" y="22" width="294" height="1036" rx="12" class="c-lane er-band" stroke-width="1"/>
           <rect x="28" y="15" width="70" height="15" rx="7.5" class="c-mask"/>
           <rect x="28" y="15" width="70" height="15" rx="7.5" class="er-band-pill"/>
           <text data-domain-label="" x="35" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Messaging</text>
         </g>
         <g data-domain-band="E2EE" class="er-hue-frontend">
-          <rect x="429" y="22" width="294" height="688" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="437" y="15" width="39" height="15" rx="7.5" class="c-mask"/>
-          <rect x="437" y="15" width="39" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="444" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">E2EE</text>
+          <rect x="435" y="22" width="294" height="688" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="443" y="15" width="39" height="15" rx="7.5" class="c-mask"/>
+          <rect x="443" y="15" width="39" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="450" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">E2EE</text>
         </g>
-        <g data-domain-band="Trust" class="er-hue-backend">
-          <rect x="844" y="196" width="294" height="180" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="852" y="189" width="45" height="15" rx="7.5" class="c-mask"/>
-          <rect x="852" y="189" width="45" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="859" y="199.6" class="t-muted er-band-label" font-size="9" font-weight="700">Trust</text>
+        <g data-domain-band="Receiver" class="er-hue-backend">
+          <rect x="435" y="744" width="294" height="334" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="443" y="737" width="64" height="15" rx="7.5" class="c-mask"/>
+          <rect x="443" y="737" width="64" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="450" y="747.6" class="t-muted er-band-label" font-size="9" font-weight="700">Receiver</text>
+        </g>
+        <g data-domain-band="Sender" class="er-hue-cloud">
+          <rect x="850" y="22" width="294" height="648" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="858" y="15" width="52" height="15" rx="7.5" class="c-mask"/>
+          <rect x="858" y="15" width="52" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="865" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Sender</text>
+        </g>
+        <g data-domain-band="Trust" class="er-hue-messagebus">
+          <rect x="850" y="744" width="294" height="180" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="858" y="737" width="45" height="15" rx="7.5" class="c-mask"/>
+          <rect x="858" y="737" width="45" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="865" y="747.6" class="t-muted er-band-label" font-size="9" font-weight="700">Trust</text>
         </g>
 
         <!-- Bundled relationship trunks (under the branches: a bus runs close
              to the shared side, so a cardinality glyph that reaches further out
              has to stay readable over it, and the ring's mask has to be able to
              punch through) -->
-
+        <path data-er-trunk="" data-composition-points="318,629;318,1013" d="M 318 629 L 318 1013" class="a-default" stroke-width="1.5"/>
 
         <!-- Relationship paths (before entities for correct z-order) -->
         <path data-edge-from="history" data-edge-to="message" data-edge-label="payload for" data-edge-key="0" data-edge-id="history_message" data-er-ends="one" data-composition-points="155,762;155,722" d="M 155 762 L 155 722" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="receipt" data-edge-to="message" data-edge-label="receipt for" data-edge-key="1" data-edge-id="receipt_message" data-er-ends="one" data-composition-points="302,943;326,943;326,605;302,605" d="M 302 943 L 318 943 Q 326 943 326 935 L 326 613 Q 326 605 318 605 L 302 605" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="e2ee_frame" data-edge-to="message" data-edge-label="authenticates" data-edge-key="2" data-edge-id="frame_message" data-er-ends="one" data-composition-points="441,595;302,595" d="M 441 595 L 302 595" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="e2ee_frame" data-edge-to="e2ee_session" data-edge-label="session frame" data-edge-key="3" data-edge-id="frame_session" data-er-ends="many one" data-composition-points="576,488;576,448" d="M 576 488 L 576 448" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="e2ee_session" data-edge-to="e2ee_account" data-edge-label="account session" data-edge-key="4" data-edge-id="session_account" data-er-ends="many one" data-composition-points="576,214;576,174" d="M 576 214 L 576 174" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="e2ee_session" data-edge-to="contact_trust" data-edge-label="verifies trust" data-edge-key="5" data-edge-id="session_contact" data-er-ends="many one" data-composition-points="711,331;783.5,331;783.5,291;856,291" d="M 711 331 L 775.5 331 Q 783.5 331 783.5 323 L 783.5 299 Q 783.5 291 791.5 291 L 856 291" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="receipt" data-edge-to="message" data-edge-label="receipt for" data-edge-key="1" data-edge-id="receipt_message" data-er-ends="one" data-composition-points="302,1003;326,1003;326,605;302,605" d="M 302 1003 L 318 1003 Q 326 1003 326 995 L 326 613 Q 326 605 318 605 L 302 605" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="e2ee_frame" data-edge-to="message" data-edge-label="authenticates" data-edge-key="2" data-edge-id="frame_message" data-er-ends="one" data-composition-points="447,605;302,605" d="M 447 605 L 302 605" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="e2ee_frame" data-edge-to="e2ee_session" data-edge-label="session frame" data-edge-key="3" data-edge-id="frame_session" data-er-ends="many one" data-composition-points="582,488;582,448" d="M 582 488 L 582 448" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="e2ee_session" data-edge-to="e2ee_account" data-edge-label="account session" data-edge-key="4" data-edge-id="session_account" data-er-ends="many one" data-composition-points="582,214;582,174" d="M 582 214 L 582 174" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="e2ee_session" data-edge-to="contact_trust" data-edge-label="verifies trust" data-edge-key="5" data-edge-id="session_contact" data-er-ends="many one" data-composition-points="717,331;789.5,331;789.5,839;862,839" d="M 717 331 L 781.5 331 Q 789.5 331 789.5 339 L 789.5 831 Q 789.5 839 797.5 839 L 862 839" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="delivery_artifact" data-edge-to="e2ee_frame" data-edge-label="staged receipt for" data-edge-key="6" data-edge-id="artifact_frame" data-er-ends="one" data-composition-points="582,762;582,702" d="M 582 762 L 582 702" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="receiver_gap" data-edge-to="message" data-edge-label="tracks missing" data-edge-key="7" data-edge-id="gap_message" data-er-ends="one" data-composition-points="447,1013;318,1013;318,629;302,629" d="M 447 1013 L 318 1013 M 318 629 L 302 629" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="sender_attempt" data-edge-to="message" data-edge-label="leases transmission" data-edge-key="8" data-edge-id="attempt_message" data-er-ends="one" data-composition-points="862,575;838,575;838,746;167,746;167,722" d="M 862 575 L 846 575 Q 838 575 838 583 L 838 738 Q 838 746 830 746 L 175 746 Q 167 746 167 738 L 167 722" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.5" marker-start="url(#er-one-start)" marker-end="url(#er-one-end)"/>
 
         <!-- Entities -->
         <g id="node-profile" data-node-id="profile" data-node-label="profile" tabindex="0" role="button" aria-label="Focus profile, Namespace Lease Singleton, Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Namespace Lease Singleton" data-node-tag="Messaging" data-node-context="Entity" class="er-hue-database">
@@ -5506,302 +5521,561 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <g id="node-receipt" data-node-id="receipt" data-node-label="receipt" tabindex="0" role="button" aria-label="Focus receipt, Semantic Delivery Receipts, Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Semantic Delivery Receipts" data-node-tag="Messaging" data-node-context="Entity" class="er-hue-database">
           <title>receipt · Semantic Delivery Receipts · Entity · Messaging</title>
-          <rect x="32" y="896" width="270" height="94" rx="8" class="c-mask"/>
-          <rect x="32" y="896" width="270" height="94" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 40 896 H 294 A 8 8 0 0 1 302 904 V 924 H 32 V 904 A 8 8 0 0 1 40 896 Z"/>
-          <path class="er-table-cap" d="M 44 897.4 H 290" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 903) scale(0.875)">
+          <rect x="32" y="956" width="270" height="94" rx="8" class="c-mask"/>
+          <rect x="32" y="956" width="270" height="94" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 956 H 294 A 8 8 0 0 1 302 964 V 984 H 32 V 964 A 8 8 0 0 1 40 956 Z"/>
+          <path class="er-table-cap" d="M 44 957.4 H 290" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 963) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="167" y="915" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">receipt</text>
-          <line x1="32" y1="924" x2="302" y2="924" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="167" y="975" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">receipt</text>
+          <line x1="32" y1="984" x2="302" y2="984" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="32" y1="924" x2="302" y2="924" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="984" x2="302" y2="984" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="42" y="929" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="939" class="t-database" font-size="9" font-weight="600">PK</text><rect x="67" y="929" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="78" y="939" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="94" y="939" class="t-primary er-name-pk" font-size="11">sender</text>
-            <text data-detail="context" x="290" y="939" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <rect x="42" y="989" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="999" class="t-database" font-size="9" font-weight="600">PK</text><rect x="67" y="989" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="78" y="999" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="94" y="999" class="t-primary er-name-pk" font-size="11">sender</text>
+            <text data-detail="context" x="290" y="999" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="32" y1="944" x2="302" y2="944" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="945" width="262" height="18" rx="4" class="er-zebra"/>
-            <rect x="42" y="949" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="959" class="t-database" font-size="9" font-weight="600">PK</text><rect x="67" y="949" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="78" y="959" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="94" y="959" class="t-primary er-name-pk" font-size="11">id</text>
-            <text data-detail="context" x="290" y="959" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <line x1="32" y1="1004" x2="302" y2="1004" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="1005" width="262" height="18" rx="4" class="er-zebra"/>
+            <rect x="42" y="1009" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="1019" class="t-database" font-size="9" font-weight="600">PK</text><rect x="67" y="1009" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="78" y="1019" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="94" y="1019" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="290" y="1019" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="32" y1="964" x2="302" y2="964" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="1024" x2="302" y2="1024" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="94" y="979" class="t-primary" font-size="11">facts</text>
-            <text data-detail="context" x="290" y="979" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="94" y="1039" class="t-primary" font-size="11">facts</text>
+            <text data-detail="context" x="290" y="1039" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
         </g>
 
         <g id="node-e2ee_account" data-node-id="e2ee_account" data-node-label="e2ee_account" tabindex="0" role="button" aria-label="Focus e2ee_account, Olm Identity Account Singleton, Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Olm Identity Account Singleton" data-node-tag="E2EE" data-node-context="Entity" class="er-hue-frontend">
           <title>e2ee_account · Olm Identity Account Singleton · Entity · E2EE</title>
-          <rect x="441" y="40" width="270" height="134" rx="8" class="c-mask"/>
-          <rect x="441" y="40" width="270" height="134" rx="8" class="c-database er-table" data-animate="node" style="--step:5" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 449 40 H 703 A 8 8 0 0 1 711 48 V 68 H 441 V 48 A 8 8 0 0 1 449 40 Z"/>
-          <path class="er-table-cap" d="M 453 41.4 H 699" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(449 47) scale(0.875)">
+          <rect x="447" y="40" width="270" height="134" rx="8" class="c-mask"/>
+          <rect x="447" y="40" width="270" height="134" rx="8" class="c-database er-table" data-animate="node" style="--step:5" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 455 40 H 709 A 8 8 0 0 1 717 48 V 68 H 447 V 48 A 8 8 0 0 1 455 40 Z"/>
+          <path class="er-table-cap" d="M 459 41.4 H 705" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(455 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="576" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">e2ee_account</text>
-          <line x1="441" y1="68" x2="711" y2="68" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="582" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">e2ee_account</text>
+          <line x1="447" y1="68" x2="717" y2="68" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="441" y1="68" x2="711" y2="68" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="68" x2="717" y2="68" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="451" y="73" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="462" y="83" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="483" y="83" class="t-primary er-name-pk" font-size="11">singleton</text>
-            <text data-detail="context" x="699" y="83" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <rect x="457" y="73" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="468" y="83" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="489" y="83" class="t-primary er-name-pk" font-size="11">singleton</text>
+            <text data-detail="context" x="705" y="83" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="441" y1="88" x2="711" y2="88" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="89" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="88" x2="717" y2="88" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="89" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="483" y="103" class="t-primary" font-size="11">version</text>
-            <text data-detail="context" x="699" y="103" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="489" y="103" class="t-primary" font-size="11">version</text>
+            <text data-detail="context" x="705" y="103" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="441" y1="108" x2="711" y2="108" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="108" x2="717" y2="108" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="483" y="123" class="t-primary" font-size="11">generation</text>
-            <text data-detail="context" x="699" y="123" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="489" y="123" class="t-primary" font-size="11">generation</text>
+            <text data-detail="context" x="705" y="123" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="441" y1="128" x2="711" y2="128" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="129" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="128" x2="717" y2="128" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="129" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="483" y="143" class="t-primary" font-size="11">digest</text>
-            <text data-detail="context" x="699" y="143" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="489" y="143" class="t-primary" font-size="11">digest</text>
+            <text data-detail="context" x="705" y="143" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="441" y1="148" x2="711" y2="148" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="148" x2="717" y2="148" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="483" y="163" class="t-primary" font-size="11">state</text>
-            <text data-detail="context" x="699" y="163" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="489" y="163" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="705" y="163" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
         </g>
 
         <g id="node-e2ee_session" data-node-id="e2ee_session" data-node-label="e2ee_session" tabindex="0" role="button" aria-label="Focus e2ee_session, Olm Ratchet Session Snapshots, Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Olm Ratchet Session Snapshots" data-node-tag="E2EE" data-node-context="Entity" class="er-hue-frontend">
           <title>e2ee_session · Olm Ratchet Session Snapshots · Entity · E2EE</title>
-          <rect x="441" y="214" width="270" height="234" rx="8" class="c-mask"/>
-          <rect x="441" y="214" width="270" height="234" rx="8" class="c-database er-table" data-animate="node" style="--step:4" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 449 214 H 703 A 8 8 0 0 1 711 222 V 242 H 441 V 222 A 8 8 0 0 1 449 214 Z"/>
-          <path class="er-table-cap" d="M 453 215.4 H 699" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(449 221) scale(0.875)">
+          <rect x="447" y="214" width="270" height="234" rx="8" class="c-mask"/>
+          <rect x="447" y="214" width="270" height="234" rx="8" class="c-database er-table" data-animate="node" style="--step:4" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 455 214 H 709 A 8 8 0 0 1 717 222 V 242 H 447 V 222 A 8 8 0 0 1 455 214 Z"/>
+          <path class="er-table-cap" d="M 459 215.4 H 705" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(455 221) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="576" y="233" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">e2ee_session</text>
-          <line x1="441" y1="242" x2="711" y2="242" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="582" y="233" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">e2ee_session</text>
+          <line x1="447" y1="242" x2="717" y2="242" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="441" y1="242" x2="711" y2="242" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="242" x2="717" y2="242" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="451" y="247" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="462" y="257" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="483" y="257" class="t-primary er-name-pk" font-size="11">id</text>
-            <text data-detail="context" x="699" y="257" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <rect x="457" y="247" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="468" y="257" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="489" y="257" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="705" y="257" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="441" y1="262" x2="711" y2="262" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="263" width="262" height="18" rx="4" class="er-zebra"/>
-            <rect x="451" y="267" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="462" y="277" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="483" y="277" class="t-primary" font-size="11">account</text>
-            <text data-detail="context" x="699" y="277" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <line x1="447" y1="262" x2="717" y2="262" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="263" width="262" height="18" rx="4" class="er-zebra"/>
+            <rect x="457" y="267" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="468" y="277" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="489" y="277" class="t-primary" font-size="11">account</text>
+            <text data-detail="context" x="705" y="277" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="441" y1="282" x2="711" y2="282" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="282" x2="717" y2="282" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="483" y="297" class="t-primary" font-size="11">version</text>
-            <text data-detail="context" x="699" y="297" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="489" y="297" class="t-primary" font-size="11">version</text>
+            <text data-detail="context" x="705" y="297" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="441" y1="302" x2="711" y2="302" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="303" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="302" x2="717" y2="302" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="303" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="483" y="317" class="t-primary" font-size="11">generation</text>
-            <text data-detail="context" x="699" y="317" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="489" y="317" class="t-primary" font-size="11">generation</text>
+            <text data-detail="context" x="705" y="317" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="441" y1="322" x2="711" y2="322" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="322" x2="717" y2="322" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="451" y="327" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="462" y="337" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="483" y="337" class="t-primary" font-size="11">contact</text>
-            <text data-detail="context" x="699" y="337" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <rect x="457" y="327" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="468" y="337" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="489" y="337" class="t-primary" font-size="11">contact</text>
+            <text data-detail="context" x="705" y="337" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="5">
-            <line x1="441" y1="342" x2="711" y2="342" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="343" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="342" x2="717" y2="342" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="343" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="483" y="357" class="t-primary" font-size="11">trust_generation</text>
-            <text data-detail="context" x="699" y="357" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="489" y="357" class="t-primary" font-size="11">trust_generation</text>
+            <text data-detail="context" x="705" y="357" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="6">
-            <line x1="441" y1="362" x2="711" y2="362" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="362" x2="717" y2="362" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="483" y="377" class="t-primary" font-size="11">pin</text>
-            <text data-detail="context" x="699" y="377" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="489" y="377" class="t-primary" font-size="11">pin</text>
+            <text data-detail="context" x="705" y="377" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="7">
-            <line x1="441" y1="382" x2="711" y2="382" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="383" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="382" x2="717" y2="382" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="383" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="483" y="397" class="t-primary" font-size="11">context</text>
-            <text data-detail="context" x="699" y="397" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="489" y="397" class="t-primary" font-size="11">context</text>
+            <text data-detail="context" x="705" y="397" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="8">
-            <line x1="441" y1="402" x2="711" y2="402" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="402" x2="717" y2="402" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="483" y="417" class="t-primary" font-size="11">digest</text>
-            <text data-detail="context" x="699" y="417" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="489" y="417" class="t-primary" font-size="11">digest</text>
+            <text data-detail="context" x="705" y="417" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="9">
-            <line x1="441" y1="422" x2="711" y2="422" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="423" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="422" x2="717" y2="422" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="423" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="483" y="437" class="t-primary" font-size="11">state</text>
-            <text data-detail="context" x="699" y="437" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="489" y="437" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="705" y="437" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
         </g>
 
         <g id="node-e2ee_frame" data-node-id="e2ee_frame" data-node-label="e2ee_frame" tabindex="0" role="button" aria-label="Focus e2ee_frame, Authenticated Frame Dedup Ledger, Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Authenticated Frame Dedup Ledger" data-node-tag="E2EE" data-node-context="Entity" class="er-hue-frontend">
           <title>e2ee_frame · Authenticated Frame Dedup Ledger · Entity · E2EE</title>
-          <rect x="441" y="488" width="270" height="214" rx="8" class="c-mask"/>
-          <rect x="441" y="488" width="270" height="214" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 449 488 H 703 A 8 8 0 0 1 711 496 V 516 H 441 V 496 A 8 8 0 0 1 449 488 Z"/>
-          <path class="er-table-cap" d="M 453 489.4 H 699" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(449 495) scale(0.875)">
+          <rect x="447" y="488" width="270" height="214" rx="8" class="c-mask"/>
+          <rect x="447" y="488" width="270" height="214" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 455 488 H 709 A 8 8 0 0 1 717 496 V 516 H 447 V 496 A 8 8 0 0 1 455 488 Z"/>
+          <path class="er-table-cap" d="M 459 489.4 H 705" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(455 495) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="576" y="507" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">e2ee_frame</text>
-          <line x1="441" y1="516" x2="711" y2="516" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="582" y="507" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">e2ee_frame</text>
+          <line x1="447" y1="516" x2="717" y2="516" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="441" y1="516" x2="711" y2="516" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="516" x2="717" y2="516" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="451" y="521" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="462" y="531" class="t-database" font-size="9" font-weight="600">PK</text><rect x="476" y="521" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="487" y="531" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="503" y="531" class="t-primary er-name-pk" font-size="11">sender</text>
-            <text data-detail="context" x="699" y="531" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <rect x="457" y="521" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="468" y="531" class="t-database" font-size="9" font-weight="600">PK</text><rect x="482" y="521" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="493" y="531" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="509" y="531" class="t-primary er-name-pk" font-size="11">sender</text>
+            <text data-detail="context" x="705" y="531" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="441" y1="536" x2="711" y2="536" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="537" width="262" height="18" rx="4" class="er-zebra"/>
-            <rect x="451" y="541" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="462" y="551" class="t-database" font-size="9" font-weight="600">PK</text><rect x="476" y="541" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="487" y="551" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="503" y="551" class="t-primary er-name-pk" font-size="11">id</text>
-            <text data-detail="context" x="699" y="551" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <line x1="447" y1="536" x2="717" y2="536" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="537" width="262" height="18" rx="4" class="er-zebra"/>
+            <rect x="457" y="541" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="468" y="551" class="t-database" font-size="9" font-weight="600">PK</text><rect x="482" y="541" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="493" y="551" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="509" y="551" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="705" y="551" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="441" y1="556" x2="711" y2="556" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="556" x2="717" y2="556" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="451" y="561" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="462" y="571" class="t-messagebus" font-size="9" font-weight="600">FK</text>
-            <text data-detail="context" x="503" y="571" class="t-primary" font-size="11">session</text>
-            <text data-detail="context" x="699" y="571" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <rect x="457" y="561" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="468" y="571" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="509" y="571" class="t-primary" font-size="11">session</text>
+            <text data-detail="context" x="705" y="571" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="441" y1="576" x2="711" y2="576" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="577" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="576" x2="717" y2="576" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="577" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="503" y="591" class="t-primary" font-size="11">direction</text>
-            <text data-detail="context" x="699" y="591" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="509" y="591" class="t-primary" font-size="11">direction</text>
+            <text data-detail="context" x="705" y="591" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="441" y1="596" x2="711" y2="596" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="596" x2="717" y2="596" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="503" y="611" class="t-primary" font-size="11">session_generation</text>
-            <text data-detail="context" x="699" y="611" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="509" y="611" class="t-primary" font-size="11">session_generation</text>
+            <text data-detail="context" x="705" y="611" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="5">
-            <line x1="441" y1="616" x2="711" y2="616" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="617" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="616" x2="717" y2="616" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="617" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="503" y="631" class="t-primary" font-size="11">account_generation</text>
-            <text data-detail="context" x="699" y="631" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="509" y="631" class="t-primary" font-size="11">account_generation</text>
+            <text data-detail="context" x="705" y="631" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="6">
-            <line x1="441" y1="636" x2="711" y2="636" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="636" x2="717" y2="636" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="503" y="651" class="t-primary" font-size="11">session_digest</text>
-            <text data-detail="context" x="699" y="651" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="509" y="651" class="t-primary" font-size="11">session_digest</text>
+            <text data-detail="context" x="705" y="651" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="7">
-            <line x1="441" y1="656" x2="711" y2="656" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="445" y="657" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="656" x2="717" y2="656" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="657" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="503" y="671" class="t-primary" font-size="11">account_digest</text>
-            <text data-detail="context" x="699" y="671" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="509" y="671" class="t-primary" font-size="11">account_digest</text>
+            <text data-detail="context" x="705" y="671" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="8">
-            <line x1="441" y1="676" x2="711" y2="676" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="676" x2="717" y2="676" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="503" y="691" class="t-primary" font-size="11">frame</text>
-            <text data-detail="context" x="699" y="691" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="509" y="691" class="t-primary" font-size="11">frame</text>
+            <text data-detail="context" x="705" y="691" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
         </g>
 
-        <g id="node-contact_trust" data-node-id="contact_trust" data-node-label="contact_trust" tabindex="0" role="button" aria-label="Focus contact_trust, Key Pinning &amp; Trust States, Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Key Pinning &amp; Trust States" data-node-tag="Trust" data-node-context="Entity" class="er-hue-backend">
-          <title>contact_trust · Key Pinning &amp; Trust States · Entity · Trust</title>
-          <rect x="856" y="214" width="270" height="154" rx="8" class="c-mask"/>
-          <rect x="856" y="214" width="270" height="154" rx="8" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 864 214 H 1118 A 8 8 0 0 1 1126 222 V 242 H 856 V 222 A 8 8 0 0 1 864 214 Z"/>
-          <path class="er-table-cap" d="M 868 215.4 H 1114" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(864 221) scale(0.875)">
+        <g id="node-delivery_artifact" data-node-id="delivery_artifact" data-node-label="delivery_artifact" tabindex="0" role="button" aria-label="Focus delivery_artifact, Receipt Frame &amp; Artifact Ledger (M005), Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Receipt Frame &amp; Artifact Ledger (M005)" data-node-tag="Receiver" data-node-context="Entity" class="er-hue-backend">
+          <title>delivery_artifact · Receipt Frame &amp; Artifact Ledger (M005) · Entity · Receiver</title>
+          <rect x="447" y="762" width="270" height="154" rx="8" class="c-mask"/>
+          <rect x="447" y="762" width="270" height="154" rx="8" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 455 762 H 709 A 8 8 0 0 1 717 770 V 790 H 447 V 770 A 8 8 0 0 1 455 762 Z"/>
+          <path class="er-table-cap" d="M 459 763.4 H 705" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(455 769) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="991" y="233" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">contact_trust</text>
-          <line x1="856" y1="242" x2="1126" y2="242" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="582" y="781" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">delivery_artifact</text>
+          <line x1="447" y1="790" x2="717" y2="790" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="856" y1="242" x2="1126" y2="242" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="790" x2="717" y2="790" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="866" y="247" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="877" y="257" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="898" y="257" class="t-primary er-name-pk" font-size="11">contact</text>
-            <text data-detail="context" x="1114" y="257" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <rect x="457" y="795" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="468" y="805" class="t-database" font-size="9" font-weight="600">PK</text><rect x="482" y="795" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="493" y="805" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="509" y="805" class="t-primary er-name-pk" font-size="11">sender</text>
+            <text data-detail="context" x="705" y="805" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="856" y1="262" x2="1126" y2="262" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="860" y="263" width="262" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="898" y="277" class="t-primary" font-size="11">format_version</text>
-            <text data-detail="context" x="1114" y="277" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <line x1="447" y1="810" x2="717" y2="810" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="811" width="262" height="18" rx="4" class="er-zebra"/>
+            <rect x="457" y="815" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="468" y="825" class="t-database" font-size="9" font-weight="600">PK</text><rect x="482" y="815" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="493" y="825" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="509" y="825" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="705" y="825" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="856" y1="282" x2="1126" y2="282" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="830" x2="717" y2="830" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-
-            <text data-detail="context" x="898" y="297" class="t-primary" font-size="11">state</text>
-            <text data-detail="context" x="1114" y="297" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <rect x="457" y="835" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text data-detail="context" x="468" y="845" class="t-muted" font-size="9" font-weight="600">UK</text>
+            <text data-detail="context" x="509" y="845" class="t-primary" font-size="11">artifact_id</text>
+            <text data-detail="context" x="705" y="845" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="856" y1="302" x2="1126" y2="302" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="860" y="303" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="850" x2="717" y2="850" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="851" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="898" y="317" class="t-primary" font-size="11">generation</text>
-            <text data-detail="context" x="1114" y="317" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="509" y="865" class="t-primary" font-size="11">session_generation</text>
+            <text data-detail="context" x="705" y="865" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="856" y1="322" x2="1126" y2="322" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="447" y1="870" x2="717" y2="870" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="898" y="337" class="t-primary" font-size="11">pinned</text>
-            <text data-detail="context" x="1114" y="337" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="509" y="885" class="t-primary" font-size="11">frame_digest</text>
+            <text data-detail="context" x="705" y="885" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
           <g data-detail="context" data-er-row="5">
-            <line x1="856" y1="342" x2="1126" y2="342" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="860" y="343" width="262" height="18" rx="4" class="er-zebra"/>
+            <line x1="447" y1="890" x2="717" y2="890" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="891" width="262" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="898" y="357" class="t-primary" font-size="11">candidate</text>
-            <text data-detail="context" x="1114" y="357" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+            <text data-detail="context" x="509" y="905" class="t-primary" font-size="11">receipt</text>
+            <text data-detail="context" x="705" y="905" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+        </g>
+
+        <g id="node-receiver_gap" data-node-id="receiver_gap" data-node-label="receiver_gap" tabindex="0" role="button" aria-label="Focus receiver_gap, Inbound Ordering Gaps (M005), Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Inbound Ordering Gaps (M005)" data-node-tag="Receiver" data-node-context="Entity" class="er-hue-backend">
+          <title>receiver_gap · Inbound Ordering Gaps (M005) · Entity · Receiver</title>
+          <rect x="447" y="956" width="270" height="114" rx="8" class="c-mask"/>
+          <rect x="447" y="956" width="270" height="114" rx="8" class="c-database er-table" data-animate="node" style="--step:7" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 455 956 H 709 A 8 8 0 0 1 717 964 V 984 H 447 V 964 A 8 8 0 0 1 455 956 Z"/>
+          <path class="er-table-cap" d="M 459 957.4 H 705" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(455 963) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="582" y="975" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">receiver_gap</text>
+          <line x1="447" y1="984" x2="717" y2="984" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="447" y1="984" x2="717" y2="984" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="457" y="989" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="468" y="999" class="t-database" font-size="9" font-weight="600">PK</text><rect x="482" y="989" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="493" y="999" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="509" y="999" class="t-primary er-name-pk" font-size="11">sender</text>
+            <text data-detail="context" x="705" y="999" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="447" y1="1004" x2="717" y2="1004" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="1005" width="262" height="18" rx="4" class="er-zebra"/>
+            <rect x="457" y="1009" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="468" y="1019" class="t-database" font-size="9" font-weight="600">PK</text><rect x="482" y="1009" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="493" y="1019" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="509" y="1019" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="705" y="1019" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="447" y1="1024" x2="717" y2="1024" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="509" y="1039" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="705" y="1039" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="447" y1="1044" x2="717" y2="1044" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="451" y="1045" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="509" y="1059" class="t-primary" font-size="11">observed_at</text>
+            <text data-detail="context" x="705" y="1059" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+        </g>
+
+        <g id="node-sender_binding_key" data-node-id="sender_binding_key" data-node-label="sender_binding_key" tabindex="0" role="button" aria-label="Focus sender_binding_key, HMAC Authenticator Secret (M004), Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="HMAC Authenticator Secret (M004)" data-node-tag="Sender" data-node-context="Entity" class="er-hue-cloud">
+          <title>sender_binding_key · HMAC Authenticator Secret (M004) · Entity · Sender</title>
+          <rect x="862" y="40" width="270" height="74" rx="8" class="c-mask"/>
+          <rect x="862" y="40" width="270" height="74" rx="8" class="c-database er-table" data-animate="node" style="--step:10" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 870 40 H 1124 A 8 8 0 0 1 1132 48 V 68 H 862 V 48 A 8 8 0 0 1 870 40 Z"/>
+          <path class="er-table-cap" d="M 874 41.4 H 1120" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(870 47) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="997" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">sender_binding_key</text>
+          <line x1="862" y1="68" x2="1132" y2="68" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="862" y1="68" x2="1132" y2="68" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="872" y="73" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="883" y="83" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="904" y="83" class="t-primary er-name-pk" font-size="11">singleton</text>
+            <text data-detail="context" x="1120" y="83" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="862" y1="88" x2="1132" y2="88" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="89" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="904" y="103" class="t-primary" font-size="11">key</text>
+            <text data-detail="context" x="1120" y="103" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+        </g>
+
+        <g id="node-sender_prepare" data-node-id="sender_prepare" data-node-label="sender_prepare" tabindex="0" role="button" aria-label="Focus sender_prepare, Sequence Reservation Lane (M004), Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Sequence Reservation Lane (M004)" data-node-tag="Sender" data-node-context="Entity" class="er-hue-cloud">
+          <title>sender_prepare · Sequence Reservation Lane (M004) · Entity · Sender</title>
+          <rect x="862" y="214" width="270" height="194" rx="8" class="c-mask"/>
+          <rect x="862" y="214" width="270" height="194" rx="8" class="c-database er-table" data-animate="node" style="--step:11" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 870 214 H 1124 A 8 8 0 0 1 1132 222 V 242 H 862 V 222 A 8 8 0 0 1 870 214 Z"/>
+          <path class="er-table-cap" d="M 874 215.4 H 1120" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(870 221) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="997" y="233" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">sender_prepare</text>
+          <line x1="862" y1="242" x2="1132" y2="242" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="862" y1="242" x2="1132" y2="242" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="872" y="247" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="883" y="257" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="904" y="257" class="t-primary er-name-pk" font-size="11">sender</text>
+            <text data-detail="context" x="1120" y="257" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="862" y1="262" x2="1132" y2="262" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="263" width="262" height="18" rx="4" class="er-zebra"/>
+            <rect x="872" y="267" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="883" y="277" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="904" y="277" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="1120" y="277" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="862" y1="282" x2="1132" y2="282" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="904" y="297" class="t-primary" font-size="11">conversation</text>
+            <text data-detail="context" x="1120" y="297" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="862" y1="302" x2="1132" y2="302" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="303" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="904" y="317" class="t-primary" font-size="11">recipient</text>
+            <text data-detail="context" x="1120" y="317" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="862" y1="322" x2="1132" y2="322" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="904" y="337" class="t-primary" font-size="11">sequence</text>
+            <text data-detail="context" x="1120" y="337" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="862" y1="342" x2="1132" y2="342" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="343" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="904" y="357" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="1120" y="357" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="6">
+            <line x1="862" y1="362" x2="1132" y2="362" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="904" y="377" class="t-primary" font-size="11">token</text>
+            <text data-detail="context" x="1120" y="377" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="7">
+            <line x1="862" y1="382" x2="1132" y2="382" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="383" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="904" y="397" class="t-primary" font-size="11">request_mac</text>
+            <text data-detail="context" x="1120" y="397" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+        </g>
+
+        <g id="node-sender_attempt" data-node-id="sender_attempt" data-node-label="sender_attempt" tabindex="0" role="button" aria-label="Focus sender_attempt, Transmission Leases &amp; Backoff (M004), Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Transmission Leases &amp; Backoff (M004)" data-node-tag="Sender" data-node-context="Entity" class="er-hue-cloud">
+          <title>sender_attempt · Transmission Leases &amp; Backoff (M004) · Entity · Sender</title>
+          <rect x="862" y="488" width="270" height="174" rx="8" class="c-mask"/>
+          <rect x="862" y="488" width="270" height="174" rx="8" class="c-database er-table" data-animate="node" style="--step:8" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 870 488 H 1124 A 8 8 0 0 1 1132 496 V 516 H 862 V 496 A 8 8 0 0 1 870 488 Z"/>
+          <path class="er-table-cap" d="M 874 489.4 H 1120" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(870 495) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="997" y="507" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">sender_attempt</text>
+          <line x1="862" y1="516" x2="1132" y2="516" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="862" y1="516" x2="1132" y2="516" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="872" y="521" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="883" y="531" class="t-database" font-size="9" font-weight="600">PK</text><rect x="897" y="521" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="908" y="531" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="924" y="531" class="t-primary er-name-pk" font-size="11">sender</text>
+            <text data-detail="context" x="1120" y="531" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="862" y1="536" x2="1132" y2="536" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="537" width="262" height="18" rx="4" class="er-zebra"/>
+            <rect x="872" y="541" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="883" y="551" class="t-database" font-size="9" font-weight="600">PK</text><rect x="897" y="541" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="908" y="551" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="924" y="551" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="1120" y="551" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="862" y1="556" x2="1132" y2="556" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="924" y="571" class="t-primary" font-size="11">attempt</text>
+            <text data-detail="context" x="1120" y="571" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="862" y1="576" x2="1132" y2="576" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="577" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="924" y="591" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="1120" y="591" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="862" y1="596" x2="1132" y2="596" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="924" y="611" class="t-primary" font-size="11">token</text>
+            <text data-detail="context" x="1120" y="611" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="862" y1="616" x2="1132" y2="616" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="617" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="924" y="631" class="t-primary" font-size="11">deadline</text>
+            <text data-detail="context" x="1120" y="631" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="6">
+            <line x1="862" y1="636" x2="1132" y2="636" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="924" y="651" class="t-primary" font-size="11">reason</text>
+            <text data-detail="context" x="1120" y="651" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+        </g>
+
+        <g id="node-contact_trust" data-node-id="contact_trust" data-node-label="contact_trust" tabindex="0" role="button" aria-label="Focus contact_trust, Key Pinning &amp; Trust States (M002), Entity" aria-pressed="false" data-node-kind="database" data-node-sublabel="Key Pinning &amp; Trust States (M002)" data-node-tag="Trust" data-node-context="Entity" class="er-hue-messagebus">
+          <title>contact_trust · Key Pinning &amp; Trust States (M002) · Entity · Trust</title>
+          <rect x="862" y="762" width="270" height="154" rx="8" class="c-mask"/>
+          <rect x="862" y="762" width="270" height="154" rx="8" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 870 762 H 1124 A 8 8 0 0 1 1132 770 V 790 H 862 V 770 A 8 8 0 0 1 870 762 Z"/>
+          <path class="er-table-cap" d="M 874 763.4 H 1120" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(870 769) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="997" y="781" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">contact_trust</text>
+          <line x1="862" y1="790" x2="1132" y2="790" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="862" y1="790" x2="1132" y2="790" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="872" y="795" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="883" y="805" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="904" y="805" class="t-primary er-name-pk" font-size="11">contact</text>
+            <text data-detail="context" x="1120" y="805" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="862" y1="810" x2="1132" y2="810" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="811" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="904" y="825" class="t-primary" font-size="11">format_version</text>
+            <text data-detail="context" x="1120" y="825" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="862" y1="830" x2="1132" y2="830" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="904" y="845" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="1120" y="845" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="862" y1="850" x2="1132" y2="850" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="851" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="904" y="865" class="t-primary" font-size="11">generation</text>
+            <text data-detail="context" x="1120" y="865" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="862" y1="870" x2="1132" y2="870" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="904" y="885" class="t-primary" font-size="11">pinned</text>
+            <text data-detail="context" x="1120" y="885" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="862" y1="890" x2="1132" y2="890" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="866" y="891" width="262" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="904" y="905" class="t-primary" font-size="11">candidate</text>
+            <text data-detail="context" x="1120" y="905" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
           </g>
         </g>
 
@@ -5811,48 +6085,60 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text x="105.31" y="745" class="t-muted" font-size="9" text-anchor="middle">payload for</text>
         </g>
         <g data-detail="context" data-edge-from="receipt" data-edge-to="message" data-edge-label="receipt for" data-edge-key="1" data-edge-id="receipt_message" data-er-ends="one">
-          <rect x="332" y="767" width="71.38" height="14" rx="3" class="c-mask"/>
-          <text x="367.69" y="777" class="t-muted" font-size="9" text-anchor="middle">receipt for</text>
+          <rect x="332" y="797" width="71.38" height="14" rx="3" class="c-mask"/>
+          <text x="367.69" y="807" class="t-muted" font-size="9" text-anchor="middle">receipt for</text>
         </g>
         <g data-detail="context" data-edge-from="e2ee_frame" data-edge-to="message" data-edge-label="authenticates" data-edge-key="2" data-edge-id="frame_message" data-er-ends="one">
-          <rect x="330.23" y="575" width="82.54" height="14" rx="3" class="c-mask"/>
-          <text x="371.5" y="585" class="t-muted" font-size="9" text-anchor="middle">authenticates</text>
+          <rect x="333.23" y="585" width="82.54" height="14" rx="3" class="c-mask"/>
+          <text x="374.5" y="595" class="t-muted" font-size="9" text-anchor="middle">authenticates</text>
         </g>
         <g data-detail="context" data-edge-from="e2ee_frame" data-edge-to="e2ee_session" data-edge-label="session frame" data-edge-key="3" data-edge-id="frame_session" data-er-ends="many one">
-          <rect x="479.46000000000004" y="461" width="82.54" height="14" rx="3" class="c-mask"/>
-          <text x="520.73" y="471" class="t-muted" font-size="9" text-anchor="middle">session frame</text>
+          <rect x="485.46000000000004" y="461" width="82.54" height="14" rx="3" class="c-mask"/>
+          <text x="526.73" y="471" class="t-muted" font-size="9" text-anchor="middle">session frame</text>
         </g>
         <g data-detail="context" data-edge-from="e2ee_session" data-edge-to="e2ee_account" data-edge-label="account session" data-edge-key="4" data-edge-id="session_account" data-er-ends="many one">
-          <rect x="468.29999999999995" y="187" width="93.7" height="14" rx="3" class="c-mask"/>
-          <text x="515.15" y="197" class="t-muted" font-size="9" text-anchor="middle">account session</text>
+          <rect x="474.29999999999995" y="187" width="93.7" height="14" rx="3" class="c-mask"/>
+          <text x="521.15" y="197" class="t-muted" font-size="9" text-anchor="middle">account session</text>
         </g>
         <g data-detail="context" data-edge-from="e2ee_session" data-edge-to="contact_trust" data-edge-label="verifies trust" data-edge-key="5" data-edge-id="session_contact" data-er-ends="many one">
-          <rect x="739.44" y="291" width="88.12" height="14" rx="3" class="c-mask"/>
-          <text x="783.5" y="301" class="t-muted" font-size="9" text-anchor="middle">verifies trust</text>
+          <rect x="695.3800000000001" y="451" width="88.12" height="14" rx="3" class="c-mask"/>
+          <text x="739.44" y="461" class="t-muted" font-size="9" text-anchor="middle">verifies trust</text>
+        </g>
+        <g data-detail="context" data-edge-from="delivery_artifact" data-edge-to="e2ee_frame" data-edge-label="staged receipt for" data-edge-key="6" data-edge-id="artifact_frame" data-er-ends="one">
+          <rect x="457.55999999999995" y="725" width="110.44" height="14" rx="3" class="c-mask"/>
+          <text x="512.78" y="735" class="t-muted" font-size="9" text-anchor="middle">staged receipt for</text>
+        </g>
+        <g data-detail="context" data-edge-from="receiver_gap" data-edge-to="message" data-edge-label="tracks missing" data-edge-key="7" data-edge-id="gap_message" data-er-ends="one">
+          <rect x="338.44" y="985" width="88.12" height="14" rx="3" class="c-mask"/>
+          <text x="382.5" y="995" class="t-muted" font-size="9" text-anchor="middle">tracks missing</text>
+        </g>
+        <g data-detail="context" data-edge-from="sender_attempt" data-edge-to="message" data-edge-label="leases transmission" data-edge-key="8" data-edge-id="attempt_message" data-er-ends="one">
+          <rect x="844" y="696.25" width="116.02" height="14" rx="3" class="c-mask"/>
+          <text x="902.01" y="706.25" class="t-muted" font-size="9" text-anchor="middle">leases transmission</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="">
-          <text x="24" y="1012" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="pk" data-legend-x="24" data-legend-baseline="1032" data-legend-width="126">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Primary key" x="18" y="1017" width="138" height="22" rx="11"/><rect x="24" y="1022" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text x="35" y="1032" class="t-database" text-anchor="middle" font-size="9" font-weight="600">PK</text>
-            <text x="54" y="1032" class="t-primary" font-size="12" font-weight="600">Primary key</text>
+          <text x="24" y="1092" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="pk" data-legend-x="24" data-legend-baseline="1112" data-legend-width="126">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Primary key" x="18" y="1097" width="138" height="22" rx="11"/><rect x="24" y="1102" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text x="35" y="1112" class="t-database" text-anchor="middle" font-size="9" font-weight="600">PK</text>
+            <text x="54" y="1112" class="t-primary" font-size="12" font-weight="600">Primary key</text>
           </g>
-          <g data-legend-semantic-kind="fk" data-legend-x="172" data-legend-baseline="1032" data-legend-width="126">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Foreign key" x="166" y="1017" width="138" height="22" rx="11"/><rect x="172" y="1022" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text x="183" y="1032" class="t-messagebus" text-anchor="middle" font-size="9" font-weight="600">FK</text>
-            <text x="202" y="1032" class="t-primary" font-size="12" font-weight="600">Foreign key</text>
+          <g data-legend-semantic-kind="fk" data-legend-x="172" data-legend-baseline="1112" data-legend-width="126">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Foreign key" x="166" y="1097" width="138" height="22" rx="11"/><rect x="172" y="1102" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text x="183" y="1112" class="t-messagebus" text-anchor="middle" font-size="9" font-weight="600">FK</text>
+            <text x="202" y="1112" class="t-primary" font-size="12" font-weight="600">Foreign key</text>
           </g>
-          <g data-legend-semantic-kind="uk" data-legend-x="320" data-legend-baseline="1032" data-legend-width="118">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Unique key" x="314" y="1017" width="130" height="22" rx="11"/><rect x="320" y="1022" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text x="331" y="1032" class="t-muted" text-anchor="middle" font-size="9" font-weight="600">UK</text>
-            <text x="350" y="1032" class="t-primary" font-size="12" font-weight="600">Unique key</text>
+          <g data-legend-semantic-kind="uk" data-legend-x="320" data-legend-baseline="1112" data-legend-width="118">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Unique key" x="314" y="1097" width="130" height="22" rx="11"/><rect x="320" y="1102" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text x="331" y="1112" class="t-muted" text-anchor="middle" font-size="9" font-weight="600">UK</text>
+            <text x="350" y="1112" class="t-primary" font-size="12" font-weight="600">Unique key</text>
           </g>
-          <g data-legend-semantic-kind="one" data-legend-x="460" data-legend-baseline="1032" data-legend-width="75">
-            <line x1="456" y1="1020" x2="456" y2="1036" class="er-legend-divider" stroke-width="1"/><rect class="er-legend-hit" tabindex="0" role="img" aria-label="One" x="464" y="1017" width="77" height="22" rx="11"/><line x1="470" y1="1028" x2="498" y2="1028" class="er-legend-route" stroke-width="1.5"/><line x1="498" y1="1021" x2="498" y2="1035" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(476 1020)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 17 1 L 17 15"/></g>
-            <text x="508" y="1032" class="t-primary" font-size="12" font-weight="600">One</text>
+          <g data-legend-semantic-kind="one" data-legend-x="460" data-legend-baseline="1112" data-legend-width="75">
+            <line x1="456" y1="1100" x2="456" y2="1116" class="er-legend-divider" stroke-width="1"/><rect class="er-legend-hit" tabindex="0" role="img" aria-label="One" x="464" y="1097" width="77" height="22" rx="11"/><line x1="470" y1="1108" x2="498" y2="1108" class="er-legend-route" stroke-width="1.5"/><line x1="498" y1="1101" x2="498" y2="1115" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(476 1100)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 17 1 L 17 15"/></g>
+            <text x="508" y="1112" class="t-primary" font-size="12" font-weight="600">One</text>
           </g>
-          <g data-legend-semantic-kind="many" data-legend-x="557" data-legend-baseline="1032" data-legend-width="73">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Many" x="551" y="1017" width="85" height="22" rx="11"/><line x1="557" y1="1028" x2="585" y2="1028" class="er-legend-route" stroke-width="1.5"/><line x1="585" y1="1021" x2="585" y2="1035" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(563 1020)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 8 8 L 22 1 M 8 8 L 22 8 M 8 8 L 22 15"/></g>
-            <text x="595" y="1032" class="t-primary" font-size="12" font-weight="600">Many</text>
+          <g data-legend-semantic-kind="many" data-legend-x="557" data-legend-baseline="1112" data-legend-width="73">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Many" x="551" y="1097" width="85" height="22" rx="11"/><line x1="557" y1="1108" x2="585" y2="1108" class="er-legend-route" stroke-width="1.5"/><line x1="585" y1="1101" x2="585" y2="1115" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(563 1100)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 8 8 L 22 1 M 8 8 L 22 8 M 8 8 L 22 15"/></g>
+            <text x="595" y="1112" class="t-primary" font-size="12" font-weight="600">Many</text>
           </g>
         </g>
       </svg>
@@ -6038,7 +6324,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Strict Relational Guarantees</h3>
         </div>
         <ul>
-          <li>WITHOUT ROWID on primary message, frame, and session tables optimizes key-value clustered lookups.</li>
+          <li>WITHOUT ROWID on primary message, frame, session, and artifact tables optimizes clustered lookups.</li>
           <li>Foreign key cascades and check constraints enforce format_version = 1 and 32-byte hash digests.</li>
           <li>e2ee_frame compound primary key (sender, id) references message to bind transport identity.</li>
         </ul>
@@ -6047,24 +6333,24 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot emerald"></div>
-          <h3>KAMI-50 Contact Trust State Machine</h3>
+          <h3>KAMI-24 Outbound Sender State (Migration 004)</h3>
         </div>
         <ul>
-          <li>Four states: 0=Unpinned, 1=Pinned, 2=PinPending, 3=Revoked.</li>
-          <li>Monotonic generation check enforces atomic CAS against concurrent trust modifications.</li>
-          <li>Pinned key length strictly bounded between 1 and 512 bytes.</li>
+          <li>sender_prepare: Monotonic sequence reservations with 60s timeouts and partial unique index on active lane.</li>
+          <li>sender_binding_key: 32-byte secret for keyed HMAC-SHA256 request authenticators.</li>
+          <li>sender_attempt: Outbound transmission attempts, 30s lease tokens, exponential backoff, and terminal failure tracking.</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>KAMI-51 E2EE State Persistence</h3>
+          <h3>KAMI-25 Inbound Receiver State (Migration 005)</h3>
         </div>
         <ul>
-          <li>e2ee_account is a singleton row (singleton=1) preserving local Olm account state.</li>
-          <li>e2ee_session stores encrypted session state blobs (up to 1MB) with SHA-256 integrity digests.</li>
-          <li>e2ee_frame acts as an immutable deduplication ledger preventing replay and fork attacks.</li>
+          <li>delivery_artifact: Stores staged DeviceDelivered receipt frames, 32-byte artifact IDs, and session digests.</li>
+          <li>receiver_gap: Tracks missing message sequence numbers (0=Unresolved, 1=Permanent after 60s).</li>
+          <li>ReplayPermit queries delivery_artifact to deduplicate replayed frames without ratcheting.</li>
         </ul>
       </div>
     </div>

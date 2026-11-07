@@ -121,7 +121,7 @@ fn sender_schema_is_durable_across_reopen() {
     assert_eq!(
         db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))
             .unwrap(),
-        4
+        5
     );
     for table in ["sender_prepare", "sender_attempt", "sender_binding_key"] {
         assert_eq!(

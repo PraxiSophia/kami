@@ -3,6 +3,8 @@ use crate::authenticated::{Anchor, BoundSession, Endpoint};
 mod adversarial;
 #[path = "frame_limits.rs"]
 mod frame_limits;
+#[path = "receipts.rs"]
+mod receipts;
 use crate::envelope::Direction;
 use kami_core::{ConversationId, DeviceId};
 use kami_identity::{

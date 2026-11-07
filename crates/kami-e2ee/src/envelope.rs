@@ -77,7 +77,8 @@ impl InnerEnvelopeV1 {
             MessageKind::DeviceDelivered
                 if self.sequence.is_none()
                     && self.receipt_target.is_some_and(|id| id.as_u128() != 0)
-                    && self.payload.is_empty() =>
+                    && (self.payload.is_empty()
+                        || crate::authenticated::receipts::valid_payload(&self.payload)) =>
             {
                 Ok(())
             }

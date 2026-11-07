@@ -1,7 +1,7 @@
 # Kami Development Roadmap
 
-Status: documentation synchronized after owner acceptance of the bounded KAMI-24 implementation
-Last repository inspection: 2026-11-05
+Status: documentation synchronized with bounded KAMI-25 source/test behavior; no production or M1 completion claim
+Last repository inspection: 2026-11-06 (documentation-only KAMI-25 synchronization)
 Last Jira evidence read: 2026-11-05
 Implementation language: Rust only
 
@@ -65,8 +65,8 @@ Jira workflow status is a project-record state, not a direct measurement of core
 | Contact verification | KAMI-50 | Explicit bilateral fingerprint verification, durable trust transitions, changed-identity holds, device/Peer-ID proof. |
 | E2EE/session composition | `kami-e2ee`, KAMI-51 | KAMI-51 WP1/WP2-A/WP3 and quarantined WP2-B typed authenticated boundary; no runtime/network activation. |
 | Encrypted persistence | `kami-storage`, KAMI-22/WP3 | SQLCipher, lease, worker, migrations, outbox/inbox/history, receipts/order facts, CAS, quotas, atomic transactions. |
-| Sender lifecycle | KAMI-24 | Durable enqueue, retry/recovery, cancellation, queue state, exact logical-message retention. Not runtime or transport. |
-| Receiver lifecycle | KAMI-25 | Durable inbox, deduplication, ordering, authenticated delivery receipts. |
+| Sender lifecycle | `kami-sender`, KAMI-24/KAMI-25 | Durable enqueue, retry/recovery, cancellation, queue state, exact logical-message retention, authenticated receipt consumption and Delivered projection. Not runtime or transport. |
+| Receiver lifecycle | `kami-receiver`, KAMI-25 | Implemented bounded durable inbox/dedup, ordering/gaps, exact replay and same-session authenticated delivery receipt persistence. No live receive loop. |
 | Supervised service | KAMI-26 | Single Tokio owner, blocking storage/key seams, cancellation, shutdown, restart recovery. |
 | Direct transport | KAMI-27 | Authenticated rust-libp2p direct path and Peer-ID validation. |
 | Relay service/session | KAMI-29/KAMI-30 | Default-deny live relay, reservations, inner authenticated endpoint session. |
@@ -144,7 +144,7 @@ contracts. KAMI-24 may consume this accepted KAMI-51 foundation without waiting 
 the full KAMI-51 parent issue, WP4, or WP5 to be complete. None of these bounded
 acceptances marks the full KAMI-51 Jira issue complete.
 
-Pending: live runtime end-peer provenance, production prekey lifecycle, authenticated receipt/Delivered integration, external rollback authority, service race guards, cross-platform/interoperability qualification, and production security review.
+Pending: live runtime end-peer provenance, production prekey lifecycle, production orchestration of the bounded KAMI-25 receipt/Delivered seam, external rollback authority, service race guards, cross-platform/interoperability qualification, and production security review.
 
 ## 5. KAMI-51 full work-package sequence
 
@@ -220,7 +220,7 @@ Gate: passing unit tests or local fixtures alone cannot satisfy M1. Missing OS, 
 
 ## 6. Remaining development phases
 
-### Phase A — sender and receiver durable lifecycle
+### Phase A — bounded sender and receiver durable lifecycle implemented
 
 KAMI-24: sender durable enqueue and attempt recovery. It consumes the accepted
 KAMI-51 WP1/WP2-A/WP3/WP2-B encryption/storage foundation; it does not require the
@@ -232,16 +232,23 @@ full KAMI-51 parent issue, WP4, or WP5 to be complete.
 - Apply bounded retry, cancellation, queue pressure, and identity-change holds.
 - Do not implement Tokio ownership or transport.
 
-KAMI-25: receiver inbox, deduplication, receipts, and replay. Its bounded planning
-and implementation can proceed independently of KAMI-24 against the shared core,
-protocol, identity, KAMI-51, and storage contracts. End-to-end message-flow
-integration consumes both KAMI-24 and KAMI-25.
+KAMI-25: receiver inbox, deduplication, receipts, and replay are implemented as a
+bounded runtime-neutral path against shared core, protocol, identity, KAMI-51 and
+storage contracts. Sender receipt consumption composes this with KAMI-24. Full
+end-to-end runtime/network message-flow integration remains downstream.
 
 - Validate authenticated sender/device, message ID, content binding, sequence, and context.
 - Atomically persist inbox/dedup/history/receipt facts before ACK eligibility.
 - Re-ACK after a crash between persistence and send.
 - Reject forged, stale, mismatched, and conflicting messages/receipts.
-- Handle bounded ordering gaps and one display per logical message.
+- Handle bounded ordering gaps and one durable presentation identity per logical
+  message, not exactly-once terminal rendering.
+
+These are source-grounded implemented behaviors, not new test execution or an
+owner-acceptance/Jira-closure claim from this documentation task. See section 8
+and the [receiver README](../crates/kami-receiver/README.md) for limits and source
+coverage. Runtime, transport, relays, CLI/IPC and network/OS qualification remain
+Phases B–E; a durable offline mailbox remains outside M1.
 
 ### Phase B — supervised service and local CLI
 
@@ -320,7 +327,7 @@ KAMI-34 + KAMI-35 + KAMI-36 + KAMI-37 -> KAMI-39
 
 The live Jira graph contains contradictory links, including reciprocal KAMI-22/KAMI-23 links, reciprocal KAMI-51/KAMI-24 and KAMI-51/KAMI-25 links, and a KAMI-31 -> KAMI-28 link that conflicts with KAMI-28's stated dependencies. This roadmap uses the technically coherent DAG above and does not silently alter Jira. The `||` notation means independent bounded planning/implementation, not that later integration can omit either result.
 
-## 8. Current next milestone: KAMI-25
+## 8. Bounded KAMI-25 implementation and downstream integration
 
 KAMI-24 is owner-accepted as a bounded, runtime-neutral sender lifecycle implementation. The accepted scope covers durable SQLCipher sender persistence, authenticated-commit integration, stable request identity and sequencing, exact-frame recovery, leases, bounded retry state, cancellation, and identity holds. Evidence is preserved in implementation task `t_3caec9e9`, pre-implementation review `t_903b8e19`, independent QA `t_d1b015bb`, independent Evaluator `t_4c8b8ad4`, and the synchronized root/storage/sender READMEs.
 
@@ -339,13 +346,71 @@ Explicit exclusions and remaining qualification:
 - no public production encryption activation;
 - no Tokio service ownership, timers, or automatic retry scheduler;
 - no IPC, direct P2P, relay, or network implementation;
-- no live end-peer provenance, authenticated receipts, or `Delivered` authority;
+- no live end-peer provenance or production receipt/Delivered orchestration;
+  authenticated receipt consumption and durable Delivered projection were added
+  separately by bounded KAMI-25;
 - no KAMI-26 responsibilities;
 - no cross-platform, real-network, interoperability, external rollback-anchor, or production-security qualification;
 - finite eight-attempt retry state and retained preparation-tombstone quota/compaction policy remain bounded follow-up work;
 - no replacement for WP2-B authenticated storage composition.
 
-The implementation and documentation were independently verified; this bounded acceptance does not close the full end-to-end delivery path or imply Jira workflow closure. KAMI-25 is the next technically dependency-ready implementation milestone under the coherent roadmap DAG. It may proceed against the accepted shared core, protocol, identity/trust, KAMI-51, and storage contracts; KAMI-26 remains gated on both KAMI-24 and KAMI-25.
+The KAMI-24 implementation and documentation were independently verified; that
+bounded acceptance does not close the full end-to-end delivery path or imply Jira
+workflow closure.
+
+KAMI-25 is now functionally implemented in the current shared `protocol-storage`
+worktree. Implementation task `t_52c7a993` records the bounded receiver-to-E2EE-to-
+SQLCipher-to-sender path. This synchronization task `t_f5b34761` inspects actual
+public APIs and test sources, not a new implementation/QA/Evaluator run. It does
+not independently assert KAMI-25 owner acceptance or change Jira status.
+
+Bounded implemented behavior:
+
+- `kami-receiver::ReceiveContext` and `Receiver::{receive,receive_first}` enforce
+  expected text/device/conversation admission and current durable Verified trust.
+- E2EE's dedicated `AuthenticatedDelivery` stages text reception and
+  DeviceDelivered generation in the same bidirectional session. One SQLCipher
+  transaction commits account/bootstrap/OTK effects, both session transitions,
+  inbox/dedup/history/receipt facts, exact frames and gap observations.
+- Migration v5 adds only canonical `delivery_artifact` and `receiver_gap`
+  observations referencing existing frame/message authorities; no duplicate inbox
+  or mutable session authority. Migration failure preserves old schema/version.
+- `ReplayPermit` plus storage recovery returns only exact previously authenticated
+  durable ACK/Delivered evidence, including after reopen or history deletion, with
+  current trust/original pin and coherent facts/account/session checks.
+- `Coordinator::receive_receipt` and `ReceiptOutcome` validate same-session
+  receipts against original immutable text facts/frame digest and durably project
+  Delivered. Raw socket/relay success cannot substitute for receipt validation.
+- Per-sender ordering supports bounded presentation wait, Unresolved/Permanent
+  gap observations and late-predecessor reconciliation. Quotas fail closed without
+  partially accepting messages or granting ACK eligibility.
+
+Source coverage is in `crates/kami-receiver/tests/receive.rs` (including
+`failures.rs`), `crates/kami-e2ee/tests/qualification/receipts.rs`, and
+`crates/kami-storage/tests/receiver_migration.rs`: local receipt flow, forged ACKs,
+duplicate/conflict and alternate-ciphertext rejection, concurrent trust/commit
+behavior, crash/reopen and fault rollback, ordering, corruption, legacy isolation,
+and capacity. The crate READMEs give source-checked Cargo target commands; this
+documentation-only run does not rerun Rust checks or establish new test counts.
+
+Mandatory remaining boundaries:
+
+- Live end-peer provenance is caller/future-runtime supplied. KAMI-26 must own
+  supervised scheduling and serialize current trust/provenance with actual I/O.
+- Fresh mutable cryptographic session restoration remains restricted without a
+  qualified external rollback anchor; exact persisted-frame recovery is not
+  permission to restore a ratchet from DB-only counters/digests.
+- Exact-frame retry rejects alternate ciphertext even for identical logical
+  content. Bounded receipt/dedup evidence has no active cleanup/compaction and
+  exhausts capacity fail-closed; finite sender retry/tombstone policy remains.
+- No exactly-once terminal rendering, runtime, direct/relay transport, CLI/IPC,
+  offline mailbox, production activation, or production/real-network/cross-platform
+  qualification is supplied by this scope. Olm-v1, upstream skipped-key windows,
+  prekey lifecycle and interoperability remain separately qualified concerns.
+
+KAMI-26 remains the downstream supervised-service integration milestone under the
+coherent DAG, consuming both bounded KAMI-24 and KAMI-25. This document does not
+authorize starting it or restarting completed implementation/review lanes.
 
 ## 9. Security limitations and non-bypassable gates
 
@@ -363,10 +428,19 @@ The following remain open and must not be bypassed:
 10. Relay forwarding, socket/network success, reservation success, and ACK transmission never independently establish Delivered.
 11. M1 requires real separate-network direct and authorized-live-relay evidence, restart/ACK-loss/duplicate/conflict/order evidence, supported OS evidence, redacted diagnostics, and independent review.
 12. No offline server mailbox, silent identity replacement, plaintext fallback, automatic startup, universal NAT guarantee, exactly-once network guarantee, anonymity guarantee, or production SLA is promised.
+13. KAMI-25 accepts exact retained frames only, not alternate ciphertext retries.
+    Receipt/dedup evidence is bounded and fails closed without active cleanup or
+    compaction. Durable presentation eligibility is not exactly-once terminal
+    rendering. Bounded ACK/Delivered recovery does not unlock fresh mutable
+    cryptographic restoration or production activation.
 
 ## 10. Branch and Git integration strategy
 
-Observed state at the last audit:
+Current documentation-only inspection observes branch `protocol-storage` with
+pre-existing dirty/untracked KAMI-25 implementation changes preserved. No Git
+history, branch, remote or integration action is performed by this update.
+The following older audit snapshot and proposed sequence are historical, not a
+current branch instruction or fresh remote inspection:
 
 - Current branch: `identity-security`.
 - HEAD and `origin/identity-security`: `eedbb74` (`Fingerprint verification`).
@@ -398,8 +472,8 @@ Jira statuses below were last read on 2026-11-05. `Functionally implemented` and
 | KAMI-21 | Functionally implemented | Vectors, negative corpus, properties, bounds/allocation | Authenticated integration and cross-platform | KAMI-19/20 | `kami-protocol/README.md`; Jira issue |
 | KAMI-22 | Functionally implemented | Linux focused/workspace tests passed | Windows/macOS native, broader platform, production qualification | KAMI-19/20; key-provider interface | `kami-storage/README.md`; Jira issue, In Progress |
 | KAMI-23 | Functionally implemented | Linux/local identity, custody, trust, binding tests | Native OS, cross-process, live transport, M1 qualification | KAMI-19; identity contract | `kami-identity/README.md`; Jira issue, In Progress |
-| KAMI-24 | Owner-accepted bounded implementation | Implementation `t_3caec9e9`; pre-review `t_903b8e19` PASS; QA `t_d1b015bb` PASS; Evaluator `t_4c8b8ad4` PASS; README synchronization `t_0f4d4791` done | Runtime/transport, live end-peer provenance, authenticated receipts/Delivered, cross-platform, network, rollback-anchor, and production qualification remain deferred; finite retry/tombstone quota policy remains bounded follow-up | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50 | Implementation/review Kanban evidence; root, storage, and sender READMEs; Jira issue remains unchanged |
-| KAMI-25 | Not implemented | Not started | Inbox/dedup/order/receipt/replay integration | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50; independent of KAMI-24 for bounded implementation, integrated with it for end-to-end flow | Jira issue |
+| KAMI-24 | Owner-accepted bounded implementation | Implementation `t_3caec9e9`; pre-review `t_903b8e19` PASS; QA `t_d1b015bb` PASS; Evaluator `t_4c8b8ad4` PASS; README synchronization `t_0f4d4791` done | Runtime/transport, live end-peer provenance, production receipt/Delivered orchestration, cross-platform, network, rollback-anchor, and production qualification remain deferred; finite retry/tombstone quota policy remains bounded follow-up; bounded receipt consumption added by KAMI-25 | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50 | Implementation/review Kanban evidence; root, storage, and sender READMEs; Jira issue remains unchanged |
+| KAMI-25 | Functionally implemented, bounded/quarantined | Public API and local test sources inspected; no new Rust/QA/Evaluator execution in this documentation task | Runtime/live provenance, transport/relay/CLI, external rollback anchor, cleanup/compaction, production, network and cross-platform qualification; no exactly-once terminal rendering | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50; composes KAMI-24 receipt consumption | Implementation `t_52c7a993`; documentation `t_f5b34761`; receiver/E2EE/storage/sender READMEs; Jira unchanged |
 | KAMI-26 | Not implemented | Not started | Runtime, cancellation, shutdown, restart, provenance | KAMI-20..25 | Jira issue |
 | KAMI-27 | Not implemented | Not started | Real direct transport and Peer-ID path evidence | KAMI-2/3/19/23/26/50 | Jira issue |
 | KAMI-28 | Not implemented | Not started | Two-process first direct encrypted message | KAMI-21..27 plus KAMI-51 | Jira issue |
@@ -456,6 +530,8 @@ Repository evidence:
 - `crates/kami-identity/README.md`
 - `crates/kami-e2ee/README.md`
 - `crates/kami-storage/README.md`
+- `crates/kami-sender/README.md`
+- `crates/kami-receiver/README.md`
 
 Recorded implementation/review evidence:
 

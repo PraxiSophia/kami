@@ -131,7 +131,26 @@ This module implements the quarantined **WP2-B** composition boundary.
 
 ---
 
-### 8. Module `persistence` (Private, [crates/kami-e2ee/src/persistence.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/persistence.rs))
+### 8. Module `authenticated/receipts` ([crates/kami-e2ee/src/authenticated/receipts.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/authenticated/receipts.rs))
+
+Introduced in KAMI-25 to coordinate inbound message delivery and staged `DeviceDelivered` receipt frame generation across double-ratchet boundaries:
+
+- **Struct**: `AuthenticatedDelivery`
+  - Encapsulates decrypted inbound message facts, plaintext, delivery artifact, and the staged outbound receipt frame.
+  - Generated via `QuarantinedSession::prepare_delivery` (or `QuarantinedSession::inbound_delivery` for first-message bootstrap).
+  - Advances session generation by **2** (1 generation for the inbound message decryption + 1 generation for the outbound receipt generation in the reverse direction of the same session).
+- **Struct**: `AuthenticatedReceiptCommit`
+  - Represents an opaque, unforgeable commitment for an inbound receipt frame.
+  - Produced via `QuarantinedSession::prepare_receipt` on the sender side when consuming an inbound `DeviceDelivered` receipt.
+  - Advances session generation by **1** (consuming the inbound receipt message in the ratchet).
+  - Binds the exact target `MessageId`, target `ConversationId`, sender and recipient device keys, message facts, and SHA-256 text frame digest with a canonical `KAMI-DEVICE-DELIVERED-V1\0` payload.
+- **Struct**: `ReplayPermit`
+  - An internal non-forgeable capability token produced during context validation (`ReceiveContext::replay_permit` / `Coordinator::replay_permit`).
+  - Grants storage workers permission to look up and recover previously committed deliveries or receipts without bypassing authenticated entry points.
+
+---
+
+### 9. Module `persistence` (Private, [crates/kami-e2ee/src/persistence.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/persistence.rs))
 
 - **Struct**: `AccountSnapshot` & `SessionSnapshot` (WP3)
   - **What they represent**: Bounded, versioned binary snapshots of Olm accounts and sessions.
@@ -149,7 +168,7 @@ This module implements the quarantined **WP2-B** composition boundary.
 
 ---
 
-### 9. Module `errors` ([crates/kami-e2ee/src/errors.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/errors.rs))
+### 10. Module `errors` ([crates/kami-e2ee/src/errors.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/errors.rs))
 
 - **Enum**: `Error`
   - **Variants**: `AadUnsupported`, `AuthenticationRejected`, `StateVersion`, `StateRollback`, `StateEncoding`, `InvalidContext`, `Provider`.
@@ -160,12 +179,12 @@ This module implements the quarantined **WP2-B** composition boundary.
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **Quarantined Foundation Accepted with Conditions** (WP1, WP2-A2, WP3, and WP2-B implemented and owner accepted within quarantined scope; live transport provenance, prekey publication/replenishment lifecycle, external anti-rollback anchors, and delivery receipt ratchet transitions remain deferred to WP4/WP5).
+  - *Milestone Status*: **Quarantined Foundation Accepted with Conditions** (WP1, WP2-A2, WP3, WP2-B, and KAMI-25 receipt boundary implemented and owner accepted within quarantined scope; live transport provenance, prekey publication/replenishment lifecycle, and external anti-rollback anchors remain deferred).
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: Vodozemac 0.11.1 adapter, fail-closed AAD, canonical 64 KB inner envelope, staged outbound/inbound text, OTK and fallback prekey accounting, exact retransmission reconciliation, and opaque commit handoff to storage.
-  - **Tested Behavior**: 93 package tests/doc-tests, qualification suites (`envelope.rs`, `authenticated.rs`), external privacy probe (`tests/privacy.rs`), and cross-crate integration with `kami-storage`.
-  - **Missing Behavior**: Production prekey replenishment/publication server integration, live peer transport provenance, receipt ratchet updates, and persistent external anti-rollback anchors.
+  - **Implemented Behavior**: Vodozemac 0.11.1 adapter, fail-closed AAD, canonical 64 KB inner envelope, staged outbound/inbound text, same-session receipt generation and consumption, OTK and fallback prekey accounting, exact retransmission reconciliation, and opaque commit handoff to storage.
+  - **Tested Behavior**: Unit and qualification suites (`envelope.rs`, `authenticated.rs`, `tests/qualification/receipts.rs`), external privacy probe (`tests/privacy.rs`), and cross-crate integration with `kami-storage`, `kami-sender`, and `kami-receiver`.
+  - **Missing Behavior**: Production prekey replenishment/publication server integration, live peer transport provenance, and persistent external anti-rollback anchors.
   - **Known Limitations & Provider Constraints**:
     - **Upstream Ratchet Limits**: Upstream `vodozemac = 0.11.1` Olm v1 pins a **40-key retention cap for skipped keys** and a **2,000-message gap ceiling** on the receiver chain. These are upstream implementation constraints, not configurable Kami settings.
     - **Truncated MAC**: Olm v1 uses an 8-byte truncated MAC.
@@ -180,6 +199,7 @@ cargo test --locked -p kami-e2ee
 # Run internal qualification test modules
 cargo test --locked -p kami-e2ee --lib envelope_tests
 cargo test --locked -p kami-e2ee --lib authenticated_tests
+cargo test --locked -p kami-e2ee --test receipts
 
 # Run the external privacy and boundary probe
 cargo test --locked -p kami-e2ee --test privacy

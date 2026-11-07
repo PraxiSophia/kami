@@ -44,6 +44,12 @@ fn opaque_commit_privacy_has_positive_and_diagnostic_negative_probes() {
         .to_path_buf();
     for (source, code) in [
         ("pub fn valid(_: kami_e2ee::AuthenticatedCommit) {}", None),
+        ("pub fn valid(_: kami_e2ee::AuthenticatedDelivery, _: kami_e2ee::AuthenticatedReceiptCommit, _: kami_e2ee::ReplayPermit) {}", None),
+        ("pub fn bad() -> kami_e2ee::AuthenticatedDelivery { kami_e2ee::AuthenticatedDelivery { inbound: loop {}, receipt: loop {} } }", Some("E0451")),
+        ("pub fn bad() -> kami_e2ee::AuthenticatedReceiptCommit { kami_e2ee::AuthenticatedReceiptCommit { material: loop {}, target_frame_digest: [0; 32] } }", Some("E0451")),
+        ("pub fn bad() -> kami_e2ee::ReplayPermit { kami_e2ee::ReplayPermit { remote: loop {}, local: loop {}, conversation: loop {}, generation: 1, pin: vec![] } }", Some("E0451")),
+        ("pub fn bad(v: kami_e2ee::AuthenticatedReceiptCommit) { let _: kami_e2ee::AuthenticatedCommit = v.into(); }", Some("E0277")),
+        ("pub fn bad(v: kami_e2ee::AuthenticatedDelivery) { let _ = v.clone(); }", Some("E0599")),
         ("use kami_e2ee::authenticated::SendStage;", Some("E0603")),
         ("pub fn bad() -> kami_e2ee::AuthenticatedCommit { kami_e2ee::AuthenticatedCommit { material: loop {} } }", Some("E0451")),
         ("pub fn bad() { let _: kami_e2ee::AuthenticatedCommit = Default::default(); }", Some("E0277")),
