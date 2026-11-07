@@ -88,7 +88,10 @@ provided.
 KAMI-24 does **not** activate production messaging, a sender runtime, timers,
 network transport, direct/relay selection, live end-peer authentication,
 production receipt/Delivered orchestration, end-to-end CLI delivery, profile restore,
-or public/production encryption. A caller-provided `PeerId` is evidence for the
+or public/production encryption. KAMI-26 now supplies a bounded supervisor that
+can host this synchronous coordinator on its blocking owner and preserves its
+fail-closed live-transport boundary; it does not turn this crate into a network
+sender or accept caller-provided Peer IDs as live provenance. A caller-provided `PeerId` is evidence for the
 quarantined coordinator, not live network provenance. The `kami-e2ee` boundary
 remains quarantined and its selected cryptographic/runtime qualification is separate.
 

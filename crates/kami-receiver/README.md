@@ -116,13 +116,23 @@ cargo test --locked -p kami-sender -p kami-receiver -p kami-e2ee -p kami-storage
 cargo test --locked -p kami-storage --test receiver_migration
 ```
 
+## KAMI-26 runtime boundary
+
+The verified `kami-runtime` crate hosts the synchronous receiver path on one
+bounded blocking owner and coordinates lifecycle, shutdown, profile ownership,
+and durable reconciliation. Its private test integration exercises this receiver
+with KAMI-24 sender, KAMI-51 E2EE, and SQLCipher receipt persistence. The runtime
+public API remains fail-closed: it has no production authenticated end-peer
+producer and does not accept a caller-supplied Peer ID as live provenance.
+
 ## Qualification limits
 
-Live end-peer provenance remains caller/future-runtime supplied. No supervised
-runtime, direct/relayed network path, offline mailbox, automatic receipt scheduler,
-CLI rendering, production encryption activation, fresh profile ratchet restoration,
-or production/real-network/cross-platform qualification is established here.
-Process-kill fixtures do not certify power-loss durability. Olm-v1 and upstream
-skipped-key windows remain quarantined; prekey lifecycle, rollback authority and
-interoperability require separate qualification. Local receipt persistence and
-presentation eligibility do not promise exactly-once external side effects.
+Live end-peer provenance remains caller/future-runtime supplied. KAMI-26 adds no
+direct/relayed network path, functioning relay, offline mailbox, automatic CLI
+receipt service, or production encryption activation. Fresh profile ratchet
+restoration, production/real-network/cross-platform qualification, IPC/CLI,
+and interoperability remain separate gates. Process-kill fixtures do not certify
+power-loss durability. Olm-v1 and upstream skipped-key windows remain quarantined;
+prekey lifecycle, rollback authority and interoperability require separate
+qualification. Local receipt persistence and presentation eligibility do not
+promise exactly-once external side effects.

@@ -189,6 +189,7 @@ Introduced in KAMI-25 to coordinate inbound message delivery and staged `DeviceD
     - **Upstream Ratchet Limits**: Upstream `vodozemac = 0.11.1` Olm v1 pins a **40-key retention cap for skipped keys** and a **2,000-message gap ceiling** on the receiver chain. These are upstream implementation constraints, not configurable Kami settings.
     - **Truncated MAC**: Olm v1 uses an 8-byte truncated MAC.
     - **No Wire Interoperability**: Does not support Signal or Matrix wire interoperability.
+- **Runtime Host Boundary (KAMI-26)**: In [[kami-runtime]], all `QuarantinedSession` staging, authenticated commits, and receipt handoffs occur strictly on the dedicated single-thread blocking worker. No Olm ratchet state or mutable crypto reference crosses an asynchronous Tokio `.await` boundary.
 
 ### Exact Verification Commands
 

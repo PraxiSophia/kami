@@ -177,9 +177,9 @@ pub struct DeliveryArtifact {
 
 | Deferred Capability | Status / Tracking | Description |
 |---|---|---|
-| Live Network Transport | Deferred | Socket I/O, WebSockets, HTTP/2, and TLS listeners are not part of `kami-receiver`. |
-| Async Scheduling | Deferred | Background polling, tokio runtimes, and worker threads are excluded. |
-| Automatic Receipt Dispatch | Deferred | Outbound receipt dispatch across network hops requires live transport infrastructure. |
+| Live Network Transport | Deferred | Socket I/O, WebSockets, HTTP/2, and TLS listeners are not part of `kami-receiver` (deferred to KAMI-27). |
+| Async Scheduling | Implemented in Runtime | In KAMI-26, [[kami-runtime]] hosts `Receiver` operations on its dedicated single-thread blocking worker, while public ingress `Engine::enqueue` fails closed (`Error::LiveTransportUnavailable`) until live network sockets are connected. |
+| Automatic Receipt Dispatch | Deferred | Outbound receipt dispatch across network hops requires live transport infrastructure (KAMI-27). |
 | Multi-Device Fanout | Deferred | Receiver coordination is bounded to single pairwise peer sessions. |
 
 ---

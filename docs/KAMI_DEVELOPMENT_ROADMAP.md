@@ -1,8 +1,8 @@
 # Kami Development Roadmap
 
-Status: documentation synchronized with bounded KAMI-25 source/test behavior; no production or M1 completion claim
-Last repository inspection: 2026-11-06 (documentation-only KAMI-25 synchronization)
-Last Jira evidence read: 2026-11-05
+Status: documentation synchronized with bounded KAMI-26 source/test behavior; no production or M1 completion claim
+Last repository inspection: 2026-11-06 (KAMI-26 implementation, QA, Evaluator, and documentation verification)
+Last Jira evidence read: 2026-11-05 (no fresh Jira read in this verification; connector unavailable)
 Implementation language: Rust only
 
 This roadmap is the default local planning reference for Kami. It summarizes repository evidence, recorded KAMI-51 implementation/review evidence, canonical requirements, and the latest reconciled Jira reads. Jira remains authoritative for Jira issue fields, workflow status, and issue links; this document does not change or replace Jira.
@@ -67,7 +67,7 @@ Jira workflow status is a project-record state, not a direct measurement of core
 | Encrypted persistence | `kami-storage`, KAMI-22/WP3 | SQLCipher, lease, worker, migrations, outbox/inbox/history, receipts/order facts, CAS, quotas, atomic transactions. |
 | Sender lifecycle | `kami-sender`, KAMI-24/KAMI-25 | Durable enqueue, retry/recovery, cancellation, queue state, exact logical-message retention, authenticated receipt consumption and Delivered projection. Not runtime or transport. |
 | Receiver lifecycle | `kami-receiver`, KAMI-25 | Implemented bounded durable inbox/dedup, ordering/gaps, exact replay and same-session authenticated delivery receipt persistence. No live receive loop. |
-| Supervised service | KAMI-26 | Single Tokio owner, blocking storage/key seams, cancellation, shutdown, restart recovery. |
+| Supervised runtime | `kami-runtime`, KAMI-26 | Verified bounded Tokio owner, blocking storage/key seams, profile ownership, cancellation, shutdown, durable restart reconciliation, and relay-renewal scheduling. No live transport or production authenticated ingress. |
 | Direct transport | KAMI-27 | Authenticated rust-libp2p direct path and Peer-ID validation. |
 | Relay service/session | KAMI-29/KAMI-30 | Default-deny live relay, reservations, inner authenticated endpoint session. |
 | Path fallback | KAMI-31 | Direct-first selection, relay failover, same logical message across paths. |
@@ -250,9 +250,27 @@ and the [receiver README](../crates/kami-receiver/README.md) for limits and sour
 coverage. Runtime, transport, relays, CLI/IPC and network/OS qualification remain
 Phases B–E; a durable offline mailbox remains outside M1.
 
-### Phase B — supervised service and local CLI
+### Phase B — supervised runtime and local CLI
 
-KAMI-26: one supervised Tokio owner, blocking storage/key-provider seams, bounded queues, cancellation, shutdown, profile ownership, and restart recovery.
+KAMI-26 is functionally implemented and independently verified within its bounded
+runtime-library/private-mock scope. It supplies one supervised Tokio engine-state
+owner, bounded command/event/blocking queues, isolated SQLCipher and key-provider
+work, authoritative profile ownership, cancellation, bounded shutdown reporting,
+durable restart reconciliation, and a transport-neutral relay reservation-renewal
+scheduler. The runtime composes KAMI-24/KAMI-25 only through a private test seam;
+its public enqueue path fails closed until a real authenticated end-peer producer
+exists.
+
+Evidence: implementation `t_277bb59e`, independent QA `t_e9419e05`, and final
+security Evaluator `t_fda1ffe3`, all on `protocol-storage` at HEAD `0de16c9`.
+Recorded verification passed formatting, locked workspace checking, warnings-denied
+Clippy, 21 focused runtime tests, and 236 workspace tests with two pre-existing
+native secure-store tests ignored for unavailable D-Bus/keyring prerequisites.
+
+KAMI-26 is a reusable runtime library, not a complete messaging service. It does
+not implement KAMI-27 direct transport, a functioning relay network, KAMI-32
+IPC/CLI, production authenticated end-peer evidence, fresh mutable session
+restoration, cross-platform qualification, or real-network qualification.
 
 KAMI-32: authenticated Unix-domain-socket/named-pipe IPC, service control, bounded
 commands, state rendering, redacted diagnostics, and cross-platform CLI behavior.
@@ -408,9 +426,13 @@ Mandatory remaining boundaries:
   qualification is supplied by this scope. Olm-v1, upstream skipped-key windows,
   prekey lifecycle and interoperability remain separately qualified concerns.
 
-KAMI-26 remains the downstream supervised-service integration milestone under the
-coherent DAG, consuming both bounded KAMI-24 and KAMI-25. This document does not
-authorize starting it or restarting completed implementation/review lanes.
+KAMI-26 is now functionally implemented and independently verified as the
+bounded supervised-service integration milestone under the coherent DAG. It
+consumes the bounded KAMI-24 and KAMI-25 lifecycle seams without activating live
+transport. Its private mock integration verifies sender/receiver/E2EE/SQLCipher
+composition, while its public API remains fail-closed for live authenticated
+end-peer evidence. The roadmap does not authorize KAMI-27 activation or claim
+M1 completion.
 
 ## 9. Security limitations and non-bypassable gates
 
@@ -474,7 +496,7 @@ Jira statuses below were last read on 2026-11-05. `Functionally implemented` and
 | KAMI-23 | Functionally implemented | Linux/local identity, custody, trust, binding tests | Native OS, cross-process, live transport, M1 qualification | KAMI-19; identity contract | `kami-identity/README.md`; Jira issue, In Progress |
 | KAMI-24 | Owner-accepted bounded implementation | Implementation `t_3caec9e9`; pre-review `t_903b8e19` PASS; QA `t_d1b015bb` PASS; Evaluator `t_4c8b8ad4` PASS; README synchronization `t_0f4d4791` done | Runtime/transport, live end-peer provenance, production receipt/Delivered orchestration, cross-platform, network, rollback-anchor, and production qualification remain deferred; finite retry/tombstone quota policy remains bounded follow-up; bounded receipt consumption added by KAMI-25 | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50 | Implementation/review Kanban evidence; root, storage, and sender READMEs; Jira issue remains unchanged |
 | KAMI-25 | Functionally implemented, bounded/quarantined | Public API and local test sources inspected; no new Rust/QA/Evaluator execution in this documentation task | Runtime/live provenance, transport/relay/CLI, external rollback anchor, cleanup/compaction, production, network and cross-platform qualification; no exactly-once terminal rendering | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50; composes KAMI-24 receipt consumption | Implementation `t_52c7a993`; documentation `t_f5b34761`; receiver/E2EE/storage/sender READMEs; Jira unchanged |
-| KAMI-26 | Not implemented | Not started | Runtime, cancellation, shutdown, restart, provenance | KAMI-20..25 | Jira issue |
+| KAMI-26 | Implemented; independently verified bounded runtime/private-mock scope | Implementation `t_277bb59e`; QA `t_e9419e05` PASS; Evaluator `t_fda1ffe3` PASS; fmt/check/Clippy, 21 focused runtime tests, and 236 workspace tests passed (2 native secure-store tests ignored) | Live authenticated producer, direct/relay transport, functioning relay, IPC/CLI, fresh session restoration, external rollback anchor, cross-platform, real-network, interoperability, and M1 qualification remain deferred | KAMI-20..25 | `crates/kami-runtime/README.md`; implementation/QA/Evaluator Kanban evidence; Jira issue unchanged |
 | KAMI-27 | Not implemented | Not started | Real direct transport and Peer-ID path evidence | KAMI-2/3/19/23/26/50 | Jira issue |
 | KAMI-28 | Not implemented | Not started | Two-process first direct encrypted message | KAMI-21..27 plus KAMI-51 | Jira issue |
 | KAMI-29 | Not implemented | Not started | Default-deny live relay service qualification | KAMI-2/4/19/27 | Jira issue |

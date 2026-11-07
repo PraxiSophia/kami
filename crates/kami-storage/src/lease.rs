@@ -9,6 +9,26 @@ pub struct ProfileLease {
 }
 
 impl ProfileLease {
+    /// Diagnostics only, written through the already-locked handle. Never read
+    /// this record to decide ownership; stale/torn metadata cannot steal a lock.
+    pub fn record_owner(&mut self) -> io::Result<()> {
+        use std::io::{Seek, SeekFrom, Write};
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static INSTANCE: AtomicU64 = AtomicU64::new(1);
+        let start = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_nanos();
+        let instance = INSTANCE.fetch_add(1, Ordering::Relaxed);
+        self._file.set_len(0)?;
+        self._file.seek(SeekFrom::Start(0))?;
+        writeln!(
+            self._file,
+            "profile-owner-v1\npid={}\nstarted_ns={start}\ninstance={instance}",
+            std::process::id()
+        )?;
+        self._file.flush()
+    }
     pub fn acquire(profile: &Path) -> io::Result<Self> {
         secure_directory(profile)?;
         let path = profile.join("profile.lock");

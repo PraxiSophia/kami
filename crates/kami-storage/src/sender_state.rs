@@ -89,6 +89,7 @@ pub struct QueuedSend {
     state: SendState,
     eligible: i64,
     failure: Option<kami_core::AttemptFailure>,
+    lease_deadline: i64,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SendState {
@@ -114,6 +115,11 @@ impl TryFrom<i64> for SendState {
     }
 }
 impl QueuedSend {
+    /// Scheduling hint only; Coordinator::claim must still revalidate trust and
+    /// atomically fence the durable lease before any transmission.
+    pub fn lease_expires_at_ms(&self) -> Option<i64> {
+        (self.state == SendState::InFlight).then_some(self.lease_deadline)
+    }
     pub fn next_eligible_ms(&self) -> i64 {
         self.eligible
     }
@@ -170,6 +176,7 @@ pub(crate) fn load(
         attempts,
         state,
         eligible: row.get(12)?,
+        lease_deadline: deadline,
         failure: match row.get::<_, Option<i64>>(13)? {
             None => None,
             Some(0) => Some(kami_core::AttemptFailure::AckLost),

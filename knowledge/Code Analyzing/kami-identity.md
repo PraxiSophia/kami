@@ -140,6 +140,12 @@ Platform-specific secure credential store adapters:
 
 ---
 
+### 10. Runtime Supervisor Integration (KAMI-26)
+
+In [[kami-runtime]], identity operations, OS keyring access, and `KeyProvider` unlock calls are bound to the dedicated single-thread blocking worker. Key material is never passed across Tokio `.await` boundaries, and contact trust checks are synchronously enforced prior to outbound E2EE preparation or inbound frame decryption.
+
+---
+
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**

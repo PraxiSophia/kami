@@ -57,7 +57,15 @@ fn library(name: &str) -> PathBuf {
         .unwrap()
 }
 fn probe(source: &str, run: bool) -> std::process::Output {
-    let dir = tempfile::tempdir_in(std::env::temp_dir()).unwrap();
+    let base = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::current_dir().ok())
+        .expect("a usable private test-directory base");
+    let dir = tempfile::Builder::new()
+        .prefix("kami-storage-probe-")
+        .tempdir_in(base)
+        .unwrap();
     let input = dir.path().join("probe.rs");
     let source = format!(
         "#[path={:?}] mod common;\n{}",

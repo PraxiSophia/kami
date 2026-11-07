@@ -22,8 +22,12 @@ foundation; its implementation and independent review evidence are separate from
 the later WP2-B evidence. The WP2-B typed authenticated commit consumer is also
 present and conditionally owner-accepted only within its quarantined scope.
 KAMI-24/KAMI-25 add bounded sender/receiver and receipt/Delivered persistence below.
-Production runtime, network, receipt/Delivered activation, external rollback anchoring,
-and cross-platform qualification remain downstream work.
+KAMI-26 now provides the verified bounded runtime owner that serializes this
+synchronous storage boundary, isolates key-provider/SQLCipher work from Tokio
+coordination, retains the profile lease through unfinished blocking operations,
+and reconciles durable outcomes after restart. Production network, receipt/Delivered
+activation, external rollback anchoring, and cross-platform qualification remain
+downstream work.
 
 ## Modules and interfaces
 
@@ -64,6 +68,9 @@ and cross-platform qualification remain downstream work.
   user callback or async future escapes the worker. Networking code must use its
   blocking service boundary, **never call this facade on a network executor**.
   Shutdown drains accepted requests and closes SQLite before releasing the lease.
+  KAMI-26 uses this boundary from one persistent bounded `spawn_blocking` owner;
+  a runtime shutdown timeout reports status but does not release the lease while
+  an admitted operation may still mutate profile state.
 
 `delete_history` removes the local display body without canceling an outstanding
 outbox. `cancel` stops retry without deleting history or recalling delivery. A valid
