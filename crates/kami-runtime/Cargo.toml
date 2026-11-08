@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-tokio = { version = "=1.52.0", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio = { version = "=1.54.1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 kami-core = { path = "../kami-core" }
 kami-protocol = { path = "../kami-protocol" }
 kami-storage = { path = "../kami-storage" }
@@ -13,11 +13,12 @@ kami-key-provider = { path = "../kami-key-provider" }
 kami-sender = { path = "../kami-sender" }
 kami-receiver = { path = "../kami-receiver" }
 kami-identity = { path = "../kami-identity" }
+kami-transport = { path = "../kami-transport" }
 kami-e2ee = { path = "../kami-e2ee" }
 libp2p-identity = { version = "=0.3.0", features = ["peerid", "ed25519"] }
 
 [dev-dependencies]
-tokio = { version = "=1.52.0", features = ["test-util"] }
+tokio = { version = "=1.54.1", features = ["test-util"] }
 kami-key-provider = { path = "../kami-key-provider", features = ["test-provider"] }
 tempfile = "3"
 serde_json = "1"

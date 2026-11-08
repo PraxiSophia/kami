@@ -25,6 +25,8 @@ impl Default for Config {
     }
 }
 enum Request {
+    ReadEnrollment(Reply<Option<Vec<u8>>>),
+    CommitEnrollment(Vec<u8>, Reply<Vec<u8>>),
     RecoverDeliveryReceipt(
         kami_e2ee::ReplayPermit,
         Vec<u8>,
@@ -117,6 +119,18 @@ pub struct Storage {
     thread: Option<JoinHandle<()>>,
 }
 impl Storage {
+    /// Untrusted bounded evidence; the native identity anchor remains authority.
+    pub fn enrollment_snapshot(&self) -> Result<Option<Vec<u8>>, StorageError> {
+        self.call(Request::ReadEnrollment)
+    }
+    /// Insert once, only on the worker that created this new database. Never a
+    /// migration/repair/adoption API, and never sufficient for native readiness.
+    pub fn commit_fresh_enrollment(&self, row: &[u8]) -> Result<Vec<u8>, StorageError> {
+        if row.len() != 66 {
+            return Err(StorageError::InvalidInput);
+        }
+        self.call(|reply| Request::CommitEnrollment(row.to_vec(), reply))
+    }
     pub fn recover_delivery_receipt(
         &self,
         permit: kami_e2ee::ReplayPermit,
@@ -302,6 +316,13 @@ impl Storage {
                 let _ = ready.send(Ok(()));
                 while let Ok(request) = receiver.recv() {
                     match request {
+                        Request::ReadEnrollment(reply) => {
+                            let _ = reply.send(crate::enrollment::read(&db, &profile));
+                        }
+                        Request::CommitEnrollment(row, reply) => {
+                            let _ = reply
+                                .send(crate::enrollment::commit(&mut db, &profile, &row, create));
+                        }
                         Request::RecoverDeliveryReceipt(permit, frame, reply) => {
                             let _ = reply
                                 .send(crate::receiver_state::recover_receipt(&db, permit, frame));

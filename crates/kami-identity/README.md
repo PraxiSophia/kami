@@ -179,6 +179,12 @@ security qualification is claimed.
 
 ## Enrollment, restart, and key loss
 
+### KAMI-27 verified profile enrollment and transport credentials
+
+`verified_enrollment` composes identity provisioning with the storage enrollment row. The runtime integration retains a `ProfileLease`, checks fresh enrollment snapshots, verifies the native custody anchor and readback, and only then issues sealed, non-`Clone` transport credentials; lease ownership is enforced at runtime, not encoded as a Rust compile-time guarantee. Storage records are insert-once and immutable. Native anchor checks detect file-only tampering and cross-profile substitution, not coordinated database-plus-anchor rollback or same-user compromise. Native custody is platform-selected and fails closed; Linux local tests do not qualify Windows/macOS.
+
+`transport_credentials` contains the restricted bridge used by the direct transport. It does not expose the identity seed. Live connection validation is performed by `kami-transport` against the authenticated remote PeerId; production orchestration belongs to `kami-runtime`.
+
 `EnrollmentJournal` is a **trusted service integration trait**, not a user-input
 DTO. Its implementer MUST retain the actual OS-enforced exclusive canonical
 profile lease across the entire call, harden paths/ownership, provide accurate
@@ -244,11 +250,20 @@ bounded parsing, account/prekey/generation/validity substitution, custody failur
 redaction, and existing trust/Peer-ID rejection cases:
 
 ```sh
+cargo test --locked -p kami-identity --lib verified_enrollment::tests::
+cargo test --locked -p kami-identity --doc -- --nocapture
 cargo test --locked -p kami-identity --test olm_binding
+cargo test --locked -p kami-storage --test enrollment -- --nocapture
+cargo test --locked -p kami-transport --doc -- --nocapture
+cargo test --locked -p kami-runtime --lib ingress:: -- --nocapture
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets -- -D warnings
 ```
 
-These are local deterministic tests, not live transport or native OS-store
-qualification. The WP2-A1 focused command passed on this Linux checkout.
+KAMI-27 focused enrollment/credential and compile-fail documentation tests were
+reported passing on Linux by QA/Evaluator. The compile-fail doctests intentionally
+exercise rejected APIs. These commands are local tests, not cross-OS/native-store
+qualification or cross-network transport qualification.
 
 Focused KAMI-50 vectors, import/binding negatives, local bilateral actions,
 state histories, redaction and no-redirect decisions:

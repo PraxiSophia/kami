@@ -5,6 +5,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+kami-identity = { path = "../kami-identity" }
 kami-core = { path = "../kami-core" }
 kami-protocol = { path = "../kami-protocol" }
 kami-e2ee = { path = "../kami-e2ee" }

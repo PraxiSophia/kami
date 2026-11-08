@@ -16,7 +16,7 @@ fn encrypted_v2_upgrade_and_reopen_preserve_contact_and_outbox() {
     storage.shutdown().unwrap();
     let db = common::raw(&dir);
     db.execute_batch(
-        "DROP TABLE delivery_artifact; DROP TABLE receiver_gap; DROP TABLE sender_attempt; DROP TABLE sender_prepare; DROP TABLE sender_binding_key; DROP TABLE e2ee_frame; DROP TABLE e2ee_session; DROP TABLE e2ee_account; \
+        "DROP TABLE enrollment_complete; DROP TABLE delivery_artifact; DROP TABLE receiver_gap; DROP TABLE sender_attempt; DROP TABLE sender_prepare; DROP TABLE sender_binding_key; DROP TABLE e2ee_frame; DROP TABLE e2ee_session; DROP TABLE e2ee_account; \
          PRAGMA user_version=2;",
     )
     .unwrap();
@@ -33,7 +33,7 @@ fn encrypted_v2_upgrade_and_reopen_preserve_contact_and_outbox() {
             common::raw(&dir)
                 .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
                 .unwrap(),
-            5
+            6
         );
     }
 }
@@ -48,7 +48,7 @@ fn encrypted_v3_upgrade_failure_preserves_v2_schema_and_data() {
     storage.shutdown().unwrap();
     let db = common::raw(&dir);
     db.execute_batch(
-        "DROP TABLE delivery_artifact; DROP TABLE receiver_gap; DROP TABLE sender_attempt; DROP TABLE sender_prepare; DROP TABLE sender_binding_key; DROP TABLE e2ee_frame; DROP TABLE e2ee_session; DROP TABLE e2ee_account; \
+        "DROP TABLE enrollment_complete; DROP TABLE delivery_artifact; DROP TABLE receiver_gap; DROP TABLE sender_attempt; DROP TABLE sender_prepare; DROP TABLE sender_binding_key; DROP TABLE e2ee_frame; DROP TABLE e2ee_session; DROP TABLE e2ee_account; \
          PRAGMA user_version=2; CREATE TABLE e2ee_session(conflict INTEGER);",
     )
     .unwrap();

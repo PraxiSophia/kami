@@ -10,6 +10,12 @@ zeroize = "=1.9.1"
 getrandom = "=0.4.3"
 ed25519-dalek = "=3.0.0"
 sha2 = "=0.11.1"
+subtle = "=2.6.1"
+libp2p-core = "=0.44.0"
+libp2p-quic = { version = "=0.14.0", features = ["tokio"] }
+libp2p-noise = "=0.47.0"
+libp2p-tcp = { version = "=0.45.0", features = ["tokio"] }
+libp2p-yamux = "=0.48.0"
 libp2p-identity = { version = "=0.3.0", features = ["ed25519", "peerid"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -23,6 +23,7 @@ fn durable_handles_are_versioned_namespace_separated_and_strict() {
         "kami:identity:v2:0123456789abcdef0123456789abcdef",
         "other:identity:v1:0123456789abcdef0123456789abcdef",
         "kami:transport:v1:0123456789abcdef0123456789abcdef",
+        "kami:enrollment-anchor:v1:0123456789abcdef0123456789abcdef",
         "kami:identity:v1:../profile",
         "kami:identity:v1:0123456789abcdef0123456789abcdef:extra",
     ] {

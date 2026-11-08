@@ -11,6 +11,7 @@ members = [
     "crates/kami-sender",
     "crates/kami-receiver",
     "crates/kami-runtime",
+    "crates/kami-transport",
 ]
 
 [workspace.package]

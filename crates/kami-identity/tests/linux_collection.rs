@@ -1,7 +1,7 @@
 #![cfg(target_os = "linux")]
 
-use kami_identity::{KeyPurpose, KeySlot, NativeStore, SecretStore};
-use kami_key_provider::{KeyError, ProfileKeyId};
+use kami_identity::{KeyPurpose, KeySlot, NativeCustody};
+use kami_key_provider::{KeyError, KeyProvider, ProfileKeyId};
 use secret_service::{blocking::SecretService, EncryptionType};
 use std::{
     collections::HashMap,
@@ -85,6 +85,27 @@ fn linux_collection_boundary() {
     }
 
     let service = SecretService::connect(EncryptionType::Dh).unwrap();
+    // Fresh-only enrollment and native-anchor verification use the disposable store.
+    let native = NativeCustody::open();
+    let profile = ProfileKeyId::new("1123456789abcdef0123456789abcdef").unwrap();
+    let fresh = kami_identity::begin_fresh_native(&native, &profile).unwrap();
+    let row = fresh.canonical_row().to_vec();
+    assert!(kami_identity::verify_enrollment_for_transport(&native, &profile, &row).is_err());
+    assert!(kami_identity::begin_fresh_native(&native, &profile).is_err());
+    kami_identity::complete_fresh_enrollment(&native, fresh, &row).unwrap();
+    let proof = kami_identity::verify_enrollment_for_transport(&native, &profile, &row).unwrap();
+    let credentials = proof.materialize(&native, &row).unwrap();
+    let peer = credentials.local_peer_id();
+    assert_eq!(credentials.invitation().binding().peer_id(), peer);
+    let proof = kami_identity::verify_enrollment_for_transport(&native, &profile, &row).unwrap();
+    assert_eq!(
+        proof.materialize(&native, &row).unwrap().local_peer_id(),
+        peer
+    );
+    let mut changed = row.clone();
+    changed[34] ^= 1;
+    assert!(kami_identity::verify_enrollment_for_transport(&native, &profile, &changed).is_err());
+    assert!(kami_identity::verify_enrollment_for_transport(&native, &profile, &row).is_ok());
     let default = service.get_default_collection().unwrap();
     default.ensure_unlocked().unwrap();
     let session = service.get_collection_by_alias("session").unwrap();
@@ -114,7 +135,9 @@ fn linux_collection_boundary() {
     assert!(default.search_items(attrs()).unwrap().is_empty());
     assert_eq!(service.search_items(attrs()).unwrap().unlocked.len(), 1);
     assert_eq!(
-        NativeStore::new().read(&slot).err(),
+        NativeCustody::open()
+            .load_database_key(slot.profile())
+            .err(),
         Some(KeyError::Missing)
     );
 
@@ -129,8 +152,11 @@ fn linux_collection_boundary() {
         .unwrap();
     // The session collision must neither shadow nor make the default ambiguous.
     assert_eq!(
-        NativeStore::new().read(&slot).unwrap().as_slice(),
-        &[34; 32]
+        NativeCustody::open()
+            .load_database_key(slot.profile())
+            .unwrap()
+            .with_bytes(|bytes| *bytes),
+        [34; 32]
     );
 
     default
@@ -143,9 +169,16 @@ fn linux_collection_boundary() {
         )
         .unwrap();
     assert_eq!(
-        NativeStore::new().read(&slot).err(),
+        NativeCustody::open()
+            .load_database_key(slot.profile())
+            .err(),
         Some(KeyError::Corrupt)
     );
     default.lock().unwrap();
-    assert_eq!(NativeStore::new().read(&slot).err(), Some(KeyError::Locked));
+    assert_eq!(
+        NativeCustody::open()
+            .load_database_key(slot.profile())
+            .err(),
+        Some(KeyError::Locked)
+    );
 }

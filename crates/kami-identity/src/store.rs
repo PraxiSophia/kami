@@ -2,10 +2,17 @@ use kami_key_provider::{KeyError, ProfileKeyId};
 use std::fmt;
 use zeroize::Zeroizing;
 
+/// Public purposes exclude the identity-private enrollment completion anchor.
+/// ```compile_fail
+/// let _ = kami_identity::KeyPurpose::Anchor;
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub enum KeyPurpose {
-    Identity,
-    Database,
+pub struct KeyPurpose(&'static str);
+#[allow(non_upper_case_globals)]
+impl KeyPurpose {
+    pub const Identity: Self = Self("identity");
+    pub const Database: Self = Self("database");
+    pub(crate) const Anchor: Self = Self("enrollment-anchor");
 }
 
 /// Durable opaque handle. Namespace and version are part of the representation.
@@ -25,14 +32,7 @@ impl KeySlot {
         self.purpose
     }
     pub fn to_persistent_string(&self) -> String {
-        format!(
-            "kami:{}:v1:{}",
-            match self.purpose {
-                KeyPurpose::Identity => "identity",
-                KeyPurpose::Database => "database",
-            },
-            self.profile.as_str()
-        )
+        format!("kami:{}:v1:{}", self.purpose.0, self.profile.as_str())
     }
     pub fn from_persistent_string(value: &str) -> Result<Self, KeyError> {
         let parts: Vec<_> = value.split(':').collect();

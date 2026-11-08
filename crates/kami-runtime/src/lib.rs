@@ -1,5 +1,5 @@
 //! Bounded Tokio orchestration over synchronous KAMI-24/25 and SQLCipher.
-//! No transport, IPC, production evidence producer, or public authenticated ingress.
+//! Optional native-verified direct transport, with no IPC or application delivery.
 //! Events are bounded best-effort diagnostics; command replies and snapshots are
 //! authoritative. A shutdown timeout does NOT stop blocking operations or release
 //! profile ownership. Tokio runtime destruction may still wait for those operations.
@@ -10,8 +10,15 @@ mod integration_tests;
 pub mod relay;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod transport_tests;
 mod worker;
 pub use engine::Engine;
+/// Direct-only substrate configuration. Application delivery remains disabled.
+pub struct DirectConfig {
+    pub listeners: Vec<kami_transport::Multiaddr>,
+    pub limits: kami_transport::Config,
+}
 use kami_key_provider::{KeyProvider, ProfileKeyId};
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
@@ -75,6 +82,8 @@ pub enum Error {
     Ownership,
     ProfileAlreadyOwned,
     Storage(kami_storage::StorageError),
+    Identity(kami_key_provider::KeyError),
+    Transport(kami_transport::Error),
     /// An admitted operation may have committed before failure; reconcile stable IDs.
     WorkerFailed,
 }
@@ -85,7 +94,16 @@ impl std::fmt::Display for Error {
 }
 impl std::error::Error for Error {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TransportEvent {
+    Listening,
+    Connected,
+    Disconnected,
+    AttemptFailed(kami_transport::Error),
+    Stopped,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Event {
+    Transport(TransportEvent),
     Lifecycle(Lifecycle),
     Reconciled(usize),
     RetryReady(usize),

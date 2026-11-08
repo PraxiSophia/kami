@@ -1,11 +1,11 @@
-use kami_identity::{KeyPurpose, KeySlot, NativeStore, SecretStore};
-use kami_key_provider::{KeyError, ProfileKeyId};
+use kami_identity::{KeyPurpose, KeySlot, NativeCustody};
+use kami_key_provider::{KeyError, KeyProvider, ProfileKeyId};
 
 #[test]
 fn native_diagnostics_are_redacted() {
     assert_eq!(
-        format!("{:?}", NativeStore::new()),
-        "NativeStore([REDACTED])"
+        format!("{:?}", NativeCustody::open()),
+        "NativeCustody([REDACTED])"
     );
 }
 
@@ -19,7 +19,9 @@ fn headless_linux_is_unavailable_not_absent() {
             KeyPurpose::Database,
         );
         assert_eq!(
-            NativeStore::new().read(&slot).err(),
+            NativeCustody::open()
+                .load_database_key(slot.profile())
+                .err(),
             Some(KeyError::Unavailable)
         );
         return;
@@ -53,7 +55,9 @@ fn native_absent_slot_probe() {
         KeyPurpose::Database,
     );
     assert_eq!(
-        NativeStore::new().read(&slot).err(),
+        NativeCustody::open()
+            .load_database_key(slot.profile())
+            .err(),
         Some(KeyError::Missing)
     );
 }

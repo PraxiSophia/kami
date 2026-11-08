@@ -7,12 +7,23 @@ use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot, watch};
 
 type Reply = oneshot::Sender<Result<usize, Error>>;
+struct Connectivity {
+    revocation: kami_transport::Revocation,
+    relay: Option<(
+        crate::relay::RelayConfig,
+        Box<dyn crate::relay::RelayAdapter>,
+    )>,
+    direct: Option<crate::DirectConfig>,
+    network: watch::Sender<Option<(kami_transport::Handle, kami_identity::Invitation)>>,
+}
 enum Command {
     Health(oneshot::Sender<Result<Lifecycle, Error>>),
     Work(Work, Reply),
 }
 #[derive(Clone)]
 pub struct Engine {
+    revocation: kami_transport::Revocation,
+    network: watch::Receiver<Option<(kami_transport::Handle, kami_identity::Invitation)>>,
     commands: mpsc::Sender<Command>,
     stop: watch::Sender<bool>,
     state: watch::Receiver<Snapshot>,
@@ -21,7 +32,7 @@ impl Engine {
     /// Call inside Tokio. Initialization is isolated and fail-closed; wait_running
     /// must succeed before profile operations can be admitted.
     pub fn start(profile: Profile, config: Config) -> Result<(Self, mpsc::Receiver<Event>), Error> {
-        Self::start_inner(profile, config, None)
+        Self::start_inner(profile, config, None, None)
     }
     pub fn start_with_relay(
         profile: Profile,
@@ -32,7 +43,20 @@ impl Engine {
         if !relay.valid() {
             return Err(Error::InvalidConfig);
         }
-        Self::start_inner(profile, config, Some((relay, adapter)))
+        Self::start_inner(profile, config, Some((relay, adapter)), None)
+    }
+    /// Explicit native-only direct connectivity; application delivery stays off.
+    /// Profile.key_provider is ignored by this native production composition.
+    pub fn start_direct(
+        profile: Profile,
+        config: Config,
+        direct: crate::DirectConfig,
+    ) -> Result<(Self, mpsc::Receiver<Event>), Error> {
+        direct.limits.validate().map_err(Error::Transport)?;
+        if direct.listeners.len() > 2 {
+            return Err(Error::InvalidConfig);
+        }
+        Self::start_inner(profile, config, None, Some(direct))
     }
     fn start_inner(
         profile: Profile,
@@ -41,6 +65,7 @@ impl Engine {
             crate::relay::RelayConfig,
             Box<dyn crate::relay::RelayAdapter>,
         )>,
+        direct: Option<crate::DirectConfig>,
     ) -> Result<(Self, mpsc::Receiver<Event>), Error> {
         if [
             config.command_capacity,
@@ -68,11 +93,26 @@ impl Engine {
             failure: None,
             shutdown: None,
         });
+        let (network, network_rx) = watch::channel(None);
+        let revocation = kami_transport::Revocation::new();
         tokio::spawn(run(
-            profile, config, incoming, events, stopping, state, relay,
+            profile,
+            config,
+            incoming,
+            events,
+            stopping,
+            state,
+            Connectivity {
+                relay,
+                direct,
+                network,
+                revocation: revocation.clone(),
+            },
         ));
         Ok((
             Self {
+                revocation,
+                network: network_rx,
                 commands,
                 stop,
                 state: snapshot,
@@ -82,6 +122,66 @@ impl Engine {
     }
     pub fn snapshot(&self) -> Snapshot {
         *self.state.borrow()
+    }
+    fn network(&self) -> Result<kami_transport::Handle, Error> {
+        if self.snapshot().lifecycle != Lifecycle::Running {
+            return Err(Error::NotRunning);
+        }
+        self.network
+            .borrow()
+            .as_ref()
+            .map(|(handle, _)| handle.clone())
+            .ok_or(Error::LiveTransportUnavailable)
+    }
+    pub fn local_invitation(&self) -> Result<kami_identity::Invitation, Error> {
+        self.network()?;
+        self.network
+            .borrow()
+            .as_ref()
+            .map(|(_, invitation)| invitation.clone())
+            .ok_or(Error::LiveTransportUnavailable)
+    }
+    async fn contact(&self, device: [u8; 32]) -> Result<kami_identity::ContactTrust, Error> {
+        let (tx, rx) = oneshot::channel();
+        self.work(Work::Contact(device, tx)).await?;
+        rx.await.map_err(|_| Error::WorkerFailed)?
+    }
+    pub async fn register_contact(&self, device: [u8; 32]) -> Result<(), Error> {
+        let network = self.network()?;
+        network
+            .register(self.contact(device).await?)
+            .await
+            .map_err(Error::Transport)
+    }
+    pub async fn direct_addresses(&self) -> Result<Vec<kami_transport::Multiaddr>, Error> {
+        self.network()?
+            .local_addresses()
+            .await
+            .map_err(Error::Transport)
+    }
+    pub async fn connect(
+        &self,
+        device: [u8; 32],
+        addresses: Vec<kami_transport::Multiaddr>,
+    ) -> Result<kami_transport::AuthenticatedConnection, Error> {
+        let network = self.network()?;
+        network
+            .register(self.contact(device).await?)
+            .await
+            .map_err(Error::Transport)?;
+        let cap = network
+            .dial(device, addresses)
+            .await
+            .map_err(Error::Transport)?;
+        let fresh = self.contact(device).await?;
+        cap.authenticated_peer(&fresh).map_err(Error::Transport)?;
+        Ok(cap)
+    }
+    pub async fn disconnect(&self, device: [u8; 32]) -> Result<(), Error> {
+        self.network()?
+            .disconnect(device)
+            .await
+            .map_err(Error::Transport)
     }
     pub async fn wait_running(&self) -> Result<(), Error> {
         let mut state = self.state.clone();
@@ -125,6 +225,7 @@ impl Engine {
     }
     /// Out-of-band cancellation cannot be starved by a full command queue.
     pub fn request_shutdown(&self) {
+        self.revocation.revoke();
         self.stop.send_replace(true);
     }
     pub async fn shutdown(&self) -> ShutdownOutcome {
@@ -178,16 +279,31 @@ async fn run(
     events: mpsc::Sender<Event>,
     mut stop: watch::Receiver<bool>,
     state: watch::Sender<Snapshot>,
-    mut relay: Option<(
-        crate::relay::RelayConfig,
-        Box<dyn crate::relay::RelayAdapter>,
-    )>,
+    connectivity: Connectivity,
 ) {
+    let Connectivity {
+        mut relay,
+        mut direct,
+        network,
+        revocation,
+    } = connectivity;
     let (jobs_tx, jobs) = mpsc::channel(config.blocking_capacity);
     let (done, mut completions) = mpsc::channel(config.blocking_capacity + 1);
-    let mut worker = tokio::task::spawn_blocking(move || worker::run(profile, jobs, done));
+    let direct_mode = direct.is_some();
+    let (authority, alive) = watch::channel(false);
+    let worker_revocation = revocation.clone();
+    let mut worker = tokio::task::spawn_blocking(move || {
+        worker::run(
+            profile,
+            jobs,
+            done,
+            direct_mode,
+            worker::Authority(authority, worker_revocation),
+        )
+    });
     let mut worker_done = false;
     let mut children = tokio::task::JoinSet::new();
+    let mut transport_events: Option<mpsc::Receiver<kami_transport::Event>> = None;
     let (relay_stop, relay_stopping) = watch::channel(false);
     let (relay_events, mut relay_incoming) = mpsc::channel(config.event_capacity);
     let mut jobs_tx = Some(jobs_tx);
@@ -214,7 +330,7 @@ async fn run(
                             Command::Work(_, reply) => { let _ = reply.send(Err(Error::Closed)); }
                         }
                     }
-                    jobs_tx.take();
+                    if children.is_empty() { jobs_tx.take(); }
                     deadline = Some(tokio::time::Instant::now() + config.shutdown_timeout);
                     relay.take();
                     relay_stop.send_replace(true);
@@ -228,13 +344,55 @@ async fn run(
             }
             completion = completions.recv(), if !worker_done => {
                 match completion {
-                    Some(Completion::Ready(Ok(count))) => {
+                    Some(Completion::Contacts(updates)) => {
+                        if !draining {
+                            let handle = network.borrow().as_ref().map(|(h,_)| h.clone());
+                            if let Some(handle) = handle {
+                                for (device,trust) in updates {
+                                    if let Err(error) = handle.refresh_contact(device,trust) {
+                                        state.send_modify(|s| s.failure = Some(Error::Transport(error)));
+                                        let (tx,rx) = watch::channel(true); drop(tx); stop = rx;
+                                        relay_stop.send_replace(true);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Some(Completion::Ready(Ok((count, credentials)))) => {
                         state.send_modify(|s| s.recovered = count);
                         event(&events, &state, Event::Reconciled(count));
                         if !draining {
+                            if let (Some(config), Some(credentials)) = (direct.take(), credentials) {
+                                let invitation = credentials.invitation().clone();
+                                match kami_transport::Driver::new(*credentials, config.limits, config.listeners) {
+                                    Ok((driver, handle, diagnostics)) => {
+                                        let driver = driver.with_revocation(revocation.clone());
+                                        transport_events = Some(diagnostics);
+                                        network.send_replace(Some((handle, invitation)));
+                                        let stopping = relay_stopping.clone();
+                                        let mut validity = alive.clone();
+                                        let valid = *validity.borrow_and_update();
+                                        children.spawn(async move {
+                                            if !valid { return Err(Error::LiveTransportUnavailable); }
+                                            tokio::select! {
+                                                biased;
+                                                _ = validity.changed() => Err(Error::LiveTransportUnavailable),
+                                                result = driver.run(stopping) => result.map_err(Error::Transport),
+                                            }
+                                        });
+                                    }
+                                    Err(error) => {
+                                        state.send_modify(|s| s.failure = Some(Error::Transport(error)));
+                                        jobs_tx.take();
+                                        continue;
+                                    }
+                                }
+                            }
                             lifecycle(&events, &state, Lifecycle::Running);
                             if let Some((config, adapter)) = relay.take() {
-                                children.spawn(crate::relay::run(adapter, config, relay_stopping.clone(), relay_events.clone()));
+                                let stopping = relay_stopping.clone(); let events = relay_events.clone();
+                                children.spawn(async move { crate::relay::run(adapter, config, stopping, events).await; Ok(()) });
                             }
                         }
                     }
@@ -287,9 +445,18 @@ async fn run(
                 }
             }
             result = children.join_next(), if !children.is_empty() => {
-                if result.is_some_and(|r| r.is_err()) {
+                let child_error = match result { Some(Err(_)) => Some(Error::WorkerFailed), Some(Ok(Err(e))) => Some(e), _ => None };
+                if child_error.is_some() {
                     event(&events, &state, Event::Relay(crate::relay::RelayEvent::TaskFailed));
                 }
+                if direct_mode {
+                    network.send_replace(None);
+                    if !draining {
+                        state.send_modify(|s| s.failure = Some(child_error.unwrap_or(Error::LiveTransportUnavailable)));
+                        let (tx, rx) = watch::channel(true); drop(tx); stop = rx;
+                    }
+                }
+                if draining && children.is_empty() { jobs_tx.take(); }
                 if worker_done {
                     let failed = state.borrow().failure.is_some();
                     state.send_modify(|s| { if s.shutdown.is_none() { s.shutdown = Some(if failed { ShutdownOutcome::Failed } else { ShutdownOutcome::Clean }); } });
@@ -298,6 +465,17 @@ async fn run(
                 }
             }
             Some(value) = relay_incoming.recv() => { event(&events, &state, Event::Relay(value)); }
+            value = async { match transport_events.as_mut() { Some(rx) => rx.recv().await, None => std::future::pending().await } } => {
+                match value {
+                    None => { transport_events.take(); }
+                    Some(value) => {
+                        use crate::TransportEvent as T;
+                        use kami_transport::Event as N;
+                        let value = match value { N::Listening(_) => T::Listening, N::Connected(_) => T::Connected, N::Disconnected(_) => T::Disconnected, N::AttemptFailed(error) => T::AttemptFailed(error), N::Stopped => T::Stopped };
+                        event(&events, &state, Event::Transport(value));
+                    }
+                }
+            }
             _ = retry_tick.tick(), if !draining && state.borrow().lifecycle == Lifecycle::Running => {
                 // One coalesced scan, sharing the same admission bound as user work.
                 // A wakeup is never authentication, a lease, or permission to send.

@@ -1,14 +1,14 @@
 # kami-runtime
 
-`kami-runtime` is the bounded KAMI-26 Tokio orchestration library for composing the existing synchronous KAMI-24 sender, KAMI-25 receiver/receipt, SQLCipher storage, and injected key-provider seams. It is a reusable runtime library, not a complete messaging service.
+`kami-runtime` is the bounded Tokio orchestration library for profile enrollment, direct transport supervision, and the existing synchronous sender/receiver and SQLCipher seams. It is a reusable runtime library, not a complete messaging service.
 
 ## Scope and status
 
 KAMI-26 provides one supervised engine owner, bounded command/event and blocking-work queues, serialized blocking storage work, profile ownership, restart reconciliation, cancellation, bounded shutdown reporting, and a transport-neutral relay reservation-renewal scheduler.
 
-The implementation is verified on the Linux checkout for the bounded supervisor/private-mock scope. It does not implement KAMI-27 transport, a functioning relay network, KAMI-32 IPC/CLI, a service executable, production encryption activation, or cross-platform/real-network qualification.
+KAMI-27 adds a supervised direct-only connection substrate: the runtime retains the profile lease, revalidates enrollment/custody, and owns the transport child and revocable capabilities. The source and focused tests were independently QA/Evaluator verified on Linux. This is not production message delivery, relay support, KAMI-32 IPC/CLI, a service executable, or cross-platform/real-network qualification.
 
-Live authenticated end-peer evidence is deliberately not accepted from mock-only interfaces. The runtime has no production authenticated connection producer. A future KAMI-27 producer must create opaque evidence within the authenticated end-peer boundary (or own the opaque evidence in a producer crate consumed by the runtime); caller-supplied `PeerId`, booleans, DTOs, claimed signatures, hashes, or database generations do not establish live provenance.
+Live authenticated end-peer evidence is minted only within the KAMI-27 transport/runtime boundary. The runtime does not accept caller-supplied `PeerId`, booleans, DTOs, claimed signatures, hashes, or database generations as proof of a live connection.
 
 ## Architecture
 
@@ -50,7 +50,7 @@ let _outcome = engine.shutdown().await;
 # }
 ```
 
-`Engine::enqueue` is intentionally fail-closed until KAMI-27 supplies a real authenticated end-peer producer. It is not a production send API.
+`Engine::enqueue` remains intentionally fail-closed: the direct transport does not provide payload/ACK/receipt/Delivered or production E2EE message integration. The transport is a connection substrate, not a production send API.
 
 ## Blocking work, ownership, and recovery
 
@@ -66,9 +66,29 @@ Startup reconciles durable sender/receiver state before entering `Lifecycle::Run
 
 ## Integration and security boundary
 
+The KAMI-27 worker starts the connection child only under runtime ownership, validates actual authenticated end-peer connections against fresh trust/pin decisions, applies bounded direct dialing, and revokes capabilities on shutdown, worker loss, expiry, or generation change. The ProfileLease-to-connection relationship is enforced by runtime control flow, not a compile-time type proof. The underlying driver/verifier library primitives are not by themselves production orchestration.
+
 The private test integration exercises existing `kami-sender::Coordinator`, `kami-receiver::Receiver`, KAMI-51 E2EE stages, and SQLCipher persistence on the blocking owner. It verifies exact-frame recovery, durable inbox-before-ACK behavior, deduplication, forged-ACK rejection, and Delivered only after authenticated receipt validation.
 
 The runtime's production ingress and worker modules are private. `AuthenticatedPeer` has private fields and no production public constructor, `Default`, `From`, serde rehydration, or public trust trait. Only `cfg(test)` code can mint the mock capability. This protects the runtime API boundary; it does not retroactively seal older public Peer-ID-taking APIs in other crates, so KAMI-26 makes no global no-bypass claim.
+
+## KAMI-27 verification
+
+From the repository root (focused Linux tests reported passing by QA/Evaluator):
+
+```sh
+cargo test --locked -p kami-transport --test direct real_native_quic_tcp_and_fallback -- --exact --nocapture
+cargo test --locked -p kami-runtime --lib transport_tests:: -- --nocapture
+cargo test --locked -p kami-runtime --lib ingress:: -- --nocapture
+cargo test --locked -p kami-runtime --test privacy -- --nocapture
+cargo test --locked -p kami-identity --lib verified_enrollment::tests::
+cargo test --locked -p kami-storage --test enrollment -- --nocapture
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets -- -D warnings
+```
+
+These checks establish local Linux behavior only. Same-host loopback is not
+cross-network or cross-OS qualification.
 
 ## Verification
 
@@ -87,9 +107,9 @@ The completed KAMI-26 implementation and independent QA/Evaluator runs recorded 
 
 ## Limitations and deferred work
 
-- No KAMI-27 direct transport, authenticated live Peer-ID validation, NAT traversal, or real network.
+- No application payload, ACK, receipt, Delivered state, production E2EE/session restoration, relay, NAT traversal, or IPC activation. Direct transport is bounded to exact-IP candidates and authenticated connection validation.
 - No functioning relay network; only reservation-renewal scheduling and deterministic adapter tests.
 - No KAMI-32 IPC, named pipes, Unix sockets, CLI, or service packaging.
-- No production sender/receiver activation or fresh mutable session restoration.
+- No production sender/receiver activation or fresh mutable session restoration. Native anchor checks are file-only/cross-profile checks, not rollback resistance.
 - No global sealing of legacy public APIs, external rollback anchor, production encryption, interoperability, Windows/macOS qualification, or M1 qualification.
 - Shutdown timeout bounds reporting, not termination of an already-running blocking OS operation.

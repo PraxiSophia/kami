@@ -357,6 +357,28 @@ cargo test --locked -p kami-storage --test receiver_migration
 cargo test --locked -p kami-receiver --test receive
 ```
 
+## KAMI-27 immutable enrollment record
+
+`enrollment` and migration `006_enrollment.sql` add a canonical, insert-once
+enrollment row through the SQLCipher worker. The row records public identity and
+credential-handle facts; it does not expose secret bytes or provide mutable reset
+or replacement. Runtime startup requires fresh snapshots and native custody
+verification before issuing transport credentials. This database record and the
+separately retained native anchor detect file-only tampering/cross-profile binding,
+not coordinated rollback of both or compromise under the same user. Profile-lease
+linkage is a runtime invariant, not compile-time proof.
+
+KAMI-27 focused storage verification (Linux local tests):
+
+```sh
+cargo test --locked -p kami-storage --test enrollment -- --nocapture
+cargo test --locked -p kami-storage --lib
+```
+
+The enrollment tests cover immutable insert-once behavior and validated reads;
+they do not qualify rollback resistance, native cross-platform custody, or
+production message persistence/receipt behavior.
+
 ## Bounds and local protection
 
 Default `Config`: 32 queued requests (permitted range 1..=1024), 4,096 pending outbox

@@ -7,7 +7,7 @@ use std::fmt;
 use zeroize::Zeroizing;
 
 /// Synchronous custody service. Inject a native store at composition time.
-pub struct Custody<S>(S);
+pub struct Custody<S>(pub(crate) S);
 impl<S: SecretStore> Custody<S> {
     pub fn new(store: S) -> Self {
         Self(store)
