@@ -23,7 +23,7 @@ pub use authenticated::{
 pub use errors::{Error, ProviderError};
 pub use kami_core::{ConversationId, DeviceId, MessageId};
 pub use profile::{Profile, ProfileVersion};
-pub use provider::{DecryptResult, E2eeProvider, EncryptResult};
+pub use provider::{DecryptResult, E2eeProvider, EncryptResult, NativeAadProvider};
 pub use state::{StateEnvelope, StateVersion};
 pub use types::ApplicationContext;
 pub use vodozemac::VodozemacProvider;

@@ -130,8 +130,8 @@ pub enum Lifecycle {
   - Can only be minted by internal integration test harnesses (`#[cfg(test)]`).
 - **Why Caller-Supplied Data is Rejected**:
   - Caller-supplied `PeerId` strings, DTOs, or database generations do not prove live cryptographic connection authority.
-  - Real live provenance requires KAMI-27 (authenticated rust-libp2p stream boundary).
-  - Consequently, `Engine::enqueue` returns `Error::LiveTransportUnavailable` in production.
+  - In KAMI-27, [[kami-transport]] introduces mutually authenticated libp2p direct connections.
+  - **Missing Integration Boundary**: Although `kami-runtime` supervises the transport driver, this connection capability is **not yet connected to the production E2EE boundary**. `Engine::enqueue` intentionally continues to return `Error::LiveTransportUnavailable` in production until KAMI-28 implements application payload wire streaming and live E2EE provenance bridging.
 
 ---
 
@@ -170,16 +170,17 @@ Verified on Linux (`protocol-storage` branch):
 
 | Capability | Status | Description |
 | :--- | :--- | :--- |
-| Direct Transport | Deferred | Socket I/O, NAT traversal, and wire framing belong to KAMI-27. |
-| Functioning Relay | Deferred | Relay network connection and packet routing belong to KAMI-29/30. |
+| Direct Transport | Implemented (KAMI-27) | Bounded authenticated libp2p direct transport (QUIC/TCP/Noise/Yamux) supervised in Tokio JoinSet (Linux localhost qualified). |
+| Application Messaging / Ingress | Deferred (KAMI-28) | Bridging live transport connection provenance into production E2EE sessions and transmitting application message payloads. |
+| Functioning Relay | Deferred | Relay network connection, reservations, and packet forwarding belong to KAMI-29/30. |
 | Local IPC / CLI | Deferred | Named pipes, Unix domain sockets, and daemon rendering belong to KAMI-32. |
-| Production Ingress | Deferred | Public authenticated end-peer factory will be introduced with KAMI-27. |
+| Cross-Platform Transport | Deferred | Native Windows and macOS transport qualification belong to KAMI-34/35. |
 | OS Worker Preemption | By Design | Kernel file I/O cannot be preempted; shutdown timeouts report status without killing blocking threads. |
 
 ---
 
 ## 8. Interactive Architecture Visualizations
 
-- **KAMI-VIS-002**: [Rust Crate Dependency Graph](file:///home/phu/dev/kami/knowledge/Code%20Analyzing/Visualizations/01-System-Architecture/KAMI-VIS-002/crate-dependencies.html) — 10-crate dependency topology showing `kami-runtime` hosting service coordinators, storage persistence, and cryptographic modules.
-- **KAMI-VIS-027**: [Supervised Tokio Runtime & Task Ownership](file:///home/phu/dev/kami/knowledge/Code%20Analyzing/Visualizations/01-System-Architecture/KAMI-VIS-027/runtime-supervision.html) — Dedicated visual model detailing `Engine` actor loop, bounded channels, dedicated single-thread blocking worker, profile lease retention across timeout, and supervised relay seam.
+- **KAMI-VIS-002**: [Rust Crate Dependency Graph](file:///home/phu/dev/kami/knowledge/Code%20Analyzing/Visualizations/01-System-Architecture/KAMI-VIS-002/crate-dependencies.html) — 11-crate dependency topology showing `kami-runtime` hosting service coordinators, direct transport (`kami-transport`), storage persistence, and cryptographic modules.
+- **KAMI-VIS-027**: [Supervised Tokio Runtime & Task Ownership](file:///home/phu/dev/kami/knowledge/Code%20Analyzing/Visualizations/01-System-Architecture/KAMI-VIS-027/runtime-supervision.html) — Dedicated visual model detailing `Engine` actor loop, bounded channels, dedicated single-thread blocking worker, profile lease retention across timeout, direct transport driver, and supervised relay seam.
 

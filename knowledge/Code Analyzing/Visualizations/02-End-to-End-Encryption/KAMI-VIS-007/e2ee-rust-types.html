@@ -5196,7 +5196,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <div class="pulse-dot"></div>
         <h1>KAMI-VIS-007: E2EE Rust Types and Interfaces</h1>
       </div>
-      <p class="subtitle">kami-e2ee Quarantined Session, Authenticated Commit, and Vodozemac Provider</p>
+      <p class="subtitle">kami-e2ee Quarantined Session, Authenticated Commit, NativeAadProvider, and InnerEnvelopeV1 (WP-A)</p>
     </div>
 
 
@@ -5204,9 +5204,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / PLATE 04">
-      <svg viewBox="0 0 1206 1250" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+      <svg viewBox="0 0 1206 1190" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
         <title id="archify-diagram-title">KAMI-VIS-007: E2EE Rust Types and Interfaces</title>
-        <desc id="archify-diagram-description">kami-e2ee Quarantined Session, Authenticated Commit, and Vodozemac Provider</desc>
+        <desc id="archify-diagram-description">kami-e2ee Quarantined Session, Authenticated Commit, NativeAadProvider, and InnerEnvelopeV1 (WP-A)</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -5233,6 +5233,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </marker>
           <marker id="cl-diamond-filled" markerWidth="20" markerHeight="12" refX="1" refY="6" orient="auto" markerUnits="userSpaceOnUse" class="cl-marker" stroke-width="1.5" stroke-linejoin="round">
             <path d="M 1 6 L 10 1 L 19 6 L 10 11 Z" class="cl-marker-filled"/>
+          </marker>
+          <marker id="cl-diamond-hollow" markerWidth="20" markerHeight="12" refX="1" refY="6" orient="auto" markerUnits="userSpaceOnUse" class="cl-marker" stroke-width="1.5" stroke-linejoin="round">
+            <path d="M 1 6 L 10 1 L 19 6 L 10 11 Z" class="cl-marker-hollow"/>
           </marker>
         </defs>
         <style>
@@ -5278,13 +5281,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Relationships (before types for correct z-order) -->
-        <path data-edge-from="quarantined_session" data-edge-to="endpoint" data-edge-label="binds verified endpoint" data-edge-key="0" data-edge-id="session_endpoint" data-class-relationship="composition" data-composition-points="607,364;607,314" d="M 607 364 L 607 314" class="a-default cl-relationship" data-animate="edge" style="--step:0" stroke-width="1.5" marker-start="url(#cl-diamond-filled)"/>
-        <path data-edge-from="quarantined_session" data-edge-to="authenticated_commit" data-edge-label="creates commit proof" data-edge-key="1" data-edge-id="session_commit" data-class-relationship="dependency" data-composition-points="752,631;776,631;776,177;899,177" d="M 752 631 L 768 631 Q 776 631 776 623 L 776 185 Q 776 177 784 177 L 899 177" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="authenticated_commit" data-edge-to="commit_material" data-edge-label="wraps private material" data-edge-key="2" data-edge-id="commit_wraps_material" data-class-relationship="composition" data-composition-points="1037,239;1037,494" d="M 1037 239 L 1037 494" class="a-default cl-relationship" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#cl-diamond-filled)"/>
-        <path data-edge-from="commit_material" data-edge-to="snapshot_transfer" data-edge-label="converts to zeroizing transfer" data-edge-key="3" data-edge-id="material_transfer" data-class-relationship="dependency" data-composition-points="1037,768;1037,1013" d="M 1037 768 L 1037 1013" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="vodozemac_provider" data-edge-to="e2ee_provider" data-edge-label="implements Olm v1" data-edge-key="4" data-edge-id="vodozemac_implements_provider" data-class-relationship="realization" data-composition-points="177,544;177,314" d="M 177 544 L 177 314" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="quarantined_session" data-edge-to="vodozemac_provider" data-edge-label="delegates ratchets" data-edge-key="5" data-edge-id="session_provider" data-class-relationship="dependency" data-composition-points="462,631;322,631" d="M 462 631 L 322 631" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="commit_material" data-edge-to="state_envelope" data-edge-label="persists versioned envelope" data-edge-key="6" data-edge-id="material_envelope" data-class-relationship="association" data-composition-points="892,631;822,631;822,1070;752,1070" d="M 892 631 L 830 631 Q 822 631 822 639 L 822 1062 Q 822 1070 814 1070 L 752 1070" class="a-default cl-relationship" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="quarantined_session" data-edge-to="endpoint" data-edge-label="binds local &amp; remote" data-edge-key="0" data-edge-id="session_uses_endpoint" data-class-relationship="aggregation" data-composition-points="607,364;607,314" d="M 607 364 L 607 314" class="a-default cl-relationship" data-animate="edge" style="--step:0" stroke-width="1.5" marker-start="url(#cl-diamond-hollow)"/>
+        <path data-edge-from="quarantined_session" data-edge-to="authenticated_commit" data-edge-label="stages opaque commit" data-edge-key="1" data-edge-id="session_produces_commit" data-class-relationship="dependency" data-composition-points="752,621;776,621;776,177;899,177" d="M 752 621 L 768 621 Q 776 621 776 613 L 776 185 Q 776 177 784 177 L 899 177" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="authenticated_commit" data-edge-to="commit_material" data-edge-label="wraps private material" data-edge-key="2" data-edge-id="commit_wraps_material" data-class-relationship="composition" data-composition-points="1037,234;1037,484" d="M 1037 234 L 1037 484" class="a-default cl-relationship" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#cl-diamond-filled)"/>
+        <path data-edge-from="commit_material" data-edge-to="snapshot_transfer" data-edge-label="converts to zeroizing transfer" data-edge-key="3" data-edge-id="material_transfer" data-class-relationship="dependency" data-composition-points="1037,758;1037,973" d="M 1037 758 L 1037 973" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="vodozemac_provider" data-edge-to="e2ee_provider" data-edge-label="implements (supports_aad=false)" data-edge-key="4" data-edge-id="vodozemac_implements_provider" data-class-relationship="realization" data-composition-points="177,534;177,294" d="M 177 534 L 177 294" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="quarantined_session" data-edge-to="vodozemac_provider" data-edge-label="delegates ratchets" data-edge-key="5" data-edge-id="session_provider" data-class-relationship="dependency" data-composition-points="462,608;322,608" d="M 462 608 L 322 608" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="quarantined_session" data-edge-to="inner_envelope" data-edge-label="authenticates inside Olm" data-edge-key="6" data-edge-id="session_envelope" data-class-relationship="composition" data-composition-points="462,634;392,634;392,1030;322,1030" d="M 462 634 L 400 634 Q 392 634 392 642 L 392 1022 Q 392 1030 384 1030 L 322 1030" class="a-default cl-relationship" data-animate="edge" style="--step:6" stroke-width="1.5" marker-start="url(#cl-diamond-filled)"/>
+        <path data-edge-from="commit_material" data-edge-to="state_envelope" data-edge-label="persists versioned envelope" data-edge-key="7" data-edge-id="material_envelope" data-class-relationship="association" data-composition-points="892,621;822,621;822,1030;752,1030" d="M 892 621 L 830 621 Q 822 621 822 629 L 822 1022 Q 822 1030 814 1030 L 752 1030" class="a-default cl-relationship" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#cl-open)"/>
 
         <!-- Types -->
         <g id="node-endpoint" data-node-id="endpoint" data-node-label="Endpoint" tabindex="0" role="button" aria-label="Focus Endpoint, Cryptographic Peer &amp; Key Binding, Class" aria-pressed="false" data-node-kind="class" data-node-sublabel="Cryptographic Peer &amp; Key Binding" data-node-context="Class" data-class-kind="class" class="cl-hue-backend">
@@ -5318,10 +5322,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </g>
         </g>
 
-        <g id="node-quarantined_session" data-node-id="quarantined_session" data-node-label="QuarantinedSession" tabindex="0" role="button" aria-label="Focus QuarantinedSession, In-Memory Session &amp; Ratchet Guard, Class" aria-pressed="false" data-node-kind="class" data-node-sublabel="In-Memory Session &amp; Ratchet Guard" data-node-context="Class" data-class-kind="class" class="cl-hue-backend">
-          <title>QuarantinedSession · In-Memory Session &amp; Ratchet Guard · Class</title>
-          <rect x="462" y="364" width="290" height="534" rx="8" class="c-mask"/>
-          <rect x="462" y="364" width="290" height="534" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
+        <g id="node-quarantined_session" data-node-id="quarantined_session" data-node-label="QuarantinedSession" tabindex="0" role="button" aria-label="Focus QuarantinedSession, In-Memory Double Ratchet, Class" aria-pressed="false" data-node-kind="class" data-node-sublabel="In-Memory Double Ratchet" data-node-context="Class" data-class-kind="class" class="cl-hue-backend">
+          <title>QuarantinedSession · In-Memory Double Ratchet · Class</title>
+          <rect x="462" y="364" width="290" height="514" rx="8" class="c-mask"/>
+          <rect x="462" y="364" width="290" height="514" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
           <path class="cl-header c-backend" stroke="none" d="M 470 364 H 744 A 8 8 0 0 1 752 372 V 398 H 462 V 372 A 8 8 0 0 1 470 364 Z"/>
           <path class="cl-cap" d="M 474 365.4 H 740" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
@@ -5332,244 +5336,274 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-node-label="" x="607" y="386" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">QuarantinedSession</text>
           <g data-detail="context" data-class-compartment="attributes">
             <line x1="462" y1="398" x2="752" y2="398" class="cl-rule" stroke-width="1"/>
-            <rect x="474" y="407.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="418" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="418" class="t-primary cl-member" font-size="11">account</text><text data-detail="context" x="740" y="418" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Account</text>
-            <rect x="466" y="424" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="427.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="438" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="438" class="t-primary cl-member" font-size="11">bound</text><text data-detail="context" x="740" y="438" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">BoundSession</text>
-            <rect x="474" y="447.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="458" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="458" class="t-primary cl-member" font-size="11">account_generation</text><text data-detail="context" x="740" y="458" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
-            <rect x="466" y="464" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="467.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="478" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="478" class="t-primary cl-member" font-size="11">session_generation</text><text data-detail="context" x="740" y="478" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
-            <rect x="474" y="487.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="498" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="498" class="t-primary cl-member" font-size="11">retry</text><text data-detail="context" x="740" y="498" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Option&lt;CommitMaterial&gt;</text>
+            <rect x="474" y="407.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="418" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="418" class="t-primary cl-member" font-size="11">session</text><text data-detail="context" x="740" y="418" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Session</text>
+            <rect x="466" y="424" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="427.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="438" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="438" class="t-primary cl-member" font-size="11">account</text><text data-detail="context" x="740" y="438" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Account</text>
+            <rect x="474" y="447.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="458" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="458" class="t-primary cl-member" font-size="11">local</text><text data-detail="context" x="740" y="458" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Endpoint</text>
+            <rect x="466" y="464" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="467.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="478" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="478" class="t-primary cl-member" font-size="11">remote</text><text data-detail="context" x="740" y="478" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Endpoint</text>
+            <rect x="474" y="487.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="498" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="498" class="t-primary cl-member" font-size="11">conversation</text><text data-detail="context" x="740" y="498" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">ConversationId</text>
+            <rect x="466" y="504" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="507.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="481" y="518" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="494" y="518" class="t-primary cl-member" font-size="11">session_generation</text><text data-detail="context" x="740" y="518" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
           </g>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="462" y1="508" x2="752" y2="508" class="cl-rule" stroke-width="1"/>
-            <rect x="466" y="514" width="282" height="58" rx="4" class="cl-zebra"/><rect x="474" y="517.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="528" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="528" class="t-primary cl-member" font-size="11">outbound<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="548" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">acc, gen, ep</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="568" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;Self</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
-            <rect x="474" y="577.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="588" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="588" class="t-primary cl-member" font-size="11">inbound<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="608" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">acc, gen, ep, msg</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="628" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;Self</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
-            <rect x="466" y="634" width="282" height="98" rx="4" class="cl-zebra"/><rect x="474" y="637.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="648" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="648" class="t-primary cl-member" font-size="11">prepare_text<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="668" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">&amp;mut self,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="688" class="t-primary cl-member" font-size="11">text<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;str</tspan><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;</tspan><tspan class="t-muted cl-punct">(</tspan>Vec&lt;u8&gt;<tspan class="t-muted cl-punct">,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="708" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">AuthenticatedCommit</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="728" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
-            <rect x="474" y="737.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="748" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="748" class="t-primary cl-member" font-size="11">prepare_receive<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="768" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">&amp;mut self,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="788" class="t-primary cl-member" font-size="11">frame<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;[u8]</tspan><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;</tspan><tspan class="t-muted cl-punct">(</tspan>Vec&lt;u8&gt;<tspan class="t-muted cl-punct">,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="808" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">AuthenticatedCommit</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="828" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
-            <rect x="466" y="834" width="282" height="58" rx="4" class="cl-zebra"/><rect x="474" y="837.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="848" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="848" class="t-primary cl-member" font-size="11">prepare_retry<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="868" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">&amp;mut self</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="888" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;Vec&lt;u8&gt;</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
+            <line x1="462" y1="528" x2="752" y2="528" class="cl-rule" stroke-width="1"/>
+            <rect x="474" y="537.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="548" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="548" class="t-primary cl-member" font-size="11">outbound<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="568" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">acc, loc, rem, conv, trust, peer</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="588" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;Self</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
+            <rect x="466" y="594" width="282" height="118" rx="4" class="cl-zebra"/><rect x="474" y="597.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="608" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="608" class="t-primary cl-member" font-size="11">prepare_text<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="628" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">&amp;self, msg, seq, time, text,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="648" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">trust,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="668" class="t-primary cl-member" font-size="11">peer<tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;</tspan><tspan class="t-muted cl-punct">(</tspan>AuthenticatedCommit<tspan class="t-muted cl-punct">,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="688" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref"> Self</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="708" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
+            <rect x="474" y="717.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="728" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="728" class="t-primary cl-member" font-size="11">prepare_receive<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="748" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">&amp;self, frame, expected, trust,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="768" class="t-primary cl-member" font-size="11">peer<tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;</tspan><tspan class="t-muted cl-punct">(</tspan>AuthenticatedCommit<tspan class="t-muted cl-punct">,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="788" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref"> Self</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="808" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
+            <rect x="466" y="814" width="282" height="58" rx="4" class="cl-zebra"/><rect x="474" y="817.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="828" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="828" class="t-primary cl-member" font-size="11">prepare_retry<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="848" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">&amp;self, trust, peer</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="868" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;AuthenticatedCommit</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
           </g>
         </g>
 
-        <g id="node-authenticated_commit" data-node-id="authenticated_commit" data-node-label="AuthenticatedCommit" tabindex="0" role="button" aria-label="Focus AuthenticatedCommit, Opaque Commit Proof for Storage, Record" aria-pressed="false" data-node-kind="record" data-node-sublabel="Opaque Commit Proof for Storage" data-node-context="Record" data-class-kind="record" class="cl-hue-database">
-          <title>AuthenticatedCommit · Opaque Commit Proof for Storage · Record</title>
-          <rect x="899" y="115" width="276" height="124" rx="8" class="c-mask"/>
-          <rect x="899" y="115" width="276" height="124" rx="8" class="c-database cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="cl-header c-database" stroke="none" d="M 907 115 H 1167 A 8 8 0 0 1 1175 123 V 159 H 899 V 123 A 8 8 0 0 1 907 115 Z"/>
-          <path class="cl-cap" d="M 911 116.4 H 1163" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-authenticated_commit" data-node-id="authenticated_commit" data-node-label="AuthenticatedCommit" tabindex="0" role="button" aria-label="Focus AuthenticatedCommit, Opaque Storage Proof, Class" aria-pressed="false" data-node-kind="class" data-node-sublabel="Opaque Storage Proof" data-node-context="Class" data-class-kind="class" class="cl-hue-backend">
+          <title>AuthenticatedCommit · Opaque Storage Proof · Class</title>
+          <rect x="899" y="120" width="276" height="114" rx="8" class="c-mask"/>
+          <rect x="899" y="120" width="276" height="114" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 907 120 H 1167 A 8 8 0 0 1 1175 128 V 154 H 899 V 128 A 8 8 0 0 1 907 120 Z"/>
+          <path class="cl-cap" d="M 911 121.4 H 1163" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
             <rect x="911" y="129" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="919" y="140.5" class="t-database cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">R</text>
+            <text x="919" y="140.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
-          <text x="1037" y="131" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«record»</text>
-          <text data-node-label="" x="1037" y="149" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AuthenticatedCommit</text>
+          
+          <text data-node-label="" x="1037" y="142" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AuthenticatedCommit</text>
           <g data-detail="context" data-class-compartment="attributes">
-            <line x1="899" y1="159" x2="1175" y2="159" class="cl-rule" stroke-width="1"/>
-            <rect x="911" y="168.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="918" y="179" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="931" y="179" class="t-primary cl-member" font-size="11">material</text><text data-detail="context" x="1163" y="179" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">CommitMaterial</text>
+            <line x1="899" y1="154" x2="1175" y2="154" class="cl-rule" stroke-width="1"/>
+            <rect x="911" y="163.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="918" y="174" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="931" y="174" class="t-primary cl-member" font-size="11">material</text><text data-detail="context" x="1163" y="174" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">CommitMaterial</text>
           </g>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="899" y1="189" x2="1175" y2="189" class="cl-rule" stroke-width="1"/>
-            <rect x="903" y="195" width="268" height="18" rx="4" class="cl-zebra"/><rect x="911" y="198.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="918" y="209" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="931" y="209" class="t-primary cl-member" font-size="11">facts<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1163" y="209" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">MessageFacts</text>
-            <rect x="911" y="218.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="918" y="229" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="931" y="229" class="t-primary cl-member" font-size="11">into_material<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1163" y="229" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">CommitMaterial</text>
+            <line x1="899" y1="184" x2="1175" y2="184" class="cl-rule" stroke-width="1"/>
+            <rect x="903" y="190" width="268" height="18" rx="4" class="cl-zebra"/><rect x="911" y="193.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="918" y="204" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="931" y="204" class="t-primary cl-member" font-size="11">facts<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1163" y="204" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">MessageFacts</text>
+            <rect x="911" y="213.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="918" y="224" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="931" y="224" class="t-primary cl-member" font-size="11">into_material<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1163" y="224" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">CommitMaterial</text>
           </g>
         </g>
 
         <g id="node-commit_material" data-node-id="commit_material" data-node-label="CommitMaterial" tabindex="0" role="button" aria-label="Focus CommitMaterial, Digest Commitments &amp; Snapshots, Class" aria-pressed="false" data-node-kind="class" data-node-sublabel="Digest Commitments &amp; Snapshots" data-node-context="Class" data-class-kind="class" class="cl-hue-backend">
           <title>CommitMaterial · Digest Commitments &amp; Snapshots · Class</title>
-          <rect x="892" y="494" width="290" height="274" rx="8" class="c-mask"/>
-          <rect x="892" y="494" width="290" height="274" rx="8" class="c-backend cl-type" data-animate="node" style="--step:2" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 900 494 H 1174 A 8 8 0 0 1 1182 502 V 528 H 892 V 502 A 8 8 0 0 1 900 494 Z"/>
-          <path class="cl-cap" d="M 904 495.4 H 1170" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="892" y="484" width="290" height="274" rx="8" class="c-mask"/>
+          <rect x="892" y="484" width="290" height="274" rx="8" class="c-backend cl-type" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 900 484 H 1174 A 8 8 0 0 1 1182 492 V 518 H 892 V 492 A 8 8 0 0 1 900 484 Z"/>
+          <path class="cl-cap" d="M 904 485.4 H 1170" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="904" y="503" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="912" y="514.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="904" y="493" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="912" y="504.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="1037" y="516" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">CommitMaterial</text>
+          <text data-node-label="" x="1037" y="506" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">CommitMaterial</text>
           <g data-detail="context" data-class-compartment="attributes">
-            <line x1="892" y1="528" x2="1182" y2="528" class="cl-rule" stroke-width="1"/>
-            <rect x="904" y="537.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911" y="548" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924" y="548" class="t-primary cl-member" font-size="11">account</text><text data-detail="context" x="1170" y="548" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">AccountSnapshot</text>
-            <rect x="896" y="554" width="282" height="18" rx="4" class="cl-zebra"/><rect x="904" y="557.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911" y="568" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924" y="568" class="t-primary cl-member" font-size="11">next</text><text data-detail="context" x="1170" y="568" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">SessionSnapshot</text>
-            <rect x="904" y="577.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911" y="588" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924" y="588" class="t-primary cl-member" font-size="11">account_generation</text><text data-detail="context" x="1170" y="588" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
-            <rect x="896" y="594" width="282" height="18" rx="4" class="cl-zebra"/><rect x="904" y="597.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911" y="608" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924" y="608" class="t-primary cl-member" font-size="11">session_generation</text><text data-detail="context" x="1170" y="608" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
+            <line x1="892" y1="518" x2="1182" y2="518" class="cl-rule" stroke-width="1"/>
+            <rect x="904" y="527.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911" y="538" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924" y="538" class="t-primary cl-member" font-size="11">account</text><text data-detail="context" x="1170" y="538" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">AccountSnapshot</text>
+            <rect x="896" y="544" width="282" height="18" rx="4" class="cl-zebra"/><rect x="904" y="547.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911" y="558" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924" y="558" class="t-primary cl-member" font-size="11">next</text><text data-detail="context" x="1170" y="558" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">SessionSnapshot</text>
+            <rect x="904" y="567.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911" y="578" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924" y="578" class="t-primary cl-member" font-size="11">account_generation</text><text data-detail="context" x="1170" y="578" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
+            <rect x="896" y="584" width="282" height="18" rx="4" class="cl-zebra"/><rect x="904" y="587.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911" y="598" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924" y="598" class="t-primary cl-member" font-size="11">session_generation</text><text data-detail="context" x="1170" y="598" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
           </g>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="892" y1="618" x2="1182" y2="618" class="cl-rule" stroke-width="1"/>
-            <rect x="904" y="627.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="638" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="638" class="t-primary cl-member" font-size="11">session_id<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1170" y="638" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">[u8; 32]</text>
-            <rect x="896" y="644" width="282" height="18" rx="4" class="cl-zebra"/><rect x="904" y="647.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="658" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="658" class="t-primary cl-member" font-size="11">contact<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1170" y="658" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">[u8; 32]</text>
-            <rect x="904" y="667.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="678" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="678" class="t-primary cl-member" font-size="11">trust_generation<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1170" y="678" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
-            <rect x="896" y="684" width="282" height="18" rx="4" class="cl-zebra"/><rect x="904" y="687.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="698" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="698" class="t-primary cl-member" font-size="11">frame<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1170" y="698" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">&amp;[u8]</text>
-            <rect x="904" y="707.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="718" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="718" class="t-primary cl-member" font-size="11">into_snapshots<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="937.1999999999999" y="738" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">self</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="924" y="758" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">SnapshotTransfer</tspan></text>
+            <line x1="892" y1="608" x2="1182" y2="608" class="cl-rule" stroke-width="1"/>
+            <rect x="904" y="617.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="628" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="628" class="t-primary cl-member" font-size="11">session_id<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1170" y="628" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">[u8; 32]</text>
+            <rect x="896" y="634" width="282" height="18" rx="4" class="cl-zebra"/><rect x="904" y="637.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="648" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="648" class="t-primary cl-member" font-size="11">contact<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1170" y="648" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">[u8; 32]</text>
+            <rect x="904" y="657.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="668" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="668" class="t-primary cl-member" font-size="11">trust_generation<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1170" y="668" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
+            <rect x="896" y="674" width="282" height="18" rx="4" class="cl-zebra"/><rect x="904" y="677.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="688" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="688" class="t-primary cl-member" font-size="11">frame<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1170" y="688" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">&amp;[u8]</text>
+            <rect x="904" y="697.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911" y="708" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924" y="708" class="t-primary cl-member" font-size="11">into_snapshots<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="937.1999999999999" y="728" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">self</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="924" y="748" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">SnapshotTransfer</tspan></text>
           </g>
         </g>
 
         <g id="node-snapshot_transfer" data-node-id="snapshot_transfer" data-node-label="SnapshotTransfer" tabindex="0" role="button" aria-label="Focus SnapshotTransfer, Zeroizing Snapshot Envelope, Class" aria-pressed="false" data-node-kind="class" data-node-sublabel="Zeroizing Snapshot Envelope" data-node-context="Class" data-class-kind="class" class="cl-hue-backend">
           <title>SnapshotTransfer · Zeroizing Snapshot Envelope · Class</title>
-          <rect x="892.5" y="1013" width="289" height="114" rx="8" class="c-mask"/>
-          <rect x="892.5" y="1013" width="289" height="114" rx="8" class="c-backend cl-type" data-animate="node" style="--step:3" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 900.5 1013 H 1173.5 A 8 8 0 0 1 1181.5 1021 V 1047 H 892.5 V 1021 A 8 8 0 0 1 900.5 1013 Z"/>
-          <path class="cl-cap" d="M 904.5 1014.4 H 1169.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="892.5" y="973" width="289" height="114" rx="8" class="c-mask"/>
+          <rect x="892.5" y="973" width="289" height="114" rx="8" class="c-backend cl-type" data-animate="node" style="--step:3" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 900.5 973 H 1173.5 A 8 8 0 0 1 1181.5 981 V 1007 H 892.5 V 981 A 8 8 0 0 1 900.5 973 Z"/>
+          <path class="cl-cap" d="M 904.5 974.4 H 1169.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="904.5" y="1022" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="912.5" y="1033.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="904.5" y="982" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="912.5" y="993.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="1037" y="1035" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">SnapshotTransfer</text>
+          <text data-node-label="" x="1037" y="995" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">SnapshotTransfer</text>
           <g data-detail="context" data-class-compartment="attributes">
-            <line x1="892.5" y1="1047" x2="1181.5" y2="1047" class="cl-rule" stroke-width="1"/>
-            <rect x="904.5" y="1056.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911.5" y="1067" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924.5" y="1067" class="t-primary cl-member" font-size="11">account</text><text data-detail="context" x="1169.5" y="1067" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Zeroizing&lt;Vec&lt;u8&gt;&gt;</text>
-            <rect x="896.5" y="1073" width="281" height="18" rx="4" class="cl-zebra"/><rect x="904.5" y="1076.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911.5" y="1087" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924.5" y="1087" class="t-primary cl-member" font-size="11">next</text><text data-detail="context" x="1169.5" y="1087" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Zeroizing&lt;Vec&lt;u8&gt;&gt;</text>
+            <line x1="892.5" y1="1007" x2="1181.5" y2="1007" class="cl-rule" stroke-width="1"/>
+            <rect x="904.5" y="1016.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911.5" y="1027" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924.5" y="1027" class="t-primary cl-member" font-size="11">account</text><text data-detail="context" x="1169.5" y="1027" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Zeroizing&lt;Vec&lt;u8&gt;&gt;</text>
+            <rect x="896.5" y="1033" width="281" height="18" rx="4" class="cl-zebra"/><rect x="904.5" y="1036.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="911.5" y="1047" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="924.5" y="1047" class="t-primary cl-member" font-size="11">next</text><text data-detail="context" x="1169.5" y="1047" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Zeroizing&lt;Vec&lt;u8&gt;&gt;</text>
           </g>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="892.5" y1="1097" x2="1181.5" y2="1097" class="cl-rule" stroke-width="1"/>
-            <rect x="904.5" y="1106.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911.5" y="1117" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924.5" y="1117" class="t-primary cl-member" font-size="11">consume<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">self</tspan><tspan class="t-muted cl-punct">,</tspan> <tspan class="cl-param">f</tspan><tspan class="t-muted cl-punct">:</tspan><tspan class="t-muted cl-type-ref"> FnOnce(...) -&gt; T</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1169.5" y="1117" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">T</text>
+            <line x1="892.5" y1="1057" x2="1181.5" y2="1057" class="cl-rule" stroke-width="1"/>
+            <rect x="904.5" y="1066.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="911.5" y="1077" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="924.5" y="1077" class="t-primary cl-member" font-size="11">consume<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">self</tspan><tspan class="t-muted cl-punct">,</tspan> <tspan class="cl-param">f</tspan><tspan class="t-muted cl-punct">:</tspan><tspan class="t-muted cl-type-ref"> FnOnce(...) -&gt; T</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1169.5" y="1077" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">T</text>
           </g>
         </g>
 
-        <g id="node-e2ee_provider" data-node-id="e2ee_provider" data-node-label="E2eeProvider" tabindex="0" role="button" aria-label="Focus E2eeProvider, Olm Provider Contract Trait, Interface" aria-pressed="false" data-node-kind="interface" data-node-sublabel="Olm Provider Contract Trait" data-node-context="Interface" data-class-kind="interface" class="cl-hue-frontend">
-          <title>E2eeProvider · Olm Provider Contract Trait · Interface</title>
-          <rect x="32" y="40" width="290" height="274" rx="8" class="c-mask"/>
-          <rect x="32" y="40" width="290" height="274" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 40 40 H 314 A 8 8 0 0 1 322 48 V 84 H 32 V 48 A 8 8 0 0 1 40 40 Z"/>
-          <path class="cl-cap" d="M 44 41.4 H 310" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-e2ee_provider" data-node-id="e2ee_provider" data-node-label="NativeAadProvider" tabindex="0" role="button" aria-label="Focus NativeAadProvider, Native AAD Trait (E2eeProvider), Interface" aria-pressed="false" data-node-kind="interface" data-node-sublabel="Native AAD Trait (E2eeProvider)" data-node-context="Interface" data-class-kind="interface" class="cl-hue-frontend">
+          <title>NativeAadProvider · Native AAD Trait (E2eeProvider) · Interface</title>
+          <rect x="32" y="60" width="290" height="234" rx="8" class="c-mask"/>
+          <rect x="32" y="60" width="290" height="234" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
+          <path class="cl-header c-frontend" stroke="none" d="M 40 60 H 314 A 8 8 0 0 1 322 68 V 104 H 32 V 68 A 8 8 0 0 1 40 60 Z"/>
+          <path class="cl-cap" d="M 44 61.4 H 310" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="44" y="54" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="52" y="65.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="44" y="74" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="52" y="85.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
           </g>
-          <text x="177" y="56" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="177" y="74" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">E2eeProvider</text>
+          <text x="177" y="76" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
+          <text data-node-label="" x="177" y="94" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">NativeAadProvider</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="32" y1="84" x2="322" y2="84" class="cl-rule" stroke-width="1"/>
-            <rect x="44" y="93.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="104" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="104" class="t-primary cl-member" font-size="11" style="font-style: italic">create_account<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="124" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">&amp;self</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="144" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;Account</tspan><tspan class="t-muted cl-punct">,</tspan> ProviderError&gt;</text>
-            <rect x="36" y="150" width="282" height="78" rx="4" class="cl-zebra"/><rect x="44" y="153.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="164" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="164" class="t-primary cl-member" font-size="11" style="font-style: italic">encrypt<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="184" class="t-primary cl-member" font-size="11" style="font-style: italic">&amp;self<tspan class="t-muted cl-punct">,</tspan> s<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;mut S</tspan><tspan class="t-muted cl-punct">,</tspan> p<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;[u8]</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="204" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;EncryptResult</tspan><tspan class="t-muted cl-punct">,</tspan> ProviderErro</text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="224" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">r&gt;</tspan></text>
-            <rect x="44" y="233.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="244" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="244" class="t-primary cl-member" font-size="11" style="font-style: italic">decrypt<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="264" class="t-primary cl-member" font-size="11" style="font-style: italic">&amp;self<tspan class="t-muted cl-punct">,</tspan> s<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;mut S</tspan><tspan class="t-muted cl-punct">,</tspan> c<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;[u8]</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="284" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;DecryptResult</tspan><tspan class="t-muted cl-punct">,</tspan> ProviderErro</text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="304" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">r&gt;</tspan></text>
+            <line x1="32" y1="104" x2="322" y2="104" class="cl-rule" stroke-width="1"/>
+            <rect x="44" y="113.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="124" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="124" class="t-primary cl-member" font-size="11" style="font-style: italic">supports_aad<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="310" y="124" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="font-style: italic">bool</text>
+            <rect x="36" y="130" width="282" height="78" rx="4" class="cl-zebra"/><rect x="44" y="133.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="144" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="144" class="t-primary cl-member" font-size="11" style="font-style: italic">encrypt<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="164" class="t-primary cl-member" font-size="11" style="font-style: italic">&amp;self<tspan class="t-muted cl-punct">,</tspan> s<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;mut S</tspan><tspan class="t-muted cl-punct">,</tspan> p<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;[u8]</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="184" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;EncryptResult</tspan><tspan class="t-muted cl-punct">,</tspan> ProviderErro</text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="204" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">r&gt;</tspan></text>
+            <rect x="44" y="213.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="224" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="224" class="t-primary cl-member" font-size="11" style="font-style: italic">decrypt<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="244" class="t-primary cl-member" font-size="11" style="font-style: italic">&amp;self<tspan class="t-muted cl-punct">,</tspan> s<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;mut S</tspan><tspan class="t-muted cl-punct">,</tspan> c<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;[u8]</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="264" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;DecryptResult</tspan><tspan class="t-muted cl-punct">,</tspan> ProviderErro</text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="284" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">r&gt;</tspan></text>
           </g>
         </g>
 
-        <g id="node-vodozemac_provider" data-node-id="vodozemac_provider" data-node-label="VodozemacProvider" tabindex="0" role="button" aria-label="Focus VodozemacProvider, Vodozemac Olm v1 Wrapper, Class" aria-pressed="false" data-node-kind="class" data-node-sublabel="Vodozemac Olm v1 Wrapper" data-node-context="Class" data-class-kind="class" class="cl-hue-backend">
-          <title>VodozemacProvider · Vodozemac Olm v1 Wrapper · Class</title>
-          <rect x="32" y="544" width="290" height="174" rx="8" class="c-mask"/>
-          <rect x="32" y="544" width="290" height="174" rx="8" class="c-backend cl-type" data-animate="node" style="--step:5" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 40 544 H 314 A 8 8 0 0 1 322 552 V 578 H 32 V 552 A 8 8 0 0 1 40 544 Z"/>
-          <path class="cl-cap" d="M 44 545.4 H 310" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-vodozemac_provider" data-node-id="vodozemac_provider" data-node-label="VodozemacProvider" tabindex="0" role="button" aria-label="Focus VodozemacProvider, Olm v1 (supports_aad = false), Class" aria-pressed="false" data-node-kind="class" data-node-sublabel="Olm v1 (supports_aad = false)" data-node-context="Class" data-class-kind="class" class="cl-hue-backend">
+          <title>VodozemacProvider · Olm v1 (supports_aad = false) · Class</title>
+          <rect x="32" y="534" width="290" height="174" rx="8" class="c-mask"/>
+          <rect x="32" y="534" width="290" height="174" rx="8" class="c-backend cl-type" data-animate="node" style="--step:5" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 40 534 H 314 A 8 8 0 0 1 322 542 V 568 H 32 V 542 A 8 8 0 0 1 40 534 Z"/>
+          <path class="cl-cap" d="M 44 535.4 H 310" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="44" y="553" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="52" y="564.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="44" y="543" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="52" y="554.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="177" y="566" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">VodozemacProvider</text>
+          <text data-node-label="" x="177" y="556" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">VodozemacProvider</text>
           <g data-detail="context" data-class-compartment="attributes">
-            <line x1="32" y1="578" x2="322" y2="578" class="cl-rule" stroke-width="1"/>
-            <rect x="44" y="587.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="51" y="598" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="64" y="598" class="t-primary cl-member" font-size="11">max_skipped_keys</text><text data-detail="context" x="310" y="598" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u32</text>
-            <rect x="36" y="604" width="282" height="18" rx="4" class="cl-zebra"/><rect x="44" y="607.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="51" y="618" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="64" y="618" class="t-primary cl-member" font-size="11">max_gap_limit</text><text data-detail="context" x="310" y="618" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u32</text>
+            <line x1="32" y1="568" x2="322" y2="568" class="cl-rule" stroke-width="1"/>
+            <rect x="44" y="577.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="51" y="588" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="attributes" x="64" y="588" class="t-primary cl-member" font-size="11">version</text><text data-detail="context" x="310" y="588" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">ProfileVersion</text>
           </g>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="32" y1="628" x2="322" y2="628" class="cl-rule" stroke-width="1"/>
-            <rect x="44" y="637.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="648" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="648" class="t-primary cl-member" font-size="11">new<tspan class="t-muted cl-punct">(</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="310" y="648" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Self</text>
-            <rect x="36" y="654" width="282" height="58" rx="4" class="cl-zebra"/><rect x="44" y="657.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="668" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="668" class="t-primary cl-member" font-size="11">with_limits<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="688" class="t-primary cl-member" font-size="11">skip<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">u32</tspan><tspan class="t-muted cl-punct">,</tspan> gap<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">u32</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="708" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Self</tspan></text>
+            <line x1="32" y1="598" x2="322" y2="598" class="cl-rule" stroke-width="1"/>
+            <rect x="36" y="604" width="282" height="18" rx="4" class="cl-zebra"/><rect x="44" y="607.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="618" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="618" class="t-primary cl-member" font-size="11">new<tspan class="t-muted cl-punct">(</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="310" y="618" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Self</text>
+            <rect x="44" y="627.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="638" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="638" class="t-primary cl-member" font-size="11">supports_aad<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="310" y="638" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">bool (false)</text>
+            <rect x="36" y="644" width="282" height="58" rx="4" class="cl-zebra"/><rect x="44" y="647.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="658" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="658" class="t-primary cl-member" font-size="11">encrypt / decrypt<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="678" class="t-primary cl-member" font-size="11">...<tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Err</tspan><tspan class="t-muted cl-punct">(</tspan>AadUnsupported</text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="698" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan></text>
+          </g>
+        </g>
+
+        <g id="node-inner_envelope" data-node-id="inner_envelope" data-node-label="InnerEnvelopeV1" tabindex="0" role="button" aria-label="Focus InnerEnvelopeV1, Canonical Plaintext Container (WP-A), Record" aria-pressed="false" data-node-kind="record" data-node-sublabel="Canonical Plaintext Container (WP-A)" data-node-context="Record" data-class-kind="record" class="cl-hue-database">
+          <title>InnerEnvelopeV1 · Canonical Plaintext Container (WP-A) · Record</title>
+          <rect x="32" y="928" width="290" height="204" rx="8" class="c-mask"/>
+          <rect x="32" y="928" width="290" height="204" rx="8" class="c-database cl-type" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="cl-header c-database" stroke="none" d="M 40 928 H 314 A 8 8 0 0 1 322 936 V 972 H 32 V 936 A 8 8 0 0 1 40 928 Z"/>
+          <path class="cl-cap" d="M 44 929.4 H 310" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" class="cl-badge">
+            <rect x="44" y="942" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="52" y="953.5" class="t-database cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">R</text>
+          </g>
+          <text x="177" y="944" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«record»</text>
+          <text data-node-label="" x="177" y="962" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">InnerEnvelopeV1</text>
+          <g data-detail="context" data-class-compartment="attributes">
+            <line x1="32" y1="972" x2="322" y2="972" class="cl-rule" stroke-width="1"/>
+            <rect x="44" y="981.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="51" y="992" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="attributes" x="64" y="992" class="t-primary cl-member" font-size="11">context</text><text data-detail="context" x="310" y="992" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">ApplicationContext</text>
+            <rect x="36" y="998" width="282" height="18" rx="4" class="cl-zebra"/><rect x="44" y="1001.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="51" y="1012" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="attributes" x="64" y="1012" class="t-primary cl-member" font-size="11">commitment</text><text data-detail="context" x="310" y="1012" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">[u8; 32] (SHA-256)</text>
+            <rect x="44" y="1021.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="51" y="1032" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="attributes" x="64" y="1032" class="t-primary cl-member" font-size="11">payload</text><text data-detail="context" x="310" y="1032" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Vec&lt;u8&gt;</text>
+          </g>
+          <g data-detail="context" data-class-compartment="methods">
+            <line x1="32" y1="1042" x2="322" y2="1042" class="cl-rule" stroke-width="1"/>
+            <rect x="36" y="1048" width="282" height="18" rx="4" class="cl-zebra"/><rect x="44" y="1051.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="51" y="1062" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="64" y="1062" class="t-primary cl-member" font-size="11">encode<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="310" y="1062" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Result&lt;Vec&lt;u8&gt;, Error&gt;</text>
+            <rect x="44" y="1071.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="51" y="1082" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="64" y="1082" class="t-primary cl-member" font-size="11">verify_commitment<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="1102" class="t-primary cl-member" font-size="11">&amp;self<tspan class="t-muted cl-punct">,</tspan> digest<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;[u8; 32]</tspan><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;</tspan><tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="1122" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
           </g>
         </g>
 
         <g id="node-state_envelope" data-node-id="state_envelope" data-node-label="StateEnvelope" tabindex="0" role="button" aria-label="Focus StateEnvelope, Versioned State Container, Record" aria-pressed="false" data-node-kind="record" data-node-sublabel="Versioned State Container" data-node-context="Record" data-class-kind="record" class="cl-hue-database">
           <title>StateEnvelope · Versioned State Container · Record</title>
-          <rect x="462" y="948" width="290" height="244" rx="8" class="c-mask"/>
-          <rect x="462" y="948" width="290" height="244" rx="8" class="c-database cl-type" data-animate="node" style="--step:6" stroke-width="1.2"/>
-          <path class="cl-header c-database" stroke="none" d="M 470 948 H 744 A 8 8 0 0 1 752 956 V 992 H 462 V 956 A 8 8 0 0 1 470 948 Z"/>
-          <path class="cl-cap" d="M 474 949.4 H 740" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="462" y="928" width="290" height="204" rx="8" class="c-mask"/>
+          <rect x="462" y="928" width="290" height="204" rx="8" class="c-database cl-type" data-animate="node" style="--step:7" stroke-width="1.2"/>
+          <path class="cl-header c-database" stroke="none" d="M 470 928 H 744 A 8 8 0 0 1 752 936 V 972 H 462 V 936 A 8 8 0 0 1 470 928 Z"/>
+          <path class="cl-cap" d="M 474 929.4 H 740" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="474" y="962" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="482" y="973.5" class="t-database cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">R</text>
+            <rect x="474" y="942" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="482" y="953.5" class="t-database cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">R</text>
           </g>
-          <text x="607" y="964" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«record»</text>
-          <text data-node-label="" x="607" y="982" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">StateEnvelope</text>
+          <text x="607" y="944" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«record»</text>
+          <text data-node-label="" x="607" y="962" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">StateEnvelope</text>
           <g data-detail="context" data-class-compartment="attributes">
-            <line x1="462" y1="992" x2="752" y2="992" class="cl-rule" stroke-width="1"/>
-            <rect x="474" y="1001.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1012" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="494" y="1012" class="t-primary cl-member" font-size="11">version</text><text data-detail="context" x="740" y="1012" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">StateVersion</text>
-            <rect x="466" y="1018" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="1021.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1032" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="494" y="1032" class="t-primary cl-member" font-size="11">generation</text><text data-detail="context" x="740" y="1032" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
-            <rect x="474" y="1041.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1052" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="494" y="1052" class="t-primary cl-member" font-size="11">checksum</text><text data-detail="context" x="740" y="1052" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">[u8; 32]</text>
-            <rect x="466" y="1058" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="1061.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1072" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="494" y="1072" class="t-primary cl-member" font-size="11">payload</text><text data-detail="context" x="740" y="1072" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Vec&lt;u8&gt;</text>
+            <line x1="462" y1="972" x2="752" y2="972" class="cl-rule" stroke-width="1"/>
+            <rect x="474" y="981.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="992" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="494" y="992" class="t-primary cl-member" font-size="11">version</text><text data-detail="context" x="740" y="992" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">StateVersion</text>
+            <rect x="466" y="998" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="1001.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1012" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="494" y="1012" class="t-primary cl-member" font-size="11">generation</text><text data-detail="context" x="740" y="1012" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">u64</text>
+            <rect x="474" y="1021.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1032" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="494" y="1032" class="t-primary cl-member" font-size="11">checksum</text><text data-detail="context" x="740" y="1032" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">[u8; 32]</text>
+            <rect x="466" y="1038" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="1041.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1052" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="494" y="1052" class="t-primary cl-member" font-size="11">payload</text><text data-detail="context" x="740" y="1052" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Vec&lt;u8&gt;</text>
           </g>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="462" y1="1082" x2="752" y2="1082" class="cl-rule" stroke-width="1"/>
-            <rect x="474" y="1091.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1102" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="1102" class="t-primary cl-member" font-size="11">wrap<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="1122" class="t-primary cl-member" font-size="11">ver<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">StateVersion</tspan><tspan class="t-muted cl-punct">,</tspan> gen<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">u64</tspan><tspan class="t-muted cl-punct">,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="1142" class="t-primary cl-member" font-size="11">bytes<tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">&amp;[u8]</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="1162" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Self</tspan></text>
-            <rect x="466" y="1168" width="282" height="18" rx="4" class="cl-zebra"/><rect x="474" y="1171.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1182" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="1182" class="t-primary cl-member" font-size="11">unwrap<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">&amp;self</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="740" y="1182" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Result&lt;&amp;[u8], Error&gt;</text>
+            <line x1="462" y1="1062" x2="752" y2="1062" class="cl-rule" stroke-width="1"/>
+            <rect x="474" y="1071.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="481" y="1082" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="494" y="1082" class="t-primary cl-member" font-size="11">decode<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="507.2" y="1102" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">bytes, expected_gen</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="494" y="1122" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Result&lt;Self</tspan><tspan class="t-muted cl-punct">,</tspan> Error&gt;</text>
           </g>
         </g>
 
         <!-- Relationship labels -->
-        <g data-detail="context" data-edge-from="quarantined_session" data-edge-to="endpoint" data-edge-label="binds verified endpoint" data-edge-key="0" data-edge-id="session_endpoint" data-class-relationship="composition">
-          <rect x="447.53" y="332" width="145.47" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="520.265" y="342" class="t-muted" font-size="9.5" text-anchor="middle">binds verified endpoint</text>
+        <g data-detail="context" data-edge-from="quarantined_session" data-edge-to="endpoint" data-edge-label="binds local &amp; remote" data-edge-key="0" data-edge-id="session_uses_endpoint" data-class-relationship="aggregation">
+          <rect x="465.20000000000005" y="332" width="127.8" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="529.1" y="342" class="t-muted" font-size="9.5" text-anchor="middle">binds local &amp; remote</text>
         </g>
-        <g data-detail="context" data-edge-from="quarantined_session" data-edge-to="authenticated_commit" data-edge-label="creates commit proof" data-edge-key="1" data-edge-id="session_commit" data-class-relationship="dependency">
-          <rect x="782" y="398" width="127.8" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="845.9" y="408" class="t-muted" font-size="9.5" text-anchor="middle">creates commit proof</text>
+        <g data-detail="context" data-edge-from="quarantined_session" data-edge-to="authenticated_commit" data-edge-label="stages opaque commit" data-edge-key="1" data-edge-id="session_produces_commit" data-class-relationship="dependency">
+          <rect x="782" y="393" width="127.8" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="845.9" y="403" class="t-muted" font-size="9.5" text-anchor="middle">stages opaque commit</text>
         </g>
         <g data-detail="context" data-edge-from="authenticated_commit" data-edge-to="commit_material" data-edge-label="wraps private material" data-edge-key="2" data-edge-id="commit_wraps_material" data-class-relationship="composition">
-          <rect x="1043" y="360.5" width="139.58" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="1112.79" y="370.5" class="t-muted" font-size="9.5" text-anchor="middle">wraps private material</text>
+          <rect x="1043" y="353" width="139.58" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="1112.79" y="363" class="t-muted" font-size="9.5" text-anchor="middle">wraps private material</text>
         </g>
         <g data-detail="context" data-edge-from="commit_material" data-edge-to="snapshot_transfer" data-edge-label="converts to zeroizing transfer" data-edge-key="3" data-edge-id="material_transfer" data-class-relationship="dependency">
-          <rect x="844.3" y="883.5" width="186.7" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="937.65" y="893.5" class="t-muted" font-size="9.5" text-anchor="middle">converts to zeroizing transfer</text>
+          <rect x="844.3" y="858.5" width="186.7" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="937.65" y="868.5" class="t-muted" font-size="9.5" text-anchor="middle">converts to zeroizing transfer</text>
         </g>
-        <g data-detail="context" data-edge-from="vodozemac_provider" data-edge-to="e2ee_provider" data-edge-label="implements Olm v1" data-edge-key="4" data-edge-id="vodozemac_implements_provider" data-class-relationship="realization">
-          <rect x="183" y="423" width="110.13" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="238.065" y="433" class="t-muted" font-size="9.5" text-anchor="middle">implements Olm v1</text>
+        <g data-detail="context" data-edge-from="vodozemac_provider" data-edge-to="e2ee_provider" data-edge-label="implements (supports_aad=false)" data-edge-key="4" data-edge-id="vodozemac_implements_provider" data-class-relationship="realization">
+          <rect x="183" y="408" width="192.59" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="279.295" y="418" class="t-muted" font-size="9.5" text-anchor="middle">implements (supports_aad=false)</text>
         </g>
         <g data-detail="context" data-edge-from="quarantined_session" data-edge-to="vodozemac_provider" data-edge-label="delegates ratchets" data-edge-key="5" data-edge-id="session_provider" data-class-relationship="dependency">
-          <rect x="333.99" y="603" width="116.02" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="392" y="613" class="t-muted" font-size="9.5" text-anchor="middle">delegates ratchets</text>
+          <rect x="333.99" y="580" width="116.02" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="392" y="590" class="t-muted" font-size="9.5" text-anchor="middle">delegates ratchets</text>
         </g>
-        <g data-detail="context" data-edge-from="commit_material" data-edge-to="state_envelope" data-edge-label="persists versioned envelope" data-edge-key="6" data-edge-id="material_envelope" data-class-relationship="association">
-          <rect x="828" y="844.5" width="169.03" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="912.515" y="854.5" class="t-muted" font-size="9.5" text-anchor="middle">persists versioned envelope</text>
+        <g data-detail="context" data-edge-from="quarantined_session" data-edge-to="inner_envelope" data-edge-label="authenticates inside Olm" data-edge-key="6" data-edge-id="session_envelope" data-class-relationship="composition">
+          <rect x="234.64" y="825" width="151.35999999999999" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="310.32" y="835" class="t-muted" font-size="9.5" text-anchor="middle">authenticates inside Olm</text>
+        </g>
+        <g data-detail="context" data-edge-from="commit_material" data-edge-to="state_envelope" data-edge-label="persists versioned envelope" data-edge-key="7" data-edge-id="material_envelope" data-class-relationship="association">
+          <rect x="828" y="819.5" width="169.03" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="912.515" y="829.5" class="t-muted" font-size="9.5" text-anchor="middle">persists versioned envelope</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="">
-          <text x="24" y="1214" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="dependency" data-legend-x="24" data-legend-baseline="1234" data-legend-width="117">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Depends on" x="18" y="1219" width="129" height="22" rx="11"/><path d="M 26 1230 L 56 1230" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-open)"/>
-            <text x="66" y="1234" class="t-muted" font-size="12" font-weight="500">Depends on</text>
+          <text x="24" y="1154" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="dependency" data-legend-x="24" data-legend-baseline="1174" data-legend-width="117">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Depends on" x="18" y="1159" width="129" height="22" rx="11"/><path d="M 26 1170 L 56 1170" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-open)"/>
+            <text x="66" y="1174" class="t-muted" font-size="12" font-weight="500">Depends on</text>
           </g>
-          <g data-legend-semantic-kind="association" data-legend-x="163" data-legend-baseline="1234" data-legend-width="124">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Association" x="157" y="1219" width="136" height="22" rx="11"/><path d="M 165 1230 L 195 1230" class="a-default cl-relationship" stroke-width="1.5" marker-end="url(#cl-open)"/>
-            <text x="205" y="1234" class="t-muted" font-size="12" font-weight="500">Association</text>
+          <g data-legend-semantic-kind="association" data-legend-x="163" data-legend-baseline="1174" data-legend-width="124">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Association" x="157" y="1159" width="136" height="22" rx="11"/><path d="M 165 1170 L 195 1170" class="a-default cl-relationship" stroke-width="1.5" marker-end="url(#cl-open)"/>
+            <text x="205" y="1174" class="t-muted" font-size="12" font-weight="500">Association</text>
           </g>
-          <g data-legend-semantic-kind="realization" data-legend-x="309" data-legend-baseline="1234" data-legend-width="117">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Implements" x="303" y="1219" width="129" height="22" rx="11"/><path d="M 311 1230 L 341 1230" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-            <text x="351" y="1234" class="t-muted" font-size="12" font-weight="500">Implements</text>
+          <g data-legend-semantic-kind="realization" data-legend-x="309" data-legend-baseline="1174" data-legend-width="117">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Implements" x="303" y="1159" width="129" height="22" rx="11"/><path d="M 311 1170 L 341 1170" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+            <text x="351" y="1174" class="t-muted" font-size="12" font-weight="500">Implements</text>
           </g>
-          <g data-legend-semantic-kind="composition" data-legend-x="448" data-legend-baseline="1234" data-legend-width="124">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Composition" x="442" y="1219" width="136" height="22" rx="11"/><path d="M 450 1230 L 480 1230" class="a-default cl-relationship" stroke-width="1.5" marker-start="url(#cl-diamond-filled)"/>
-            <text x="490" y="1234" class="t-muted" font-size="12" font-weight="500">Composition</text>
+          <g data-legend-semantic-kind="composition" data-legend-x="448" data-legend-baseline="1174" data-legend-width="124">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Composition" x="442" y="1159" width="136" height="22" rx="11"/><path d="M 450 1170 L 480 1170" class="a-default cl-relationship" stroke-width="1.5" marker-start="url(#cl-diamond-filled)"/>
+            <text x="490" y="1174" class="t-muted" font-size="12" font-weight="500">Composition</text>
+          </g>
+          <g data-legend-semantic-kind="aggregation" data-legend-x="594" data-legend-baseline="1174" data-legend-width="124">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="Aggregation" x="588" y="1159" width="136" height="22" rx="11"/><path d="M 596 1170 L 626 1170" class="a-default cl-relationship" stroke-width="1.5" marker-start="url(#cl-diamond-hollow)"/>
+            <text x="636" y="1174" class="t-muted" font-size="12" font-weight="500">Aggregation</text>
           </g>
         </g>
       </svg>
@@ -5752,12 +5786,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Quarantined Security Boundary</h3>
+          <h3>Quarantined Security Boundary &amp; Native AAD</h3>
         </div>
         <ul>
           <li>QuarantinedSession wraps Vodozemac Olm in an unexported boundary module.</li>
-          <li>Ratcheting occurs exclusively in memory; no ratchet advances before storage transaction commits.</li>
-          <li>prepare_retry() delivers exact identical ciphertext without mutating cryptographic state.</li>
+          <li>NativeAadProvider::supports_aad() returns false; public encrypt/decrypt unconditionally returns AadUnsupported.</li>
+          <li>InnerEnvelopeV1 authenticates full context inside Olm; outer SHA-256 is strictly a correspondence commitment, not a separate MAC.</li>
         </ul>
       </div>
 

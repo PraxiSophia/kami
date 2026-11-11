@@ -136,6 +136,27 @@ fn valid_ciphertext_and_every_context_substitution_stay_fail_closed() {
 }
 
 #[test]
+fn native_aad_contract_is_separate_from_quarantined_envelope_composition() {
+    fn assert_native_contract<P: kami_e2ee::NativeAadProvider>(provider: &P) {
+        assert!(!provider.supports_aad());
+        let state = StateEnvelope::initial(vec![]).unwrap();
+        assert_eq!(
+            provider.encrypt(&state, b"hello", &ctx()),
+            Err(kami_e2ee::Error::AadUnsupported)
+        );
+        assert_eq!(
+            provider.decrypt(&state, b"{}", &ctx()),
+            Err(kami_e2ee::Error::AadUnsupported)
+        );
+    }
+    // The compatibility name denotes exactly the same native-AAD contract.
+    fn legacy<P: E2eeProvider>(provider: &P) {
+        assert_native_contract(provider);
+    }
+    legacy(&provider());
+}
+
+#[test]
 fn provider_contract_is_immutable_staged_and_aad_explicit() {
     let p = provider();
     let state = StateEnvelope::initial(vec![]).unwrap();

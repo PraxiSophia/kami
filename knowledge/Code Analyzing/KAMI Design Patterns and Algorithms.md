@@ -38,6 +38,10 @@ Analysis Baseline: Git branch `protocol-storage`, HEAD commit `0de16c9` with unc
 | **F. Resilience** | Bounded Input Pre-Scanning | Rejects oversized or malicious frames early | IMPLEMENTED AND VERIFIED | `kami-protocol` |
 | **F. Resilience** | Fault Injection & Boundary Probes | Proves compiler encapsulation and privacy | IMPLEMENTED AND VERIFIED | `kami-e2ee`, `kami-storage`, `kami-runtime` |
 | **F. Resilience** | Scoped Directory Isolation | Prevents cross-test interference without `/tmp` | IMPLEMENTED AND VERIFIED | `kami-runtime` |
+| **G. Network & Direct Transport** | Revocable Linear Capability | Unforgeable connection handle with generation checks | IMPLEMENTED AND VERIFIED | `kami-transport` |
+| **G. Network & Direct Transport** | Expected-Peer Swarm Dial Binding | Aborts connections if remote peer does not match expected ID | IMPLEMENTED AND VERIFIED | `kami-transport` |
+| **D. Security** | Inner Plaintext Envelope Authentication | Authenticates inner envelope; outer SHA-256 is correspondence check | IMPLEMENTED AND VERIFIED | `kami-e2ee` (WP-A) |
+| **F. Resilience** | Two-Process Interactive Qualification | Manual out-of-band fingerprint comparison and rejection verification | IMPLEMENTED AND VERIFIED | `kami-transport`, `kami-runtime` |
 
 ---
 
@@ -356,6 +360,50 @@ Analysis Baseline: Git branch `protocol-storage`, HEAD commit `0de16c9` with unc
 - **Relationships**: Ensures Repeatable Continuous Integration.
 - **Status**: IMPLEMENTED AND VERIFIED.
 - **Tradeoffs / Limitations**: Test directories must be explicitly cleaned up after test completion.
+
+### 28. Revocable Linear Connection Capability Pattern (KAMI-27)
+- **Simple Explanation**: Issuing a single-ownership, non-cloneable capability struct (`AuthenticatedConnection`) representing an established cryptographic connection, which can be instantaneously invalidated across all threads via an atomic revocation flag.
+- **Why Kami Uses It**: Guarantees that callers cannot manufacture fake network connection capabilities from strings or forge connection states, and allows the runtime to instantly revoke network capabilities if a profile lease expires or trust is revoked.
+- **Source Evidence**:
+  - `crates/kami-transport/src/connection.rs`: `AuthenticatedConnection` does not implement `Clone` or `Default`. It wraps an atomic `Revocation` handle, connection live-flag, and expiration `Instant`.
+  - `crates/kami-transport/src/connection.rs`: Compile-fail doctests verify that cloning or default-constructing the capability fails compilation.
+- **Implementation Mechanism**: Rust move semantics, `Arc<AtomicBool>`, and monotonic deadlines.
+- **Relationships**: Consumed by `kami-runtime`; anchored by `kami-identity`.
+- **Status**: IMPLEMENTED AND VERIFIED.
+- **Tradeoffs / Limitations**: Capabilities cannot be shared across threads without explicit synchronization channels.
+
+### 29. Expected-Peer Swarm Dial Binding Pattern (KAMI-27)
+- **Simple Explanation**: Binding outbound network dials to an expected cryptographic `PeerId` before initiating a connection, ensuring the transport layer automatically aborts the handshake if a different entity answers at the target IP/port.
+- **Why Kami Uses It**: Prevents Man-In-The-Middle (MITM) attacks and IP socket spoofing. If an attacker controls the target IP address or port, libp2p verifies the peer's private key during the cryptographic handshake and immediately rejects the connection before user data or protocol negotiation occurs.
+- **Source Evidence**:
+  - `crates/kami-transport/src/driver.rs`: `Driver` dials using `DialOpts::peer_id(expected_peer).addresses(candidates).build()`.
+  - `crates/kami-transport/src/driver.rs`: Swarm events verify `send_decision(...) == SendDecision::Allow` against fresh `ContactTrust` records upon `ConnectionEstablished`.
+- **Implementation Mechanism**: libp2p `DialOpts`, TLS 1.3 / Noise XX mutual handshake verification.
+- **Relationships**: Bridges `kami-transport` and `kami-identity`.
+- **Status**: IMPLEMENTED AND VERIFIED.
+- **Tradeoffs / Limitations**: Outbound dials require prior out-of-band knowledge of the target's public `PeerId`.
+
+### 30. Canonical Inner Plaintext Envelope with Outer Correspondence Commitment Pattern (KAMI-51 WP-A)
+- **Simple Explanation**: Encrypting and authenticating a structured canonical binary envelope (`InnerEnvelopeV1`) inside the cryptographic session, while using an outer SHA-256 hash strictly as a correspondence commitment to verify that outer framing matches the inner plaintext.
+- **Why Kami Uses It**: Matrix's Olm v1 lacks native Additional Authenticated Data (AAD) support. By embedding the entire message context (conversation ID, sender, recipient, message ID, sequence, timestamp, and Peer-ID proofs) inside the canonical plaintext envelope *before* Olm encryption, the Double Ratchet authenticates the entire context, while outer SHA-256 checks guarantee alignment between wire frames and decrypted payloads without functioning as a separate MAC.
+- **Source Evidence**:
+  - `crates/kami-e2ee/src/envelope.rs`: `InnerEnvelopeV1` canonical binary layout; outer `authentication_context` calculated as SHA-256 of inner bytes.
+  - `crates/kami-e2ee/src/authenticated.rs`: Post-decryption context checks verify conversation ID, device IDs, message kind, and outer correspondence.
+- **Implementation Mechanism**: Deterministic binary serialization + Olm v1 AES-256-CBC/HMAC-SHA-256 + SHA-256 commitment check.
+- **Relationships**: Bridges `kami-protocol`, `kami-e2ee`, and `kami-storage`.
+- **Status**: IMPLEMENTED AND VERIFIED (WP-A).
+- **Tradeoffs / Limitations**: Requires allocating inner envelope buffers and performing post-decryption field comparisons.
+
+### 31. Two-Process Owner-Operated Interactive Qualification Pattern (KAMI-27)
+- **Simple Explanation**: Running two distinct OS processes in separate terminal sessions where a human operator explicitly compares cryptographic public-key fingerprints out-of-band, enters verification decisions, and exercises disconnect, reconnect, and rejection negative paths.
+- **Why Kami Uses It**: Proves that the platform cannot be tricked by silent trust-on-first-use (TOFU) or automated mocks, establishing real-world human verification and Linux native D-Bus/GNOME Keyring integration.
+- **Source Evidence**:
+  - `scripts/kami27-manual/setup.sh`, `start-a.sh`, `start-b.sh`, `reject-negative.sh`.
+  - `crates/kami-runtime/src/transport_tests.rs`: `manual_endpoint` interactive test harness.
+- **Implementation Mechanism**: Bash harness scripts driving interactive `cargo test` runs with stdin/stdout terminal prompts.
+- **Relationships**: Bridges `kami-identity`, `kami-transport`, and `kami-runtime`.
+- **Status**: IMPLEMENTED AND VERIFIED.
+- **Tradeoffs / Limitations**: Requires manual operator interaction; cannot be automated in headless continuous integration pipelines.
 
 ---
 

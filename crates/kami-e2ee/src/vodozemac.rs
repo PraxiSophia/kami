@@ -1,11 +1,16 @@
 use crate::{
     errors::{Error, ProviderError},
-    profile::{Profile, MAX_PLAINTEXT_BYTES},
-    provider::{DecryptResult, E2eeProvider, EncryptResult},
+    profile::Profile,
+    provider::{DecryptResult, EncryptResult, NativeAadProvider},
     state::{StateEnvelope, StateVersion, MAX_STATE_BYTES},
     types::ApplicationContext,
 };
-use vodozemac::olm::{OlmMessage, Session, SessionPickle};
+use vodozemac::olm::Session;
+#[cfg(test)]
+use {
+    crate::profile::MAX_PLAINTEXT_BYTES,
+    vodozemac::olm::{OlmMessage, SessionPickle},
+};
 
 /// Provider JSON input ceiling, not a full network-envelope size guarantee.
 pub const MAX_CIPHERTEXT_BYTES: usize = 65_536;
@@ -13,8 +18,8 @@ pub const MAX_CIPHERTEXT_BYTES: usize = 65_536;
 /// Internal foundation around vodozemac 0.11.1, not an enabled messaging provider.
 ///
 /// Olm has no native AAD API here. Public encrypt/decrypt operations fail with
-/// `AadUnsupported` until a separately reviewed authenticated context binding
-/// exists. There is no opt-out flag or raw-session escape hatch.
+/// `AadUnsupported`. Kami's separate quarantined inner-envelope composition is
+/// not native AAD support. There is no opt-out flag or raw-session escape hatch.
 ///
 /// ```compile_fail
 /// use kami_e2ee::VodozemacProvider;
@@ -25,6 +30,7 @@ pub const MAX_CIPHERTEXT_BYTES: usize = 65_536;
 pub struct VodozemacProvider {
     session: Session,
     generation: u64,
+    #[cfg(test)]
     max_plaintext_bytes: usize,
 }
 
@@ -35,6 +41,7 @@ impl VodozemacProvider {
         Self {
             session,
             generation: 0,
+            #[cfg(test)]
             max_plaintext_bytes: MAX_PLAINTEXT_BYTES,
         }
     }
@@ -77,6 +84,7 @@ impl VodozemacProvider {
         Ok(())
     }
 
+    #[cfg(test)]
     fn session_for(&self, state: &StateEnvelope) -> Result<Session, Error> {
         // Directly constructed public envelopes are untrusted too. Validate the
         // version, exact generation, size and branch before provider parsing.
@@ -93,6 +101,7 @@ impl VodozemacProvider {
             .map_err(|_| Error::Provider(ProviderError::State))
     }
 
+    #[cfg(test)]
     fn next_state(state: &StateEnvelope, session: &Session) -> Result<StateEnvelope, Error> {
         let generation = state
             .generation
@@ -101,8 +110,9 @@ impl VodozemacProvider {
         StateEnvelope::new(generation, Self::encode_session(session)?)
     }
 
-    // Private unbound staging primitives retained for fixed foundation tests.
-    // Public callers cannot reach these until authenticated context is supported.
+    // Only fixed foundation tests compile unbound primitives. Native AAD cannot
+    // be enabled by changing a capability flag or returning an echoed context.
+    #[cfg(test)]
     fn encrypt_unbound(
         &self,
         state: &StateEnvelope,
@@ -125,6 +135,7 @@ impl VodozemacProvider {
         })
     }
 
+    #[cfg(test)]
     fn decrypt_unbound(
         &self,
         state: &StateEnvelope,
@@ -156,19 +167,16 @@ impl VodozemacProvider {
     }
 }
 
-impl E2eeProvider for VodozemacProvider {
+impl NativeAadProvider for VodozemacProvider {
     fn encrypt(
         &self,
         state: &StateEnvelope,
-        plaintext: &[u8],
+        _plaintext: &[u8],
         context: &ApplicationContext,
     ) -> Result<EncryptResult, Error> {
-        let encoded_context = context.encode()?;
+        context.validate()?;
         self.validate_state(state)?;
-        if !self.supports_aad() {
-            return Err(Error::AadUnsupported);
-        }
-        self.encrypt_unbound(state, plaintext, encoded_context)
+        Err(Error::AadUnsupported)
     }
 
     fn decrypt(
@@ -178,12 +186,9 @@ impl E2eeProvider for VodozemacProvider {
         context: &ApplicationContext,
     ) -> Result<DecryptResult, Error> {
         Self::validate_ciphertext_size(ciphertext)?;
-        let encoded_context = context.encode()?;
+        context.validate()?;
         self.validate_state(state)?;
-        if !self.supports_aad() {
-            return Err(Error::AadUnsupported);
-        }
-        self.decrypt_unbound(state, ciphertext, encoded_context)
+        Err(Error::AadUnsupported)
     }
 }
 

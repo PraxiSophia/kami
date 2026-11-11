@@ -1,6 +1,7 @@
 # kami-e2ee
 
-KAMI-51 provider/profile foundation (WP1), quarantined WP2-A2 authenticated
+KAMI-51 provider/profile foundation (WP1), the accepted-with-limitations WP-A
+authenticated-context/provider-contract correction, quarantined WP2-A2 authenticated
 inner envelopes, bounded WP3 snapshots, and **WP2-B typed storage composition**, integrating the
 [kami-identity WP2-A1 signed account/prekey binding](../kami-identity/README.md).
 **Production messaging is not enabled; the general provider's encryption/decryption
@@ -10,20 +11,43 @@ Signal/Matrix interoperability, or production security qualification.
 
 ## Implementation and qualification status
 
-The KAMI-51 WP1 -> WP2-A1 -> WP2-A2 -> WP3 -> quarantined WP2-B Rust boundaries are
+The KAMI-51 WP1 -> WP2-A1 -> WP2-A2 -> WP3 -> quarantined WP2-B -> WP-A Rust boundaries are
 implemented in this checkout. WP3 is accepted as a bounded private storage
 foundation. WP2-B has conditional owner acceptance only within its quarantined
-scope; its implementation and independent QA/Evaluator reviews reported PASS. The
-WP2-B evidence is specifically run 126 with QA/Evaluator runs 127/128, not evidence
-for the earlier work packages. This does not enable production messaging, establish
-live network provenance, or complete KAMI-51/M1. Jira last reported KAMI-51 as **To
-Do** on 2026-11-03; that record was not silently changed by implementation evidence
-and must not be treated as a complete production-status record.
+scope; its implementation and independent QA/Evaluator reviews reported PASS. WP-A
+is accepted with limitations after implementation run 187, independent QA run 188,
+and final security evaluation run 189; its acceptance checkpoint is Kanban comment
+176. This does not enable production messaging, establish live network provenance,
+or complete KAMI-51/M1. Jira status is authoritative for the issue record and is not
+changed by this documentation.
 
-WP3 acceptance and WP2-B conditional acceptance are bounded decisions only; full KAMI-51 owner acceptance is not recorded. Pending gates include runtime and transport
-integration, prekey lifecycle, production receipt/Delivered activation, external rollback
-authority, cross-platform qualification, interoperability, and production security
-review.
+## WP-A provider and API boundary
+
+The pinned `vodozemac = 0.11.1` adapter implements the explicit `NativeAadProvider`
+contract and remains compatible with the broader `E2eeProvider` interface. Because this
+provider does not supply native application AAD, `supports_aad()` remains `false` and
+public provider encryption/decryption returns `AadUnsupported` after applicable input
+validation. The quarantined authenticated composition is therefore a separate contract;
+it must not be described as native provider AAD or used to enable the general production
+API.
+
+WP-A's authenticated path encrypts a fixed-order canonical `InnerEnvelopeV1` inside
+Olm, then performs post-decryption checks for the exact context, identities, direction,
+proof digests, message kind, sequence/receipt target, timestamp, and outer frame
+correspondence. The outer SHA-256 is only a correspondence commitment; authenticity is
+provided by the verified Olm session and anchored checks. Staged results, proposed state,
+and exact-frame retry are distinct from durable commit or delivery authority. Private
+unbound helpers exist only for test fixtures and negative-security tests; they are not
+exported production bypasses.
+
+The authenticated API checks the supplied trust, end-peer, proof, and clock context, but
+the pure boundary cannot prove that a supplied snapshot is live or fresh. Runtime/storage
+must provide live end-peer provenance, serialize trust decisions with use, and enforce
+durable state custody. The accepted in-process snapshot custodian can technically consume
+full provider pickles, including private prekeys; this is a trusted-custody limitation,
+not protection from a malicious custodian, native/allocator copies, dumps, or endpoint
+compromise. `ProfileRestore` remains fail-closed because no external rollback anchor is
+available.
 
 ## Modules and interfaces
 
@@ -37,7 +61,9 @@ review.
   malformed lengths, trailing bytes, unsupported versions and oversized state fail.
   `StateRollback` names either direction of generation mismatch. The provider-byte
   ceiling is 1 MiB, excluding the header.
-- `provider`: staged `E2eeProvider` result contracts. A staged value is not a commit.
+- `provider`: explicit `NativeAadProvider` contract and the `E2eeProvider` compatibility
+  alias. A staged value is not a commit; the native provider capability remains
+  unavailable for vodozemac.
 - `vodozemac`: pinned `vodozemac = 0.11.1` adapter; the local session supplied to
   `new`/`with_profile` anchors generation zero. Before restoring a directly
   constructed envelope, it checks version, exact generation, size and exact
@@ -77,12 +103,55 @@ Merely changing a context field cannot turn a rejection into success. WP2-A2 doe
 not flip this flag or activate the public API.
 
 Private unbound staging helpers preserve the foundation's crypto code and allow
-fixed-fixture tests, but are not exported. They restore a copy, leaving the anchor
-unchanged, and return a checked next generation. Feeding that candidate back to
-the old anchor is rejected; only tests simulate installing a committed anchor.
+fixed-fixture tests, but are compiled only for test builds and are not exported.
+They restore a copy, leaving the anchor unchanged, and return a checked next
+generation. Feeding that candidate back to the old anchor is rejected; only tests
+simulate installing a committed anchor.
 This is **not** crash safety, durable anti-rollback, atomic CAS or a multi-writer
 commit mechanism. A caller-selected expected generation alone cannot authenticate
 a stored envelope; trusted durable state and rollback policy remain future work.
+
+## WP-A accepted provider and context contract
+
+WP-A retains vodozemac `0.11.1` and makes the provider boundary explicit without
+claiming native application AAD. `NativeAadProvider` is the named native-AAD
+contract; `E2eeProvider` remains a compatibility alias for existing callers. The
+vodozemac implementation reports `supports_aad() == false` and returns
+`AadUnsupported` for valid public native-AAD operations. It does not fall back to
+unauthenticated context handling.
+
+The application-bound qualification path serializes canonical `InnerEnvelopeV1` as
+the exact plaintext authenticated by the Olm session. After decryption, Kami
+canonical-decodes the inner envelope and checks its context, session, direction,
+devices, Peer IDs, signed-binding digests, and duplicated outer fields. The outer
+SHA-256 is recomputed as a correspondence commitment; it is not a standalone MAC
+and must not be described as one.
+
+The public production provider remains fail-closed. `BoundSession`, envelope
+internals, staging anchors, snapshots, and raw-session operations remain private or
+restricted. Unbound provider helpers are test-only. Staged operations clone state
+and do not advance the source until finalization; rejected operations preserve the
+source state, and retry reuses the exact previously prepared frame rather than
+re-encrypting or ratcheting.
+
+The focused WP-A tests cover context and outer/inner substitution, identity/device/
+Peer-ID/binding mismatches, cross-session substitution, replay, malformed and
+noncanonical input, frame limits, stale trust at finalization/retry, state
+immutability, provider AAD behavior, and public API privacy. They do not establish
+live network provenance or production qualification.
+
+Values such as `ExpectedContext`, `ContactTrust`, timestamps, and Peer IDs supplied
+to this E2EE boundary are structural assertions, not independently authenticated
+runtime facts. The E2EE crate does not yet consume the producer-owned KAMI-27
+authenticated transport capability, so runtime integration must provide
+nonforgeable connection provenance and serialized trust/freshness checks before
+production activation.
+
+The existing trusted in-process custodian can consume full provider/account/session
+snapshots. WP-A adds no new export, but this remains a custody limitation: no total
+private-material non-exportability or protection from a malicious legitimate
+custodian is claimed. Prekey lifecycle, durable recovery and rollback, integrated
+qualification, application delivery, and production E2EE remain disabled.
 
 The WP1 ciphertext JSON input ceiling is 65,536 bytes **before provider parsing**
 in both public entry and private helper; its private plaintext staging ceiling is

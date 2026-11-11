@@ -1,8 +1,8 @@
 # Kami Development Roadmap
 
-Status: documentation synchronized with bounded KAMI-26 source/test behavior; no production or M1 completion claim
-Last repository inspection: 2026-11-06 (KAMI-26 implementation, QA, Evaluator, and documentation verification)
-Last Jira evidence read: 2026-11-05 (no fresh Jira read in this verification; connector unavailable)
+Status: documentation synchronized with bounded KAMI-27 and KAMI-51 WP-A owner acceptance; no production or M1 completion claim
+Last repository inspection: 2026-11-10 (KAMI-27 and WP-A acceptance, implementation/QA/Evaluator evidence, manual suite, and Git state)
+Last Jira evidence read: 2026-11-08 (KAMI-27 through KAMI-32 and KAMI-51; read-only manager path)
 Implementation language: Rust only
 
 This roadmap is the default local planning reference for Kami. It summarizes repository evidence, recorded KAMI-51 implementation/review evidence, canonical requirements, and the latest reconciled Jira reads. Jira remains authoritative for Jira issue fields, workflow status, and issue links; this document does not change or replace Jira.
@@ -68,7 +68,7 @@ Jira workflow status is a project-record state, not a direct measurement of core
 | Sender lifecycle | `kami-sender`, KAMI-24/KAMI-25 | Durable enqueue, retry/recovery, cancellation, queue state, exact logical-message retention, authenticated receipt consumption and Delivered projection. Not runtime or transport. |
 | Receiver lifecycle | `kami-receiver`, KAMI-25 | Implemented bounded durable inbox/dedup, ordering/gaps, exact replay and same-session authenticated delivery receipt persistence. No live receive loop. |
 | Supervised runtime | `kami-runtime`, KAMI-26 | Verified bounded Tokio owner, blocking storage/key seams, profile ownership, cancellation, shutdown, durable restart reconciliation, and relay-renewal scheduling. No live transport or production authenticated ingress. |
-| Direct transport | KAMI-27 | Authenticated rust-libp2p direct path and Peer-ID validation. |
+| Direct transport | KAMI-27 | Owner-accepted bounded authenticated rust-libp2p direct path with Peer-ID validation; Linux localhost qualification only. |
 | Relay service/session | KAMI-29/KAMI-30 | Default-deny live relay, reservations, inner authenticated endpoint session. |
 | Path fallback | KAMI-31 | Direct-first selection, relay failover, same logical message across paths. |
 | CLI/local IPC | KAMI-32 | Unix sockets/named pipes, service control, authorization, diagnostics, rendering. |
@@ -125,11 +125,11 @@ Functionally implemented and tested. It imports invitations as untrusted data, d
 
 ### KAMI-51 — authenticated session and crash-safe ratchet persistence
 
-Jira status: To Do, last read 2026-11-03. Jira was not silently changed to match implementation evidence.
+Jira status: last manager evidence read 2026-11-08; Jira was not silently changed to match implementation evidence. The full issue remains incomplete.
 
 Recorded work-package status and evidence:
 
-The actual implementation order was **WP1 -> WP2-A1 -> WP2-A2 -> WP3 -> WP2-B**.
+The actual implementation order was **WP1 -> WP2-A1 -> WP2-A2 -> WP3 -> WP2-B -> WP-A**.
 WP4 and WP5 are downstream planning groups, not prerequisites for accepting these
 foundations.
 
@@ -138,13 +138,70 @@ foundations.
 - WP2-A2: implemented and independently reviewed within the authenticated-envelope scope. Implementation `t_501a91b6`; QA `t_707f16fb`; Evaluator `t_099f6098`.
 - WP3: implemented, independently QA-verified, independently security-evaluated, and owner accepted as a bounded private storage foundation. Implementation `t_fd283614`; QA `t_2d834cf1`; Evaluator `t_82d8776a`. Acceptance covers the quarantined storage scope, not production rollback protection or runtime activation.
 - WP2-B: implemented and independently reviewed within the conditional quarantined scope. Implementation run 126 on task `t_b8cb3f89`; QA task `t_48119cc5`, run 127; Evaluator task `t_21f65076`, run 128. The owner-facing recommendation was **ACCEPT WITH CONDITIONS** for WP2-B only.
+- WP-A: implemented and accepted with limitations as the bounded authenticated-context/provider-contract package. Implementation `t_b295f09f`, run 187; independent QA `t_d92abbc2`, run 188; final security Evaluator `t_e03aec4f`, run 189; acceptance checkpoint Kanban comment 176. It retains vodozemac 0.11.1, makes `NativeAadProvider` explicit while preserving `E2eeProvider` compatibility, retains `supports_aad=false`/`AadUnsupported`, preserves canonical Olm-authenticated `InnerEnvelopeV1` context checks, and keeps public production encryption fail-closed.
 
 WP2-B consumes the accepted WP3 storage foundation and the preceding WP1/WP2-A
-contracts. KAMI-24 may consume this accepted KAMI-51 foundation without waiting for
-the full KAMI-51 parent issue, WP4, or WP5 to be complete. None of these bounded
-acceptances marks the full KAMI-51 Jira issue complete.
+contracts. WP-A corrects and qualifies the provider/context boundary; it does not
+connect E2EE to the producer-owned KAMI-27 authenticated transport capability.
+KAMI-24 may consume this accepted KAMI-51 foundation without waiting for the full
+KAMI-51 parent issue, WP4, or WP5 to be complete. None of these bounded acceptances
+marks the full KAMI-51 Jira issue complete.
 
-Pending: live runtime end-peer provenance, production prekey lifecycle, production orchestration of the bounded KAMI-25 receipt/Delivered seam, external rollback authority, service race guards, cross-platform/interoperability qualification, and production security review.
+Pending: live runtime end-peer provenance, WP-B production prekey lifecycle, WP-C durable session recovery and rollback policy, production orchestration of the bounded KAMI-25 receipt/Delivered seam, external rollback authority, service race guards, cross-platform/interoperability qualification, WP-D integrated qualification, and production security review.
+
+### KAMI-51 WP-A — accepted with limitations
+
+WP-A is the current owner-accepted bounded milestone for the authenticated-context and provider-contract correction. It builds on the earlier WP1/WP2-A1/WP2-A2/WP3 and quarantined WP2-B evidence but does not re-accept or replace those work packages. The retained `vodozemac = 0.11.1` adapter implements the explicit
+`NativeAadProvider` contract while remaining compatible with `E2eeProvider`; its
+`supports_aad()` is false and public calls remain fail-closed with `AadUnsupported`.
+The bounded path instead authenticates a canonical `InnerEnvelopeV1` inside Olm,
+performs exact post-decryption context and correspondence checks, and uses the outer
+SHA-256 only as a correspondence commitment. Staged values and exact-frame retry are
+not durable commit or delivery authority; test-only unbound helpers and negative-
+security fixtures do not create a production bypass.
+
+The supplied trust/end-peer/clock/context values are checked structurally, but pure
+E2EE code cannot establish live runtime provenance or snapshot freshness. The
+in-process snapshot custodian can consume full provider pickles, including private
+prekeys, so custody is trusted and not a malicious-custodian or endpoint-compromise
+defense. `ProfileRestore` fails closed without an external rollback anchor. WP-A does
+not enable public/production E2EE, application delivery, ACK/Delivered authority, or
+M1 completion.
+
+Evidence: implementation `t_b295f09f`, run 187; independent QA `t_d92abbc2`, run
+188; final security Evaluator `t_e03aec4f`, run 189; acceptance checkpoint Kanban
+comment 176. The required formatting, workspace check, Clippy, focused E2EE tests,
+workspace tests, diff check, and focused KAMI-27 direct-transport regression passed;
+three existing native/owner-operated tests remained ignored by design.
+
+Remaining KAMI-51 work is explicitly outside this acceptance: WP-B owns production
+prekey publication/rotation/freshness/replenishment, WP-C owns durable recovery and
+rollback authority, and WP-D owns integrated qualification and production security
+evidence. KAMI-28 first-message delivery remains downstream of these gates. The
+original WP4 runtime/delivery and WP5 qualification/evidence groupings below remain
+planning groups and are not replaced by WP-A or converted into Jira issues.
+
+### WP-B — production prekey lifecycle
+
+Internal planning group, not a Jira issue. Scope is identity-owned prekey publication,
+rotation, freshness, replenishment, consumption, fallback, restart behavior, and
+custody. It depends on the accepted WP-A context/provider boundary, existing identity
+and storage contracts, and a runtime-owned provenance seam. It must not enable public
+E2EE until trust, freshness, and failure behavior are independently qualified.
+
+### WP-C — durable session recovery and rollback policy
+
+Internal planning group, not a Jira issue. Scope is durable mutable session restoration,
+crash-safe CAS, restart reconciliation, deduplication/conflict policy, and an
+independent rollback anchor. It depends on WP-B lifecycle semantics and must preserve
+fail-closed restore behavior when rollback authority is unavailable.
+
+### WP-D — integrated qualification
+
+Internal planning group, not a Jira issue. Scope is runtime/transport/E2EE integration,
+production-boundary qualification, cross-platform and interoperability evidence,
+failure/retry/restart testing, and final security review. It depends on WP-B, WP-C,
+actual runtime-owned end-peer provenance, and the relevant original WP4/WP5 evidence.
 
 ## 5. KAMI-51 full work-package sequence
 
@@ -282,9 +339,15 @@ KAMI-26 must not bypass storage transactions or treat a socket/network write as 
 
 ### Phase C — direct transport and live relay
 
-KAMI-27: authenticated direct rust-libp2p transport, QUIC-preferred/TCP-alternative profile, supported NAT traversal, actual end-peer validation, and path evidence.
+#### KAMI-27 — accepted bounded direct transport
 
-KAMI-29: separate default-deny live relay service with authenticated admission, quotas, reservations, redacted metrics, and no offline mailbox.
+KAMI-27 is owner-accepted within the bounded direct-transport scope. The implementation uses the existing identity custody/enrollment and ProfileLease authority, runtime-owned transport lifecycle, authenticated Peer-ID/device binding, and direct rust-libp2p QUIC-preferred/TCP/Noise/Yamux paths. Independent implementation QA and final security evaluation passed. The owner-operated two-process harness then confirmed manual fingerprint comparison, explicit verification, QUIC and TCP authentication, disconnect/reconnect, and clean shutdown on Linux localhost.
+
+Accepted evidence includes the repository-local `scripts/kami27-manual/` suite and the ignored `transport_tests::native::manual_endpoint` harness. This acceptance does not enable application payloads, E2EE, ACKs, receipts, Delivered, CLI/IPC messaging, relay fallback, or M1 delivery.
+
+Deferred qualification and follow-up scope are explicit: no NAT traversal, DCUtR, hole punching, relay service/reservations, automatic direct-to-relay fallback, cross-network testing, Windows/macOS testing, or production E2EE. Comprehensive rollback resistance and global private-key non-exportability are not claimed. KAMI-29/KAMI-30 own relay work, KAMI-31 owns path fallback, KAMI-35 owns real separate-network qualification, and KAMI-51/KAMI-28 own production E2EE and first-message integration respectively.
+
+### KAMI-29 — separate default-deny live relay service
 
 KAMI-30: client relay reservation/renewal, candidate selection, and authenticated endpoint-to-endpoint inner sessions through a relay.
 
@@ -320,13 +383,13 @@ KAMI-19 -> KAMI-22
 KAMI-19 + approved identity contract -> KAMI-23
 KAMI-23 -> KAMI-50
 KAMI-21 + KAMI-22 + KAMI-23 + KAMI-50 -> KAMI-51 foundation
-WP1 -> WP2-A1 -> WP2-A2 -> WP3 -> WP2-B
+WP1 -> WP2-A1 -> WP2-A2 -> WP3 -> WP2-B -> WP-A
 accepted KAMI-51 foundation + KAMI-22 + KAMI-23 + KAMI-50 -> KAMI-24 || KAMI-25
 KAMI-24 + KAMI-25 + KAMI-22 + KAMI-23 -> KAMI-26
 KAMI-26 + KAMI-23 + KAMI-50 -> KAMI-27
 KAMI-27 -> KAMI-29
 KAMI-27 + KAMI-29 + KAMI-51 -> KAMI-30
-KAMI-21..KAMI-27 + KAMI-51 -> KAMI-28
+KAMI-21..KAMI-27 + WP-A + WP-B + WP-C + WP-D readiness -> KAMI-28
 KAMI-24..KAMI-30 -> KAMI-31
 KAMI-26 -> KAMI-32 early IPC/service seam
 KAMI-31 -> KAMI-32 final fallback-integrated qualification
@@ -458,34 +521,21 @@ The following remain open and must not be bypassed:
 
 ## 10. Branch and Git integration strategy
 
-Current documentation-only inspection observes branch `protocol-storage` with
-pre-existing dirty/untracked KAMI-25 implementation changes preserved. No Git
-history, branch, remote or integration action is performed by this update.
-The following older audit snapshot and proposed sequence are historical, not a
-current branch instruction or fresh remote inspection:
+Current repository observation: branch `protocol-storage` is at `ebcfc5907a5de17dad2c6643f86730bd52643daf`, matching both `origin/main` and `origin/protocol-storage`. The working tree remains dirty with the uncommitted/untracked KAMI-27 implementation, documentation, and manual-suite files preserved. No Git or GitHub action is performed by this documentation synchronization.
 
-- Current branch: `identity-security`.
-- HEAD and `origin/identity-security`: `eedbb74` (`Fingerprint verification`).
-- `origin/main`: `cfd0a4e`.
-- `origin/protocol-storage`: `2145333`.
-- KAMI-50 is committed and pushed on `identity-security` but is not merged to main.
-- KAMI-51 WP1–WP3/WP2-B work remains in the dirty/untracked working tree and is not committed or pushed.
-- The working tree also contains pre-existing/parallel changes; no reset, cleanup, branch switch, or discard is permitted.
+The historical integration plan below remains guidance for owner-managed synchronization, not an instruction to reset or merge automatically:
 
-Safe sequence after separate approval:
-
-1. Preserve the dirty working tree and classify KAMI-50, KAMI-51, governance, and editor-workspace changes.
-2. Review KAMI-50 as a separate PR from `identity-security` to `main`; do not silently bundle `knowledge/.obsidian/workspace.json` or unrelated governance changes.
-3. After KAMI-50 is merged, integrate the current KAMI-51 changes from updated main in a separate reviewed PR, including the required manifest/lockfile pair and only approved paths.
-4. Run the recorded KAMI-51 verification and independent review gates before merge.
-5. Inspect whether `protocol-storage` has unique work; it currently appears behind main without a unique implementation commit. Refresh it from main by a safe fast-forward or reviewed merge, never hard reset or force push.
-6. Begin KAMI-24 only after its bounded implementation authorization is recorded and the KAMI-51 integration strategy is approved.
+- Classify KAMI-27 implementation, manual-suite, KAMI-51, governance, and editor-workspace changes before staging.
+- Keep KAMI-27 direct-transport closure separate from KAMI-51 production E2EE work.
+- Stage only reviewed paths and inspect `git diff --cached` before committing.
+- Push `protocol-storage` only after owner review; synchronize `main` through a reviewed fast-forward or merge based on the actual remote relationship.
+- Do not bundle unrelated governance or editor-workspace files.
 
 No Git or GitHub action is authorized by this roadmap.
 
 ## 11. Status table
 
-Jira statuses below were last read on 2026-11-05. `Functionally implemented` and `tested` refer to repository evidence; `independent` and `owner accepted` are not inferred from Jira workflow status.
+Jira statuses below were last read on 2026-11-08. `Functionally implemented` and `tested` refer to repository evidence; `independent` and `owner accepted` are not inferred from Jira workflow status.
 
 | Issue | Implementation state | Verification state | Remaining qualification | Dependencies | Evidence/source |
 |---|---|---|---|---|---|
@@ -497,8 +547,8 @@ Jira statuses below were last read on 2026-11-05. `Functionally implemented` and
 | KAMI-24 | Owner-accepted bounded implementation | Implementation `t_3caec9e9`; pre-review `t_903b8e19` PASS; QA `t_d1b015bb` PASS; Evaluator `t_4c8b8ad4` PASS; README synchronization `t_0f4d4791` done | Runtime/transport, live end-peer provenance, production receipt/Delivered orchestration, cross-platform, network, rollback-anchor, and production qualification remain deferred; finite retry/tombstone quota policy remains bounded follow-up; bounded receipt consumption added by KAMI-25 | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50 | Implementation/review Kanban evidence; root, storage, and sender READMEs; Jira issue remains unchanged |
 | KAMI-25 | Functionally implemented, bounded/quarantined | Public API and local test sources inspected; no new Rust/QA/Evaluator execution in this documentation task | Runtime/live provenance, transport/relay/CLI, external rollback anchor, cleanup/compaction, production, network and cross-platform qualification; no exactly-once terminal rendering | Accepted KAMI-51 foundation; KAMI-20/21/22/23/50; composes KAMI-24 receipt consumption | Implementation `t_52c7a993`; documentation `t_f5b34761`; receiver/E2EE/storage/sender READMEs; Jira unchanged |
 | KAMI-26 | Implemented; independently verified bounded runtime/private-mock scope | Implementation `t_277bb59e`; QA `t_e9419e05` PASS; Evaluator `t_fda1ffe3` PASS; fmt/check/Clippy, 21 focused runtime tests, and 236 workspace tests passed (2 native secure-store tests ignored) | Live authenticated producer, direct/relay transport, functioning relay, IPC/CLI, fresh session restoration, external rollback anchor, cross-platform, real-network, interoperability, and M1 qualification remain deferred | KAMI-20..25 | `crates/kami-runtime/README.md`; implementation/QA/Evaluator Kanban evidence; Jira issue unchanged |
-| KAMI-27 | Not implemented | Not started | Real direct transport and Peer-ID path evidence | KAMI-2/3/19/23/26/50 | Jira issue |
-| KAMI-28 | Not implemented | Not started | Two-process first direct encrypted message | KAMI-21..27 plus KAMI-51 | Jira issue |
+| KAMI-27 | Accepted bounded direct transport | Implementation `t_b5624c04`; QA `t_ce4a480c` PASS; Evaluator `t_148a9df5` PASS; owner-operated harness `t_a908edd8` and repository script suite `t_9212dbd6` complete; owner manual QUIC/TCP/reconnect accepted | Linux localhost qualification only; no NAT/DCUtR/hole punching, relay/fallback, cross-network, Windows/macOS, production E2EE, application delivery, CLI/IPC, rollback-resistance, or global private-key non-exportability claim | KAMI-23/26/50; accepted bounded KAMI-51 foundations | `crates/kami-transport/README.md`, `crates/kami-runtime/README.md`, `scripts/kami27-manual/README.md`; Jira KAMI-27 remains authoritative for broader deferred criteria |
+| KAMI-28 | Not implemented | Not started | Two-process first direct encrypted message after production E2EE readiness | KAMI-21..27 plus WP-A/WP-B/WP-C/WP-D readiness | Jira issue |
 | KAMI-29 | Not implemented | Not started | Default-deny live relay service qualification | KAMI-2/4/19/27 | Jira issue |
 | KAMI-30 | Not implemented | Not started | Reservations, inner sessions, renewal, failover | KAMI-23/27/29/51 | Jira issue |
 | KAMI-31 | Not implemented | Not started | Automatic direct-first/live-relay fallback | KAMI-24..30 | Jira issue |
@@ -515,6 +565,8 @@ Jira statuses below were last read on 2026-11-05. `Functionally implemented` and
 | KAMI-51 WP2-A2 | Implemented/quarantined bounded foundation | Implementation `t_501a91b6`; QA `t_707f16fb`; Evaluator `t_099f6098` | Runtime provenance/interoperability | WP1/WP2-A1/KAMI-21 | `kami-e2ee/README.md`; original WP2-A2 task/reviews |
 | KAMI-51 WP3 | Implemented; owner accepted as bounded private foundation | Implementation `t_fd283614`; QA `t_2d834cf1`; Evaluator `t_82d8776a` | Runtime restore, external rollback, cross-platform | KAMI-22/WP1/WP2-A | `kami-storage/README.md`; original WP3 task/reviews |
 | KAMI-51 WP2-B | Implemented; owner accepted with conditions for quarantined scope only | Implementation task `t_b8cb3f89`, run 126; QA `t_48119cc5`, run 127; Evaluator `t_21f65076`, run 128 | No public activation, ACK authority, rollback anchor, or production qualification | WP2-A2 + accepted WP3/KAMI-22/23/50 | Acceptance report; WP2-B task/reviews |
+| KAMI-51 WP-A | Implemented; owner accepted with limitations for bounded authenticated-context/provider-contract scope | Implementation `t_b295f09f`, run 187; QA `t_d92abbc2`, run 188 PASS; Evaluator `t_e03aec4f`, run 189 PASS; Kanban comment 176 | Runtime-owned live provenance, prekey lifecycle, durable recovery/rollback, integrated qualification, production E2EE, application delivery, and KAMI-28 remain deferred | WP2-B and prior KAMI-51 foundations; KAMI-27 capability exists but is not consumed by E2EE | `crates/kami-e2ee/README.md`; WP-A task/reviews |
+| KAMI-51 overall | Incomplete | Bounded WP1/WP2-A1/WP2-A2/WP3/WP2-B evidence plus WP-A acceptance; full issue not accepted | WP-B/WP-C/WP-D, runtime provenance, production security, interoperability and M1 gates | KAMI-22/23/27/50 and downstream KAMI-24..39 | This roadmap and KAMI-51 Jira record |
 
 ## 12. Maintenance procedure
 

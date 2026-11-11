@@ -146,6 +146,15 @@ In [[kami-runtime]], identity operations, OS keyring access, and `KeyProvider` u
 
 ---
 
+### 11. Transport Credential & Trust Boundary Integration (KAMI-27)
+
+In [[kami-transport]], `kami-identity` provides the authoritative trust and credential anchor:
+- **Sealed Transport Credentials**: `SealedTransportCredentials` wraps the device's libp2p identity keypair and Peer ID. Raw key seeds are never exposed to the transport driver.
+- **Mutual Handshake Enforcement**: Direct connections dial with expected `PeerId` binding, ensuring the remote host proves ownership of the private key matching its advertised identity.
+- **Mandatory Trust Verification**: Upon connection establishment, `kami-transport` verifies the remote device against fresh `ContactTrust` records via `send_decision(...) == SendDecision::Allow`. Unverified, blocked, or altered identity fingerprints reject swarm admission immediately.
+
+---
+
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**

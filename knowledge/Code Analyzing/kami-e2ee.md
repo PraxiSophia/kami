@@ -14,8 +14,15 @@
     - **WP2-A2** (Authenticated inner envelope): Implemented and independently reviewed (`t_501a91b6`, QA `t_707f16fb`, Evaluator `t_099f6098`).
     - **WP3** (Private persistence foundation): Implemented, independently reviewed, and **owner accepted** as a bounded private storage foundation (`t_fd283614`, QA `t_2d834cf1`, Evaluator `t_82d8776a`).
     - **WP2-B** (Typed storage composition): Implemented, independently reviewed, and **owner accepted with conditions** for quarantined scope only (task `t_b8cb3f89` run 126, QA `t_48119cc5` run 127, Evaluator `t_21f65076` run 128). Conditions mandate no public activation, no ACK emission authority, no external rollback anchor, and no claim of production qualification.
-    - **Downstream WP4 & WP5**: Runtime/transport integration and qualification remain pending.
-- **Git Context**: Branch `identity-security`, commit `eedbb744565cb8af6c80c78b1b76b431c7bf0562` (working tree integration).
+    - **WP-A** (Authenticated context & provider contract correction): **Accepted with Limitations** (implementation `t_b295f09f` run 187 PASS, independent QA `t_d92abbc2` run 188 PASS, final security Evaluator `t_e03aec4f` run 189 PASS, Kanban checkpoint comment 176). Corrects provider contract to `NativeAadProvider` with `supports_aad() = false`, establishes canonical `InnerEnvelopeV1` inside Olm with correspondence commitments, and validates negative-security boundaries.
+    - **Remaining KAMI-51 Work Packages (Explicitly Outside WP-A Acceptance)**:
+      - **WP-B** (Production Prekey Lifecycle): Prekey publication, rotation, freshness, replenishment, consumption, and fallback.
+      - **WP-C** (Durable Session Recovery & Rollback Policy): Durable mutable session recovery, crash-safe CAS, restart reconciliation, and an external rollback anchor.
+      - **WP-D** (Integrated Qualification): Runtime/transport/E2EE integration, cross-platform and interoperability evidence, and production security review.
+    - **Downstream Milestones**:
+      - **KAMI-28** (First Encrypted Application Message Delivery): Depends directly on WP-D and live transport provenance.
+      - **Historical Terminology Reconciliation**: Original WP4 (runtime and delivery, covering KAMI-24 through KAMI-32) and WP5 (qualification and evidence, covering KAMI-33 through KAMI-39) are high-level internal planning groups. WP-A belongs strictly to KAMI-51 and does not replace or convert WP4 or WP5.
+- **Git Context**: Active branch `protocol-storage`, HEAD commit `ebcfc5907a5de17dad2c6643f86730bd52643daf` with KAMI-51 WP-A working tree implementation.
 
 ---
 
@@ -60,28 +67,28 @@ Public types are exported from [lib.rs](file:///home/phu/dev/kami/crates/kami-e2
 
 ### 4. Module `provider` ([crates/kami-e2ee/src/provider.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/provider.rs))
 
-- **Trait**: `E2eeProvider`
-  - **What it is**: The abstract interface for encryption engines.
-  - **Methods**: `encrypt`, `decrypt`, and `supports_aad`.
-  - **Security Sensitivity**: `supports_aad(&self)` defaults to `false`. If a provider cannot cryptographically bind the application context, it must fail closed rather than releasing unauthenticated plaintext or ciphertext.
+- **Trait**: `NativeAadProvider` (WP-A Contract)
+  - **What it is**: The explicit interface for cryptographic providers that claim native Additional Authenticated Data (AAD) support.
+  - **Methods**: `encrypt`, `decrypt`, and `supports_aad(&self) -> bool`.
+  - **Security Sensitivity**: `supports_aad(&self)` explicitly returns `false` for Olm v1. If native AAD is not supported, calling `encrypt` or `decrypt` unconditionally returns `Error::AadUnsupported`. A staged value is not a commit; the native provider capability remains disabled for vodozemac.
+  - **Compatibility**: `pub use NativeAadProvider as E2eeProvider;` provides backward compatibility with existing interfaces.
 
 ---
 
 ### 5. Module `vodozemac` ([crates/kami-e2ee/src/vodozemac.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/vodozemac.rs))
 
 - **Struct**: `VodozemacProvider`
-  - **What it represents**: The adapter wrapping Matrix's `vodozemac::olm::Session`.
-  - **Why Public Encrypt/Decrypt Fails Closed (WP1)**: Olm v1 does not feature a native Additional Authenticated Data (AAD) interface. Because simple JSON serialization cannot guarantee cryptographic binding of message participants, every public call to `encrypt` or `decrypt` on `VodozemacProvider` unconditionally fails closed with `Error::AadUnsupported`.
-  - **Frame & Buffer Limits**:
-    - `MAX_CIPHERTEXT_BYTES = 65_536`: Provider JSON input ceiling *before provider parsing* for the WP1 foundation.
-    - `MAX_PLAINTEXT_BYTES = 65_536`: Staging plaintext limit.
-  - **No Raw Escape Hatches**: There is no public `into_session()` or raw pointer method. Attackers cannot bypass validation by peeling away the wrapper.
+  - **What it represents**: The adapter wrapping Matrix's `vodozemac::olm::Session` (pinned at `vodozemac = 0.11.1`).
+  - **Why Public Encrypt/Decrypt Fails Closed (WP1 & WP-A)**: Upstream Olm v1 does not provide a native Additional Authenticated Data (AAD) interface. Because simple payload formatting cannot guarantee cryptographic binding of message participants, `supports_aad()` returns `false` and every public call to `encrypt` or `decrypt` on `VodozemacProvider` unconditionally fails closed with `Error::AadUnsupported`.
+  - **No Speculative Limits**: Unenforced constants (`max_skipped_keys`, `max_prekey_batch`) were permanently removed in WP-A. Profile encoding does not include speculative knobs.
+  - **No Raw Escape Hatches**: There is no public `into_session()`, raw pointer method, or durable-state import API. Attackers cannot bypass validation by extracting inner session state.
+  - **Test-Only Helpers**: Private unbound helpers exist exclusively for test fixtures and negative-security tests; they are never exported to production.
 
 ---
 
 ### 6. Module `envelope` (Private, [crates/kami-e2ee/src/envelope.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/envelope.rs))
 
-- **Struct**: `InnerEnvelopeV1` (WP2-A2)
+- **Struct**: `InnerEnvelopeV1` (WP2-A2 & WP-A)
   - **What it represents**: The canonical binary byte layout of the plaintext payload *before* Olm encryption.
   - **Binary Layout**:
     ```text
@@ -91,13 +98,15 @@ Public types are exported from [lib.rs](file:///home/phu/dev/kami/crates/kami-e2
     sender_peer_len[2] || sender_peer || recipient_peer_len[2] || recipient_peer ||
     sender_binding_digest[32] || recipient_binding_digest[32] || payload_len[4] || payload
     ```
-  - **Exact 32-Byte Commitment**: Outer Protobuf frames carry an `authentication_context` field calculated as:
+  - **Inner Plaintext Authentication**: `vodozemac` authenticates the inner plaintext envelope. Olm v1 encrypts and authenticates the entire byte stream using AES-256-CBC and HMAC-SHA-256.
+  - **Outer Correspondence Commitment (Not a Separate MAC)**: Outer Protobuf frames carry an `authentication_context` field calculated as:
     $$\text{SHA-256}(b"\text{KAMI-INNER-CONTEXT-V1}\backslash 0" \parallel \text{canonical\_inner\_envelope\_bytes})$$
-    After staged decryption, the inner envelope must match this commitment and the outer frame *byte-for-byte*. This hash is a correspondence commitment between layers, not standalone authentication; authenticity comes from the verified Olm session and anchored endpoint checks.
+    This outer SHA-256 hash is strictly a **correspondence commitment** ensuring that the inner envelope matches outer framing; it is **not** an independent cryptographic MAC. Authenticity is established solely by the verified Olm session.
+  - **Post-Decryption Context Checks**: After decryption, the recipient performs exact checks verifying conversation ID, message ID, sender/recipient device keys, direction, proof digests, message kind, sequence/receipt target, timestamp, and outer frame correspondence.
   - **Frame Budgets & Plaintext Allowance**:
     - The entire inner envelope is capped at **65,536 bytes** (`MAX_INNER_BYTES`).
     - The outer Protobuf frame is independently capped at **65,536 bytes** (`MAX_ENCODED_FRAME_SIZE` in `kami-protocol`).
-    - Because the outer frame must fit envelope fields, provider ciphertext overhead, and the 32-byte commitment within 65,536 bytes, the usable application plaintext text budget is strictly less than 65,536 bytes (it is not a flat 64-KiB text allowance).
+    - Because the outer frame must accommodate envelope headers, provider ciphertext overhead, and the 32-byte commitment within 65,536 bytes, the usable application plaintext text budget is strictly less than 65,536 bytes.
 
 ---
 
@@ -179,14 +188,19 @@ Introduced in KAMI-25 to coordinate inbound message delivery and staged `DeviceD
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **Quarantined Foundation Accepted with Conditions** (WP1, WP2-A2, WP3, WP2-B, and KAMI-25 receipt boundary implemented and owner accepted within quarantined scope; live transport provenance, prekey publication/replenishment lifecycle, and external anti-rollback anchors remain deferred).
+  - *Milestone Status*: **Quarantined Foundation Accepted with Conditions & WP-A Accepted with Limitations**
+    - WP1, WP2-A2, WP3, WP2-B: Implemented and owner accepted within quarantined scope.
+    - WP-A: Accepted with limitations (runs 187, 188, 189, Kanban comment 176). Corrects native AAD boundary and validates canonical inner envelopes.
+    - Remaining gates: Prekey publication and replenishment (WP-B), durable mutable recovery and rollback anchors (WP-C), integrated qualification (WP-D), and direct message delivery (KAMI-28).
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: Vodozemac 0.11.1 adapter, fail-closed AAD, canonical 64 KB inner envelope, staged outbound/inbound text, same-session receipt generation and consumption, OTK and fallback prekey accounting, exact retransmission reconciliation, and opaque commit handoff to storage.
-  - **Tested Behavior**: Unit and qualification suites (`envelope.rs`, `authenticated.rs`, `tests/qualification/receipts.rs`), external privacy probe (`tests/privacy.rs`), and cross-crate integration with `kami-storage`, `kami-sender`, and `kami-receiver`.
-  - **Missing Behavior**: Production prekey replenishment/publication server integration, live peer transport provenance, and persistent external anti-rollback anchors.
-  - **Known Limitations & Provider Constraints**:
-    - **Upstream Ratchet Limits**: Upstream `vodozemac = 0.11.1` Olm v1 pins a **40-key retention cap for skipped keys** and a **2,000-message gap ceiling** on the receiver chain. These are upstream implementation constraints, not configurable Kami settings.
+  - **Implemented Behavior**: Vodozemac 0.11.1 adapter, NativeAadProvider interface, fail-closed AAD, canonical 64 KB inner envelope, staged outbound/inbound text, same-session receipt generation and consumption, OTK and fallback prekey accounting, exact retransmission reconciliation, and opaque commit handoff to storage.
+  - **Tested Behavior**: Unit and qualification suites (`envelope.rs`, `authenticated.rs`, `tests/qualification/receipts.rs`), context contract tests (`tests/qualification/context_contract.rs`), provider contract tests (`tests/provider_contract.rs`), external privacy probe (`tests/privacy.rs`), and cross-crate integration with `kami-storage`, `kami-sender`, and `kami-receiver`.
+  - **Missing Behavior & Explicit Limitations**:
+    - **No Live Network Provenance**: Pure E2EE code validates structural inputs (context, timestamps, Peer IDs), but cannot prove that a supplied snapshot is live or fresh. Real KAMI-27 authenticated connection provenance is not yet connected to the E2EE production boundary.
+    - **Trusted Custody Limits**: The in-process snapshot custodian consumes full provider pickles, including private prekeys. This is trusted custody, not protection against a malicious custodian or in-process compromise.
+    - **No External Rollback Anchor**: `ProfileRestore` fails closed (`RollbackAnchorUnsupported`) because no external rollback authority exists.
+    - **Upstream Ratchet Limits**: Upstream `vodozemac = 0.11.1` Olm v1 pins a **40-key retention cap for skipped keys** and a **2,000-message gap ceiling** on the receiver chain.
     - **Truncated MAC**: Olm v1 uses an 8-byte truncated MAC.
     - **No Wire Interoperability**: Does not support Signal or Matrix wire interoperability.
 - **Runtime Host Boundary (KAMI-26)**: In [[kami-runtime]], all `QuarantinedSession` staging, authenticated commits, and receipt handoffs occur strictly on the dedicated single-thread blocking worker. No Olm ratchet state or mutable crypto reference crosses an asynchronous Tokio `.await` boundary.
@@ -196,6 +210,10 @@ Introduced in KAMI-25 to coordinate inbound message delivery and staged `DeviceD
 ```sh
 # Run all unit and integration tests in kami-e2ee
 cargo test --locked -p kami-e2ee
+
+# Run WP-A provider and context contract verification suites
+cargo test --locked -p kami-e2ee --test provider_contract
+cargo test --locked -p kami-e2ee --test qualification_authenticated
 
 # Run internal qualification test modules
 cargo test --locked -p kami-e2ee --lib envelope_tests

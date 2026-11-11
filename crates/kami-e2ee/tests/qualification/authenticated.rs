@@ -1,6 +1,8 @@
 use crate::authenticated::{Anchor, BoundSession, Endpoint};
 #[path = "adversarial.rs"]
 mod adversarial;
+#[path = "context_contract.rs"]
+mod context_contract;
 #[path = "frame_limits.rs"]
 mod frame_limits;
 #[path = "receipts.rs"]

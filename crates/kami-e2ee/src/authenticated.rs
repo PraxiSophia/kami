@@ -2,9 +2,13 @@
 //!
 //! No public messaging activation, runtime import, or prekey publication.
 //! Candidates alone never grant ACK eligibility; the storage transaction does.
-//! Callers must supply fresh trust
-//! and the authenticated END peer for every operation; a relay identity or an
-//! indirectly obtained signed prekey is never live authentication.
+//! `ContactTrust`, `PeerId`, `ExpectedContext` and `now` are supplied assertions,
+//! not independently proven fresh trust, a live END peer, or a trusted clock.
+//! Checking their consistency does not establish runtime provenance. A relay
+//! identity or indirectly obtained signed prekey is never live authentication.
+//! Production needs producer-owned, nonforgeable KAMI-27 end-peer evidence and
+//! serialized durable trust/connection freshness checks at finalization/retry.
+//! No such evidence can be minted here, and no production constructor is added.
 //!
 //! Olm v1 only: 8-byte truncated MAC, upstream bounded skipped-key retention.
 //! This is not Signal/Matrix interoperability or production qualification.
@@ -143,6 +147,14 @@ impl Anchor {
     }
 }
 
+/// Restricted application-bound session contract, separate from native AAD.
+/// Only canonical `InnerEnvelopeV1` plaintext is encrypted. Decryption must pass
+/// Olm authentication, canonical parsing, anchored inner checks and complete
+/// outer correspondence before returning a stage. A stage never mutates its
+/// source and must recheck supplied trust/peer/validity at finalization.
+///
+/// This crate-private interface is NOT a runtime-authority capability. Its
+/// supplied arguments can be fabricated; do not expose it as live provenance.
 pub(crate) struct BoundSession {
     session: Session,
     anchor: Anchor,
@@ -733,7 +745,9 @@ impl InboundStage {
 }
 
 /// Bounded-development preparation only. Not a network sender or provider activation.
-/// Supplied trust, selected bundles and end-peer require a trusted caller (KAMI-26).
+/// Supplied trust, selected bundles, end-peer and time require a trusted caller;
+/// matching them is not proof of live KAMI-27 authentication or durable freshness.
+/// This existing custodian/qualification API is not the production runtime seam.
 /// Proposed state must not be installed until storage confirms the commit. No
 /// automatic profile restore, individual-key export, or transmission operation.
 /// Receipt candidates use dedicated opaque types and require a durable commit.
