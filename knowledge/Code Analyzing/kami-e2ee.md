@@ -177,7 +177,36 @@ Introduced in KAMI-25 to coordinate inbound message delivery and staged `DeviceD
 
 ---
 
-### 10. Module `errors` ([crates/kami-e2ee/src/errors.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/errors.rs))
+### 10. Module `prekeys` ([crates/kami-e2ee/src/prekeys.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/prekeys.rs))
+
+Introduced in **KAMI-51 WP-B** to stage Olm account lifecycle and prekey inventory for storage commit:
+
+- **Struct**: `AccountLifecycle`
+  - **What it represents**: Private owner of the Olm `Account` state, device ID, `PeerId`, generation counter, bundle generation counter, binding generation, and staged public `OlmBindingData` inventory.
+  - **Inventory Bounds & Limits**:
+    - `INITIAL_INVENTORY = 32`: Staged with 32 initial one-time prekeys (OTKs) plus 1 fallback prekey.
+    - `MAX_INVENTORY = 50`: Upper bound on OTK inventory.
+    - `MAX_VALIDITY_MS = 300_000` (5 minutes): Maximum valid TTL window for prekey selections.
+    - Fallback usage cap: Capped at 16 uses; degraded reuse permitted only when all unreserved OTKs are exhausted.
+  - **Key Methods**:
+    - `pub fn create(device: [u8; 32], peer: PeerId, binding_generation: u64, now: u64, ttl: u64) -> Result<Self, Error>`: Instantiates a new Olm account with initial OTKs and fallback key.
+    - `pub fn select(&self, available: &[OlmBindingProof], now: u64, minimum: u64) -> Result<OlmBindingProof, Error>`: Selects a valid signed prekey from available inventory, prioritizing unreserved OTKs before falling back to the fallback key.
+    - `pub fn replenish(&self, count: usize, now: u64, ttl: u64) -> Result<Self, Error>`: Generates fresh OTKs, advancing `generation` and `bundle_generation`.
+    - `pub fn rotate_fallback(&self, now: u64, ttl: u64) -> Result<Self, Error>`: Generates a new fallback key, retaining at most current and previous fallback slots while expired proofs remain in storage as retirement evidence.
+    - `pub fn prepare_commit(&self, previous: Option<&Self>, sign: impl FnMut(OlmBindingData) -> Result<OlmBindingProof, IdentityError>) -> Result<LifecycleCommit, Error>`: Validates generation continuity, invokes native identity custody to sign selections, and packages a `LifecycleCommit`.
+
+- **Struct**: `PrekeyUse`
+  - **What it represents**: Stage-owned exact selected-prekey evidence.
+  - **Fields**: `request` (`[u8; 32]`), `response_digest` (`[u8; 32]`), `reference` (`Vec<u8>`), `kind` (`OlmPrekeyKind`), `bundle_generation` (`u64`), `local` (`bool`).
+  - Storage must match the durable publication/retention record in the same session transaction.
+
+- **Struct**: `LifecycleCommit`
+  - **What it represents**: A nonconstructible account and inventory proposal consumed exclusively by the SQLCipher worker.
+  - **Custody Transfer**: Exposes `consume` method passing previous snapshot, next snapshot, and signed `OlmBindingProof` vectors into the database transaction.
+
+---
+
+### 11. Module `errors` ([crates/kami-e2ee/src/errors.rs](file:///home/phu/dev/kami/crates/kami-e2ee/src/errors.rs))
 
 - **Enum**: `Error`
   - **Variants**: `AadUnsupported`, `AuthenticationRejected`, `StateVersion`, `StateRollback`, `StateEncoding`, `InvalidContext`, `Provider`.
@@ -188,14 +217,15 @@ Introduced in KAMI-25 to coordinate inbound message delivery and staged `DeviceD
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **Quarantined Foundation Accepted with Conditions & WP-A Accepted with Limitations**
+  - *Milestone Status*: **WP-A & WP-B Accepted with Limitations**
     - WP1, WP2-A2, WP3, WP2-B: Implemented and owner accepted within quarantined scope.
     - WP-A: Accepted with limitations (runs 187, 188, 189, Kanban comment 176). Corrects native AAD boundary and validates canonical inner envelopes.
-    - Remaining gates: Prekey publication and replenishment (WP-B), durable mutable recovery and rollback anchors (WP-C), integrated qualification (WP-D), and direct message delivery (KAMI-28).
+    - WP-B: Accepted with limitations (runs 204, 205, 206, 207, 208, 211). Implements account lifecycle, bounded OTKs (32 initial, 50 cap), 5-minute validity, and fallback key rotation.
+    - Remaining gates: Durable mutable recovery and rollback anchors (WP-C), integrated qualification (WP-D), and direct message delivery (KAMI-28).
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: Vodozemac 0.11.1 adapter, NativeAadProvider interface, fail-closed AAD, canonical 64 KB inner envelope, staged outbound/inbound text, same-session receipt generation and consumption, OTK and fallback prekey accounting, exact retransmission reconciliation, and opaque commit handoff to storage.
-  - **Tested Behavior**: Unit and qualification suites (`envelope.rs`, `authenticated.rs`, `tests/qualification/receipts.rs`), context contract tests (`tests/qualification/context_contract.rs`), provider contract tests (`tests/provider_contract.rs`), external privacy probe (`tests/privacy.rs`), and cross-crate integration with `kami-storage`, `kami-sender`, and `kami-receiver`.
+  - **Implemented Behavior**: Vodozemac 0.11.1 adapter, NativeAadProvider interface, fail-closed AAD, canonical 64 KB inner envelope, staged outbound/inbound text, same-session receipt generation and consumption, OTK and fallback prekey accounting, exact retransmission reconciliation, opaque commit handoff to storage, and `AccountLifecycle` prekey staging.
+  - **Tested Behavior**: Unit and qualification suites (`envelope.rs`, `authenticated.rs`, `tests/qualification/receipts.rs`), context contract tests (`tests/qualification/context_contract.rs`), provider contract tests (`tests/provider_contract.rs`), prekey lifecycle tests (`tests/prekeys.rs`), external privacy probe (`tests/privacy.rs`), and cross-crate integration with `kami-storage`, `kami-sender`, and `kami-receiver`.
   - **Missing Behavior & Explicit Limitations**:
     - **No Live Network Provenance**: Pure E2EE code validates structural inputs (context, timestamps, Peer IDs), but cannot prove that a supplied snapshot is live or fresh. Real KAMI-27 authenticated connection provenance is not yet connected to the E2EE production boundary.
     - **Trusted Custody Limits**: The in-process snapshot custodian consumes full provider pickles, including private prekeys. This is trusted custody, not protection against a malicious custodian or in-process compromise.
@@ -203,13 +233,16 @@ Introduced in KAMI-25 to coordinate inbound message delivery and staged `DeviceD
     - **Upstream Ratchet Limits**: Upstream `vodozemac = 0.11.1` Olm v1 pins a **40-key retention cap for skipped keys** and a **2,000-message gap ceiling** on the receiver chain.
     - **Truncated MAC**: Olm v1 uses an 8-byte truncated MAC.
     - **No Wire Interoperability**: Does not support Signal or Matrix wire interoperability.
-- **Runtime Host Boundary (KAMI-26)**: In [[kami-runtime]], all `QuarantinedSession` staging, authenticated commits, and receipt handoffs occur strictly on the dedicated single-thread blocking worker. No Olm ratchet state or mutable crypto reference crosses an asynchronous Tokio `.await` boundary.
+- **Runtime Host Boundary (KAMI-26 & WP-B)**: In [[kami-runtime]], all `QuarantinedSession` staging, authenticated commits, prekey maintenance, and receipt handoffs occur strictly on the dedicated single-thread blocking worker. No Olm ratchet state or mutable crypto reference crosses an asynchronous Tokio `.await` boundary.
 
 ### Exact Verification Commands
 
 ```sh
 # Run all unit and integration tests in kami-e2ee
 cargo test --locked -p kami-e2ee
+
+# Run WP-B prekey lifecycle test suite
+cargo test --locked -p kami-e2ee --test prekeys
 
 # Run WP-A provider and context contract verification suites
 cargo test --locked -p kami-e2ee --test provider_contract

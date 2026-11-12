@@ -64,7 +64,7 @@ fn opaque_commit_privacy_has_positive_and_diagnostic_negative_probes() {
         ("pub fn bad(v: kami_e2ee::AuthenticatedReceiptCommit) { let _: kami_e2ee::AuthenticatedCommit = v.into(); }", Some("E0277")),
         ("pub fn bad(v: kami_e2ee::AuthenticatedDelivery) { let _ = v.clone(); }", Some("E0599")),
         ("use kami_e2ee::authenticated::SendStage;", Some("E0603")),
-        ("pub fn bad() -> kami_e2ee::AuthenticatedCommit { kami_e2ee::AuthenticatedCommit { material: loop {} } }", Some("E0451")),
+        ("pub fn bad() -> kami_e2ee::AuthenticatedCommit { kami_e2ee::AuthenticatedCommit { material: loop {}, lifecycle: None } }", Some("E0451")),
         ("pub fn bad() { let _: kami_e2ee::AuthenticatedCommit = Default::default(); }", Some("E0277")),
         ("pub fn bad(v: kami_e2ee::AuthenticatedCommit) { let _ = v.clone(); }", Some("E0599")),
         ("pub fn bad(v: kami_e2ee::AuthenticatedCommit) { let _ = format!(\"{:?}\", v); }", Some("E0277")),

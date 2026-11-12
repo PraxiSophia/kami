@@ -7,6 +7,28 @@ use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot, watch};
 
 type Reply = oneshot::Sender<Result<usize, Error>>;
+// Only the Linux ignored manual endpoint consumes this last-observed public view.
+// It is not a storage status API, provenance constructor, or production diagnostic.
+#[cfg(all(test, target_os = "linux"))]
+#[derive(Clone)]
+pub(crate) struct ManualPrekeyObservation {
+    pub request: [u8; 32],
+    pub peer: String,
+    pub device: [u8; 32],
+    pub retained: Option<ManualPrekeySelection>,
+    pub reconciled: bool,
+}
+#[cfg(all(test, target_os = "linux"))]
+#[derive(Clone)]
+pub(crate) struct ManualPrekeySelection {
+    pub kind: kami_identity::OlmPrekeyKind,
+    pub reference: Vec<u8>,
+    pub account_generation: u64,
+    pub bundle_generation: u64,
+    pub binding_generation: u64,
+    pub not_before_ms: u64,
+    pub expires_at_ms: u64,
+}
 struct Connectivity {
     revocation: kami_transport::Revocation,
     relay: Option<(
@@ -18,10 +40,12 @@ struct Connectivity {
 }
 enum Command {
     Health(oneshot::Sender<Result<Lifecycle, Error>>),
-    Work(Work, Reply),
+    Work(Box<Work>, Reply),
 }
 #[derive(Clone)]
 pub struct Engine {
+    #[cfg(all(test, target_os = "linux"))]
+    manual_prekey: watch::Sender<Option<ManualPrekeyObservation>>,
     revocation: kami_transport::Revocation,
     network: watch::Receiver<Option<(kami_transport::Handle, kami_identity::Invitation)>>,
     commands: mpsc::Sender<Command>,
@@ -111,6 +135,8 @@ impl Engine {
         ));
         Ok((
             Self {
+                #[cfg(all(test, target_os = "linux"))]
+                manual_prekey: watch::channel(None).0,
                 revocation,
                 network: network_rx,
                 commands,
@@ -183,6 +209,125 @@ impl Engine {
             .await
             .map_err(Error::Transport)
     }
+    pub async fn replenish_prekeys(&self, count: usize) -> Result<(), Error> {
+        self.network()?;
+        self.work(Work::MaintainPrekey(Some(count)))
+            .await
+            .map(|_| ())
+    }
+    pub async fn rotate_prekey_fallback(&self) -> Result<(), Error> {
+        self.network()?;
+        self.work(Work::MaintainPrekey(None)).await.map(|_| ())
+    }
+    /// Durable monotonic revocation/retirement, local inventory when device=None.
+    pub async fn invalidate_prekeys(
+        &self,
+        device: Option<[u8; 32]>,
+        through: u64,
+        retire: bool,
+    ) -> Result<(), Error> {
+        self.network()?;
+        self.work(Work::InvalidatePrekey(device, through, retire))
+            .await
+            .map(|_| ())
+    }
+    /// Prekey-only live exchange; no message/session activation or Delivered state.
+    pub async fn refresh_prekeys(
+        &self,
+        cap: std::sync::Arc<kami_transport::AuthenticatedConnection>,
+    ) -> Result<[u8; 32], Error> {
+        self.prekeys(cap, None).await
+    }
+    /// Resume only an exact durable query for this authenticated peer/device.
+    pub async fn retry_prekeys(
+        &self,
+        cap: std::sync::Arc<kami_transport::AuthenticatedConnection>,
+        request: [u8; 32],
+    ) -> Result<(), Error> {
+        self.prekeys(cap, Some(request)).await.map(|_| ())
+    }
+    async fn prekeys(
+        &self,
+        cap: std::sync::Arc<kami_transport::AuthenticatedConnection>,
+        request: Option<[u8; 32]>,
+    ) -> Result<[u8; 32], Error> {
+        #[cfg(all(test, target_os = "linux"))]
+        self.manual_prekey.send_replace(None);
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let network = self.network()?;
+            let (tx, rx) = oneshot::channel();
+            self.work(Work::BeginPrekey(cap.clone(), request, tx))
+                .await?;
+            let query = rx.await.map_err(|_| Error::WorkerFailed)??;
+            let request = *query.request_id();
+            #[cfg(all(test, target_os = "linux"))]
+            let mut observed = {
+                let fresh = self.contact(cap.remote_device()).await?;
+                let peer = cap.authenticated_peer(&fresh).map_err(Error::Transport)?;
+                let observed = ManualPrekeyObservation {
+                    request,
+                    peer: peer.to_string(),
+                    device: cap.remote_device(),
+                    retained: None,
+                    reconciled: false,
+                };
+                self.manual_prekey.send_replace(Some(observed.clone()));
+                observed
+            };
+            let evidence = network
+                .exchange_prekey(&cap, query)
+                .await
+                .map_err(Error::Transport)?;
+            #[cfg(all(test, target_os = "linux"))]
+            let selection = {
+                let fresh = self.contact(evidence.remote_device()).await?;
+                let (value, _) = evidence.inspect(&fresh).map_err(Error::Transport)?;
+                if let kami_protocol::prekey_exchange::Exchange::Selection(selection) = value {
+                    let proof = kami_identity::OlmBindingProof::parse_bounded(&selection.proof)
+                        .map_err(|_| Error::OperationRejected)?;
+                    let data = proof.data();
+                    Some(ManualPrekeySelection {
+                        kind: data.prekey_kind,
+                        reference: data.prekey_reference.clone(),
+                        account_generation: selection.account_generation,
+                        bundle_generation: data.bundle_generation,
+                        binding_generation: data.binding_generation,
+                        not_before_ms: data.not_before_ms,
+                        expires_at_ms: data.expires_at_ms,
+                    })
+                } else {
+                    None
+                }
+            };
+            let (tx, rx) = oneshot::channel();
+            self.work(Work::RetainPrekey(evidence, tx)).await?;
+            let ack = rx.await.map_err(|_| Error::WorkerFailed)??;
+            // Publish selection fields only AFTER the normal worker's signature,
+            // freshness, exact-request, durable-retention and live-fence checks.
+            #[cfg(all(test, target_os = "linux"))]
+            {
+                observed.retained = selection;
+                self.manual_prekey.send_replace(Some(observed.clone()));
+            }
+            let evidence = network
+                .exchange_prekey(&cap, ack)
+                .await
+                .map_err(Error::Transport)?;
+            self.work(Work::FinishPrekey(evidence)).await?;
+            #[cfg(all(test, target_os = "linux"))]
+            {
+                observed.reconciled = true;
+                self.manual_prekey.send_replace(Some(observed));
+            }
+            Ok(request)
+        })
+        .await
+        .map_err(|_| Error::Transport(kami_transport::Error::Timeout))?
+    }
+    #[cfg(all(test, target_os = "linux"))]
+    pub(crate) fn manual_prekey_observation(&self) -> Option<ManualPrekeyObservation> {
+        self.manual_prekey.borrow().clone()
+    }
     pub async fn wait_running(&self) -> Result<(), Error> {
         let mut state = self.state.clone();
         loop {
@@ -209,7 +354,7 @@ impl Engine {
     }
     async fn work(&self, work: Work) -> Result<usize, Error> {
         let (tx, rx) = oneshot::channel();
-        self.send(Command::Work(work, tx))?;
+        self.send(Command::Work(Box::new(work), tx))?;
         rx.await.map_err(|_| Error::Closed)?
     }
     pub async fn recovered(&self) -> Result<usize, Error> {
@@ -304,6 +449,7 @@ async fn run(
     let mut worker_done = false;
     let mut children = tokio::task::JoinSet::new();
     let mut transport_events: Option<mpsc::Receiver<kami_transport::Event>> = None;
+    let mut prekey_requests: Option<mpsc::Receiver<kami_transport::IncomingPrekeyExchange>> = None;
     let (relay_stop, relay_stopping) = watch::channel(false);
     let (relay_events, mut relay_incoming) = mpsc::channel(config.event_capacity);
     let mut jobs_tx = Some(jobs_tx);
@@ -368,6 +514,8 @@ async fn run(
                                 match kami_transport::Driver::new(*credentials, config.limits, config.listeners) {
                                     Ok((driver, handle, diagnostics)) => {
                                         let driver = driver.with_revocation(revocation.clone());
+                                        let (driver, requests) = driver.with_prekeys();
+                                        prekey_requests = Some(requests);
                                         transport_events = Some(diagnostics);
                                         network.send_replace(Some((handle, invitation)));
                                         let stopping = relay_stopping.clone();
@@ -464,6 +612,21 @@ async fn run(
                     return;
                 }
             }
+            request = async { match prekey_requests.as_mut() { Some(rx) => rx.recv().await, None => std::future::pending().await } }, if !draining => {
+                if let Some(request) = request {
+                    if state.borrow().lifecycle != Lifecycle::Running || pending.len() >= config.blocking_capacity {
+                        request.reject(kami_protocol::prekey_exchange::Failure::Busy); continue;
+                    }
+                    let Some(next) = id.checked_add(1) else { request.reject(kami_protocol::prekey_exchange::Failure::Cancelled); continue; };
+                    id = next;
+                    if let Some(tx) = &jobs_tx {
+                        match tx.try_send((id, Work::IncomingPrekey(request))) {
+                            Ok(()) => { let (reply, _) = oneshot::channel(); pending.insert(id, reply); state.send_modify(|s| s.active_operations = pending.len()); }
+                            Err(error) => { if let (_, Work::IncomingPrekey(request)) = error.into_inner() { request.reject(kami_protocol::prekey_exchange::Failure::Busy); } }
+                        }
+                    }
+                } else { prekey_requests.take(); }
+            }
             Some(value) = relay_incoming.recv() => { event(&events, &state, Event::Relay(value)); }
             value = async { match transport_events.as_mut() { Some(rx) => rx.recv().await, None => std::future::pending().await } } => {
                 match value {
@@ -495,7 +658,7 @@ async fn run(
                         if pending.len() >= config.blocking_capacity { let _ = reply.send(Err(Error::Busy)); continue; }
                         let Some(next) = id.checked_add(1) else { let _ = reply.send(Err(Error::Closed)); continue; };
                         id = next;
-                        if jobs_tx.as_ref().is_some_and(|tx| tx.try_send((id, work)).is_ok()) {
+                        if jobs_tx.as_ref().is_some_and(|tx| tx.try_send((id, *work)).is_ok()) {
                             pending.insert(id, reply);
                             state.send_modify(|s| s.active_operations = pending.len());
                         } else { let _ = reply.send(Err(Error::Busy)); }

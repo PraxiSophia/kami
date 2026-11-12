@@ -154,6 +154,65 @@ impl<S> fmt::Debug for Custody<S> {
         f.write_str("Custody([REDACTED])")
     }
 }
+impl crate::NativeCustody {
+    /// Purpose-limited existing-proof signing after fresh native anchor/key checks.
+    /// No generic message signing or secret material leaves identity custody.
+    pub fn create_olm_binding(
+        &self,
+        enrollment: &crate::VerifiedEnrollment,
+        fresh_row: &[u8],
+        peer_binding: &crate::PeerBindingProof,
+        data: crate::OlmBindingData,
+    ) -> Result<crate::OlmBindingProof, crate::IdentityError> {
+        if fresh_row != enrollment.row {
+            return Err(crate::IdentityError::Custody(KeyError::Corrupt));
+        }
+        let mut proofs = self.create_olm_bindings(enrollment, fresh_row, peer_binding, &[data])?;
+        proofs.pop().ok_or(crate::IdentityError::Malformed)
+    }
+    /// Bounded batch of independent existing per-selection signatures, NOT an
+    /// aggregate signature. One native custody lease/read avoids repeated OS I/O.
+    pub fn create_olm_bindings(
+        &self,
+        enrollment: &crate::VerifiedEnrollment,
+        fresh_row: &[u8],
+        peer_binding: &crate::PeerBindingProof,
+        data: &[crate::OlmBindingData],
+    ) -> Result<Vec<crate::OlmBindingProof>, crate::IdentityError> {
+        if data.is_empty() || data.len() > 52 || fresh_row != enrollment.row {
+            return Err(crate::IdentityError::Malformed);
+        }
+        crate::verify_enrollment_for_transport(self, &enrollment.profile, fresh_row)
+            .map_err(crate::IdentityError::Custody)?;
+        let device: [u8; 32] = fresh_row[34..]
+            .try_into()
+            .map_err(|_| crate::IdentityError::Malformed)?;
+        peer_binding.verify_signature(device)?;
+        let public = libp2p_identity::ed25519::PublicKey::try_from_bytes(&device)
+            .map_err(|_| crate::IdentityError::Malformed)?;
+        let peer = libp2p_identity::PublicKey::from(public).to_peer_id();
+        if peer_binding.peer_id() != peer || data.iter().any(|p| p.publisher_peer != peer) {
+            return Err(crate::IdentityError::WrongPeer);
+        }
+        let seed = read_key(
+            &self.custody.0,
+            &KeySlot::new(enrollment.profile.clone(), KeyPurpose::Identity),
+        )
+        .map_err(crate::IdentityError::Custody)?;
+        let key = ed25519_dalek::SigningKey::from_bytes(&seed);
+        if key.verifying_key().to_bytes() != device {
+            return Err(crate::IdentityError::Custody(KeyError::Corrupt));
+        }
+        let proofs = data
+            .iter()
+            .map(|data| crate::OlmBindingProof::sign(data.clone(), &key))
+            .collect::<Result<Vec<_>, _>>()?;
+        crate::verify_enrollment_for_transport(self, &enrollment.profile, fresh_row)
+            .map_err(crate::IdentityError::Custody)?;
+        Ok(proofs)
+    }
+}
+
 fn random_key() -> Result<Zeroizing<[u8; 32]>, KeyError> {
     let mut bytes = Zeroizing::new([0; 32]);
     getrandom::fill(bytes.as_mut()).map_err(|_| KeyError::Unavailable)?;

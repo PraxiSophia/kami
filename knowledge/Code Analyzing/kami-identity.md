@@ -155,14 +155,34 @@ In [[kami-transport]], `kami-identity` provides the authoritative trust and cred
 
 ---
 
+---
+
+### 12. WP-B Native Per-Selection Signing ([crates/kami-identity/src/custody.rs](file:///home/phu/dev/kami/crates/kami-identity/src/custody.rs))
+
+Introduced in **KAMI-51 WP-B** for batch signing of prekey selections:
+- **Methods**:
+  - `NativeCustody::create_olm_binding(&self, enrollment: &VerifiedEnrollment, fresh_row: &[u8], peer_binding: &PeerBindingProof, data: OlmBindingData) -> Result<OlmBindingProof, IdentityError>`
+  - `NativeCustody::create_olm_bindings(&self, enrollment: &VerifiedEnrollment, fresh_row: &[u8], peer_binding: &PeerBindingProof, data: &[OlmBindingData]) -> Result<Vec<OlmBindingProof>, IdentityError>`
+- **Security Invariants**:
+  - Requires existing `VerifiedEnrollment`, exact fresh SQLCipher enrollment row (`fresh_row == enrollment.row`), and local peer binding verification.
+  - Bounded batch accepts between 1 and 52 selections (50 OTKs plus current/previous fallback key).
+  - Checks native enrollment and anchor before and after signing.
+  - Verifies the protected seed against the enrolled device and Peer ID.
+  - Produces independent per-selection `OlmBindingProof` signatures, **not** an aggregate batch signature.
+  - Network responses carry exactly one signed selection.
+  - Purpose-limited: signs only fixed prekey binding transcripts; never provides an arbitrary signing API or exports protected identity seeds.
+  - `OlmBindingData::new_challenge() -> Result<[u8; 32], IdentityError>`: Generates unpredictable 32-byte exchange challenges from the OS CSPRNG (`getrandom`).
+
+---
+
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **Functionally Implemented** (KAMI-23 identity custody, KAMI-50 contact trust/fingerprints, and KAMI-51 WP2-A1 signed Olm bindings are fully implemented and verified on Linux; Windows/macOS native runtime qualification, cross-process lease integration, and live transport provenance remain release gates).
+  - *Milestone Status*: **Functionally Implemented** (KAMI-23 identity custody, KAMI-50 contact trust/fingerprints, KAMI-51 WP2-A1 signed Olm bindings, and KAMI-51 WP-B per-selection signing are fully implemented and verified on Linux; Windows/macOS native runtime qualification, cross-process lease integration, and live transport provenance remain release gates).
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: 3-stage enrollment lifecycle (`Fresh` -> `Pending` -> `Enrolled`), dual-namespace slot management, OS CSPRNG key generation, fingerprint calculation, Peer-ID binding, Olm prekey binding, and contact trust state transitions.
-  - **Tested Behavior**: Linux is fully verified via automated tests, absent-slot probes, disposable GNOME Keyring daemon integration tests, and KAMI-50/WP2-A1 binding test suites. macOS and Windows targets pass cross-compilation and strict Clippy checks.
+  - **Implemented Behavior**: 3-stage enrollment lifecycle (`Fresh` -> `Pending` -> `Enrolled`), dual-namespace slot management, OS CSPRNG key generation, fingerprint calculation, Peer-ID binding, Olm prekey binding, per-selection batch signing (1..=52), and contact trust state transitions.
+  - **Tested Behavior**: Linux is fully verified via automated tests, absent-slot probes, disposable GNOME Keyring daemon integration tests, KAMI-50/WP2-A1 binding test suites, and WP-B per-selection signing (`t_d364301b` run 204, QA `t_0dcc13ac` run 205 PASS, Evaluator `t_250e6416` run 206 PASS-WITH-CONDITIONS). macOS and Windows targets pass cross-compilation and strict Clippy checks.
   - **Missing Behavior**: Native host execution tests on physical Windows and macOS machines.
   - **Known Limitations**: Detached signatures prove binding; they do not establish live transport network connections (handled by transport layers).
 

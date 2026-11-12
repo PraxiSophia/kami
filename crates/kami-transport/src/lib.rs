@@ -1,8 +1,10 @@
 //! Direct authenticated connection substrate. No application protocols or payloads.
 mod connection;
 mod driver;
+mod prekey_exchange;
 pub use connection::{AuthenticatedConnection, Revocation};
 pub use driver::{Driver, Event, Handle};
+pub use prekey_exchange::{IncomingPrekeyExchange, LivePrekeyExchange};
 mod policy;
 pub use libp2p::Multiaddr;
 #[cfg(test)]

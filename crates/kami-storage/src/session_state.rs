@@ -106,6 +106,7 @@ pub(crate) fn load_session(
     db: &Connection,
     id: [u8; 32],
 ) -> Result<Option<SessionRow>, StorageError> {
+    crate::prekeys::check_session_policy(db, id)?;
     let mut stmt = db.prepare("SELECT version,generation,contact,trust_generation,length(pin),length(context),length(state),pin,context,state,digest FROM e2ee_session WHERE id=?1")?;
     let mut rows = stmt.query([id])?;
     let Some(r) = rows.next()? else {
@@ -141,7 +142,7 @@ fn check_trust(db: &Connection, session: &SessionRow) -> Result<(), StorageError
     }
     Ok(())
 }
-fn put_account(
+pub(crate) fn put_account(
     db: &Connection,
     previous: Option<&AccountRow>,
     next: &AccountRow,
@@ -182,8 +183,9 @@ pub(crate) fn commit(
     quota: u64,
     count: u32,
 ) -> Result<Acceptance, StorageError> {
-    commit_inner(db, c, quota, count, false, None, None)
+    commit_inner(db, c, quota, count, false, None, None, None)
 }
+#[allow(clippy::too_many_arguments)] // One existing atomic transaction, including lifecycle evidence.
 fn commit_inner(
     db: &mut Connection,
     c: Commit,
@@ -192,6 +194,7 @@ fn commit_inner(
     initialize: bool,
     prepared: Option<(&crate::PreparedSend, i64)>,
     receipt: Option<crate::receiver_state::ReceiptTransition>,
+    lifecycle: Option<(&kami_e2ee::prekeys::PrekeyUse, i64)>,
 ) -> Result<Acceptance, StorageError> {
     if c.frame.is_empty()
         || c.frame.len() > 65536
@@ -251,6 +254,25 @@ fn commit_inner(
         return Err(StorageError::Conflict);
     }
     let f = c.message.facts();
+    if let Some((usage, now)) = lifecycle {
+        crate::prekeys::use_selection(
+            &tx,
+            usage,
+            n.id,
+            n.contact,
+            now,
+            c.previous.is_none(),
+            c.next_account.is_some(),
+        )?;
+    } else if c.previous.is_none() {
+        let managed: bool =
+            tx.query_row("SELECT EXISTS(SELECT 1 FROM prekey_inventory)", [], |r| {
+                r.get(0)
+            })?;
+        if managed {
+            return Err(StorageError::Conflict);
+        }
+    }
     // Only reconcile may reuse an existing logical ID; never adopt legacy rows.
     let existing: bool = tx.query_row(
         "SELECT EXISTS(SELECT 1 FROM message WHERE sender=?1 AND id=?2)",
@@ -365,7 +387,9 @@ pub(crate) fn commit_prepared_inner(
     prepared: Option<(&crate::PreparedSend, i64)>,
     receipt: Option<crate::receiver_state::ReceiptTransition>,
 ) -> Result<Vec<u8>, StorageError> {
+    let lifecycle = stage.prekey_use().cloned();
     let m = stage.into_material();
+    let finalized_at = m.received_at_ms();
     let id = m.session_id();
     let contact = m.contact();
     let trust_generation = m.trust_generation();
@@ -431,7 +455,16 @@ pub(crate) fn commit_prepared_inner(
         frame: frame.clone(),
         received_at,
     };
-    commit_inner(db, c, quota, count, true, prepared, receipt)?;
+    commit_inner(
+        db,
+        c,
+        quota,
+        count,
+        true,
+        prepared,
+        receipt,
+        lifecycle.as_ref().map(|u| (u, finalized_at)),
+    )?;
     Ok(frame)
 }
 

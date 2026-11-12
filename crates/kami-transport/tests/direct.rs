@@ -64,9 +64,10 @@ fn real_native_quic_tcp_and_fallback() {
     let tb = trusted(b.invitation().clone());
     let tc = trusted(c.invitation().clone());
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
-        let (da, ha, _) = Driver::new(a, Config { max_dials: 1, dial_timeout: Duration::from_millis(100), capability_ttl: Duration::from_millis(100), ..Config::default() }, vec!["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap(), "/ip4/127.0.0.1/tcp/0".parse().unwrap()]).unwrap();
+        let (da, ha, _) = Driver::new(a, Config { max_dials: 1, dial_timeout: Duration::from_millis(100), capability_ttl: Duration::from_millis(500), ..Config::default() }, vec!["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap(), "/ip4/127.0.0.1/tcp/0".parse().unwrap()]).unwrap();
         let (db, hb, _) = Driver::new(b, Config::default(), vec!["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap(), "/ip4/127.0.0.1/tcp/0".parse().unwrap()]).unwrap();
         let (dc, hc, _) = Driver::new(c, Config { max_attempts: 1, dial_timeout: Duration::from_millis(100), ..Config::default() }, vec!["/ip4/127.0.0.1/tcp/0".parse().unwrap()]).unwrap();
+        let (db, mut prekey_requests) = db.with_prekeys();
         let (stop, stopping) = tokio::sync::watch::channel(false);
         let ja = tokio::spawn(da.run(stopping.clone()));
         let jb = tokio::spawn(db.run(stopping));
@@ -98,7 +99,17 @@ fn real_native_quic_tcp_and_fallback() {
             assert!(cap.is_current());
             assert_eq!(cap.authenticated_peer(&tb).unwrap(), tb.pinned().unwrap().binding().peer_id());
             assert_eq!(cap.authenticated_peer(&ta), Err(Error::Untrusted));
+            use kami_protocol::prekey_exchange::{Exchange, Query, Failure};
+            let query = Exchange::Query(Query {request:[if quic {1} else {2};32],requester:*ta.pinned().unwrap().device_key(),publisher:*tb.pinned().unwrap().device_key(),minimum_generation:1});
+            let mut exchange = Box::pin(ha.exchange_prekey(&cap,query.clone()));
+            let incoming = tokio::select! { value=prekey_requests.recv()=>value.unwrap(), result=&mut exchange=>panic!("unexpected completion: {:?}",result.err()) };
+            assert_eq!(incoming.evidence().inspect(&ta).unwrap().1,ta.pinned().unwrap().binding().peer_id());
+            assert!(matches!(ha.exchange_prekey(&cap,query.clone()).await,Err(Error::Busy)));
+            incoming.respond(&ta, Exchange::Error {request:*query.request_id(),failure:Failure::Depleted}).unwrap();
+            let evidence=exchange.await.unwrap();assert!(evidence.inspect(&tb).is_ok());
             ha.disconnect(*tb.pinned().unwrap().device_key()).await.unwrap();
+            assert!(!evidence.is_current());
+            assert!(evidence.inspect(&tb).is_err());
             assert!(!cap.is_current());
             tokio::time::sleep(Duration::from_millis(30)).await;
         }
@@ -110,8 +121,14 @@ fn real_native_quic_tcp_and_fallback() {
         tokio::time::sleep(Duration::from_millis(30)).await;
         let tcp = addresses.iter().find(|a| !a.to_string().contains("quic-v1")).unwrap().clone();
         let cap = ha.dial(*tb.pinned().unwrap().device_key(), vec![tcp]).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(150)).await;
+        let expiry_query=kami_protocol::prekey_exchange::Exchange::Query(kami_protocol::prekey_exchange::Query {request:[9;32],requester:*ta.pinned().unwrap().device_key(),publisher:*tb.pinned().unwrap().device_key(),minimum_generation:1});
+        let mut expiring=Box::pin(ha.exchange_prekey(&cap,expiry_query));
+        let stalled=tokio::select! { value=prekey_requests.recv()=>value.unwrap(),result=&mut expiring=>panic!("unexpected completion: {:?}",result.err()) };
+        tokio::time::sleep(Duration::from_millis(550)).await;
         assert!(!cap.is_current(), "capability expiry must be enforced without telemetry consumption");
+        assert!(expiring.await.is_err());
+        assert!(!stalled.evidence().is_current());
+        assert!(stalled.respond(&ta,kami_protocol::prekey_exchange::Exchange::Error {request:[9;32],failure:kami_protocol::prekey_exchange::Failure::Depleted}).is_err());
         let cap_c = hc.dial(*tb.pinned().unwrap().device_key(),vec![addresses.iter().find(|a| !a.to_string().contains("quic-v1")).unwrap().clone()]).await.unwrap();
         let blocked = tb.transition(TrustTransition::Block).unwrap();
         assert_eq!(hc.register(blocked).await,Err(Error::Untrusted)); assert!(!cap_c.is_current());

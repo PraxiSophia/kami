@@ -17,6 +17,36 @@ use libp2p_identity::Keypair;
 use vodozemac::olm::Account;
 
 #[test]
+fn lifecycle_first_inbound_preserves_real_account_generation() {
+    let p = pair();
+    let a = outbound(&p);
+    let inner = inner_for(&p, &a);
+    let sent = send(&p, &a, &inner);
+    let stage = BoundSession::stage_inbound_generation(
+        &p.bob,
+        p.b.clone(),
+        &sent.frame,
+        &expected(&inner),
+        Some(&p.trust_a),
+        Some(&p.b.remote.selected.publisher_peer),
+        1000,
+        7,
+    )
+    .unwrap();
+    let commit = stage
+        .finalize(
+            &p.bob,
+            Some(&p.trust_a),
+            Some(&p.b.remote.selected.publisher_peer),
+            1000,
+        )
+        .unwrap();
+    let material = commit.into_material();
+    assert_eq!(material.account_generation(), 7);
+    assert!(material.advances_account());
+}
+
+#[test]
 fn wp3_private_snapshot_roundtrip_and_restore_anchor_fail_closed() {
     use crate::persistence::{AccountSnapshot, RestoreAuthority};
     let p = pair();

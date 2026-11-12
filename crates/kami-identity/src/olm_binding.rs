@@ -55,6 +55,16 @@ pub struct OlmBindingData {
     pub expires_at_ms: u64,
 }
 impl OlmBindingData {
+    /// Unpredictable live-exchange challenge from the existing OS entropy source.
+    pub fn new_challenge() -> Result<[u8; 32], IdentityError> {
+        let mut challenge = [0; 32];
+        getrandom::fill(&mut challenge)
+            .map_err(|_| IdentityError::Custody(kami_key_provider::KeyError::Unavailable))?;
+        if challenge == [0; 32] {
+            return Err(IdentityError::Malformed);
+        }
+        Ok(challenge)
+    }
     fn validate(&self) -> Result<(), IdentityError> {
         if self.publisher_peer.to_bytes().len() > MAX_PEER
             || self.prekey_reference.len() > MAX_OLM_PREKEY_REFERENCE_BYTES

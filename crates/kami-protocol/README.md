@@ -31,6 +31,40 @@ numbers. The derives are maintained alongside that schema; no codegen or `protoc
 is needed to build. Fixed golden vectors pin the actual representation. Changing
 the schema requires updating the derives, scanner, validation and vectors together.
 
+## Prekey-only exchange (KAMI-51 WP-B)
+
+`prekey_exchange.rs` and `proto/kami/m1/prekey_exchange.proto` define a separate
+strict v1 Protobuf domain: query, one signed public selection, publication ACK,
+ACK result, and bounded typed errors. A single selection avoids partial-batch
+ambiguity and stays below the approved maximum of 32. The encoded body is at
+most 16,380 bytes, reserving four bytes for transport framing; proofs are at most
+1,024 bytes. Request/device/digest fields have exact lengths, generations are
+positive signed-SQLite-range integers, fields have fixed ascending order and
+minimal varints. Unknown/duplicate fields, overflow, nonminimal encodings,
+truncation and trailing bytes fail closed. Accepted bytes re-encode identically.
+
+This codec grants no provenance, signature verification, freshness, reservation
+or custody authority. It is independent of transport, storage and identity;
+runtime validates per-selection identity proofs and durable authority. There are
+no application payloads or device-delivered receipts in this exchange.
+
+Focused check: `cargo test --locked -p kami-protocol --test prekey_exchange`.
+
+WP-B implementation `t_d364301b` run 204, QA `t_0dcc13ac` run 205 PASS and final
+Evaluator `t_250e6416` run 206 PASS-WITH-CONDITIONS establish bounded acceptance
+with conditions, not production readiness. The transport composes this codec on
+the authenticated same QUIC/TCP swarm with five-second deadlines (further bounded
+by capability expiry), one exchange per peer/direction, 16 global and a reliable
+16-entry inbound queue. Those are transport/runtime limits, not codec guarantees.
+Runtime validates identity signatures and current custody/trust; SQLCipher freezes
+exact response/reservation before send and retains selection before publication
+ACK. Exact duplicate ACK/result reconcile, conflicting bytes reject. Publication
+ACK is not provider-global mark-published or DEVICE_DELIVERED.
+
+WP-C mutable restore/external rollback authority and WP-D integrated qualification
+remain outstanding. The [fixture-only runner](../../scripts/kami51-wpb-manual/README.md)
+does not create a two-process owner interface or claim manual qualification.
+
 ## M1 structural profile
 
 This is a flat endpoint structural representation, not an approved relay-visible

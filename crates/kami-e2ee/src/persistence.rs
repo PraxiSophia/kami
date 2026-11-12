@@ -103,6 +103,18 @@ impl Snapshot {
 pub(crate) struct AccountSnapshot(Snapshot);
 pub(crate) struct SessionSnapshot(Snapshot);
 impl AccountSnapshot {
+    pub(crate) fn capture_lifecycle(
+        account: &Account,
+        context: [u8; 32],
+        generation: u64,
+    ) -> Result<Self, Error> {
+        let pickle = Zeroizing::new(
+            serde_json::to_vec(&account.pickle()).map_err(|_| Error::StateEncoding)?,
+        );
+        Ok(Self(Snapshot::new(
+            1, generation, generation, context, &pickle, false,
+        )?))
+    }
     pub(crate) fn capture(
         account: &Account,
         endpoint: &Endpoint,
@@ -116,7 +128,7 @@ impl AccountSnapshot {
             1,
             generation,
             generation,
-            endpoint.digest(),
+            endpoint.account_context(),
             &pickle,
             false,
         )?))
@@ -139,9 +151,12 @@ impl AccountSnapshot {
         generation: u64,
         authority: RestoreAuthority,
     ) -> Result<Account, Error> {
-        let bytes = self
-            .0
-            .checked(generation, generation, endpoint.digest(), authority)?;
+        let bytes = self.0.checked(
+            generation,
+            generation,
+            endpoint.account_context(),
+            authority,
+        )?;
         let pickle =
             serde_json::from_slice::<AccountPickle>(bytes).map_err(|_| Error::StateEncoding)?;
         let account = Account::from_pickle(pickle);

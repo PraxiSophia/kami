@@ -58,6 +58,14 @@ impl Endpoint {
             selected,
         }
     }
+    pub(crate) fn account_context(&self) -> [u8; 32] {
+        crate::prekeys::account_context(
+            *self.device.as_bytes(),
+            &self.selected.publisher_peer,
+            self.selected.olm_ed25519,
+            self.selected.olm_curve25519,
+        )
+    }
     pub(crate) fn digest(&self) -> [u8; 32] {
         Sha256::digest(self.binding.to_bytes()).into()
     }
@@ -159,6 +167,8 @@ pub(crate) struct BoundSession {
     session: Session,
     anchor: Anchor,
     initiator: bool,
+    committed_generation: u64,
+    committed_account_generation: u64,
 }
 /// Candidate only, no durable evidence or implicit commit. No Debug/serialization.
 pub(crate) struct SendStage {
@@ -179,6 +189,7 @@ pub(crate) struct InboundStage {
     pub inner: InnerEnvelopeV1,
     frame: Vec<u8>,
     source_account_digest: [u8; 32],
+    source_account_generation: u64,
 }
 impl BoundSession {
     fn persistence_context(anchor: &Anchor) -> [u8; 32] {
@@ -200,7 +211,11 @@ impl BoundSession {
         crate::persistence::SessionSnapshot::capture(
             &self.session,
             generation,
-            account_generation,
+            if generation == self.committed_generation {
+                self.committed_account_generation
+            } else {
+                account_generation
+            },
             Self::persistence_context(&self.anchor),
             self.initiator,
         )
@@ -234,6 +249,8 @@ impl BoundSession {
             session,
             anchor,
             initiator,
+            committed_generation: generation,
+            committed_account_generation: account_generation,
         })
     }
     pub(crate) fn outbound(
@@ -256,6 +273,8 @@ impl BoundSession {
             session,
             anchor,
             initiator: true,
+            committed_generation: 0,
+            committed_account_generation: 1,
         })
     }
     pub(crate) fn session_id(&self) -> String {
@@ -286,6 +305,8 @@ impl BoundSession {
                 session,
                 anchor: self.anchor.clone(),
                 initiator: self.initiator,
+                committed_generation: self.committed_generation,
+                committed_account_generation: self.committed_account_generation,
             },
             frame,
             inner: inner.clone(),
@@ -321,6 +342,8 @@ impl BoundSession {
                 session,
                 anchor: self.anchor.clone(),
                 initiator: self.initiator,
+                committed_generation: self.committed_generation,
+                committed_account_generation: self.committed_account_generation,
             },
             inner,
             frame: bytes.to_vec(),
@@ -352,6 +375,19 @@ impl BoundSession {
         trust: Option<&ContactTrust>,
         end_peer: Option<&PeerId>,
         now: u64,
+    ) -> Result<InboundStage, Error> {
+        Self::stage_inbound_generation(account, anchor, bytes, expected, trust, end_peer, now, 1)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn stage_inbound_generation(
+        account: &Account,
+        anchor: Anchor,
+        bytes: &[u8],
+        expected: &ExpectedContext,
+        trust: Option<&ContactTrust>,
+        end_peer: Option<&PeerId>,
+        now: u64,
+        account_generation: u64,
     ) -> Result<InboundStage, Error> {
         anchor.verify(trust, end_peer, now)?;
         anchor.local.matches_account(account)?;
@@ -386,12 +422,18 @@ impl BoundSession {
         {
             return Err(Error::AuthenticationRejected);
         }
-        let source_account_digest =
-            crate::persistence::AccountSnapshot::capture(account, &anchor.local, 1)?.digest();
+        let source_account_digest = crate::persistence::AccountSnapshot::capture(
+            account,
+            &anchor.local,
+            account_generation,
+        )?
+        .digest();
         let bound = Self {
             session: result.session,
             anchor,
             initiator: false,
+            committed_generation: 0,
+            committed_account_generation: account_generation,
         };
         let inner = bound.accept_inner(&plaintext, &frame, &bound.session)?;
         Ok(InboundStage {
@@ -400,6 +442,7 @@ impl BoundSession {
             inner,
             frame: bytes.to_vec(),
             source_account_digest,
+            source_account_generation: account_generation,
         })
     }
 }
@@ -407,8 +450,12 @@ impl BoundSession {
 /// A candidate is NOT durable evidence, a receipt, or live network provenance.
 pub struct AuthenticatedCommit {
     material: CommitMaterial,
+    lifecycle: Option<crate::prekeys::PrekeyUse>,
 }
 impl AuthenticatedCommit {
+    pub fn prekey_use(&self) -> Option<&crate::prekeys::PrekeyUse> {
+        self.lifecycle.as_ref()
+    }
     pub fn facts(&self) -> kami_core::MessageFacts {
         self.material.facts
     }
@@ -627,6 +674,7 @@ fn finalize_stage(
         frame.clone()
     });
     Ok(AuthenticatedCommit {
+        lifecycle: None,
         material: CommitMaterial {
             account,
             next_account,
@@ -717,8 +765,12 @@ impl InboundStage {
         end_peer: Option<&PeerId>,
         now: u64,
     ) -> Result<AuthenticatedCommit, Error> {
-        if crate::persistence::AccountSnapshot::capture(source, &self.session.anchor.local, 1)?
-            .digest()
+        if crate::persistence::AccountSnapshot::capture(
+            source,
+            &self.session.anchor.local,
+            self.source_account_generation,
+        )?
+        .digest()
             != self.source_account_digest
         {
             return Err(Error::StateEncoding);
@@ -734,7 +786,7 @@ impl InboundStage {
             source,
             None,
             next,
-            1,
+            self.source_account_generation,
             0,
             true,
             trust,
@@ -757,6 +809,7 @@ pub struct QuarantinedSession {
     account_generation: u64,
     session_generation: u64,
     retry: Option<CommitMaterial>,
+    lifecycle: Option<crate::prekeys::PrekeyUse>,
 }
 impl QuarantinedSession {
     #[allow(clippy::too_many_arguments)]
@@ -782,6 +835,7 @@ impl QuarantinedSession {
             account_generation: 1,
             session_generation: 0,
             retry: None,
+            lifecycle: None,
         })
     }
     #[allow(clippy::too_many_arguments)]
@@ -802,7 +856,20 @@ impl QuarantinedSession {
             conversation,
             trust_generation: trust.generation(),
         };
-        let stage = BoundSession::stage_inbound(
+        Self::inbound_generation(account, anchor, frame, expected, trust, end_peer, now, 1)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn inbound_generation(
+        account: Account,
+        anchor: Anchor,
+        frame: &[u8],
+        expected: &ExpectedContext,
+        trust: &ContactTrust,
+        end_peer: &PeerId,
+        now: u64,
+        source_generation: u64,
+    ) -> Result<(AuthenticatedCommit, Self), Error> {
+        let stage = BoundSession::stage_inbound_generation(
             &account,
             anchor,
             frame,
@@ -810,12 +877,13 @@ impl QuarantinedSession {
             Some(trust),
             Some(end_peer),
             now,
+            source_generation,
         )?;
         let account_generation =
             if stage.session.anchor.local.selected.prekey_kind == OlmPrekeyKind::OneTime {
-                2
+                next_generation(source_generation)?
             } else {
-                1
+                source_generation
             };
         let mut proposed = Self {
             account: Account::from_pickle(stage.account.pickle()),
@@ -823,8 +891,12 @@ impl QuarantinedSession {
             account_generation,
             session_generation: 1,
             retry: None,
+            lifecycle: None,
         };
-        let commit = stage.finalize(&account, Some(trust), Some(end_peer), now)?;
+        let mut commit = stage.finalize(&account, Some(trust), Some(end_peer), now)?;
+        proposed.bound.committed_generation = 1;
+        proposed.bound.committed_account_generation = account_generation;
+        commit.lifecycle = proposed.lifecycle.clone();
         proposed.retry = Some(commit.material.retained()?);
         Ok((commit, proposed))
     }
@@ -870,7 +942,7 @@ impl QuarantinedSession {
             .bound
             .stage_send(&inner, Some(trust), Some(end_peer), now)?;
         let mut proposed = self.proposed(stage.session.copy())?;
-        let commit = stage.finalize(
+        let mut commit = stage.finalize(
             &self.account,
             &self.bound,
             self.account_generation,
@@ -879,6 +951,7 @@ impl QuarantinedSession {
             Some(end_peer),
             now,
         )?;
+        commit.lifecycle = proposed.lifecycle.clone();
         proposed.retry = Some(commit.material.retained()?);
         Ok((commit, proposed))
     }
@@ -894,7 +967,7 @@ impl QuarantinedSession {
             .bound
             .stage_receive(frame, expected, Some(trust), Some(end_peer), now)?;
         let mut proposed = self.proposed(stage.session.copy())?;
-        let commit = stage.finalize(
+        let mut commit = stage.finalize(
             &self.account,
             &self.bound,
             self.account_generation,
@@ -903,6 +976,7 @@ impl QuarantinedSession {
             Some(end_peer),
             now,
         )?;
+        commit.lifecycle = proposed.lifecycle.clone();
         proposed.retry = Some(commit.material.retained()?);
         Ok((commit, proposed))
     }
@@ -922,15 +996,19 @@ impl QuarantinedSession {
         }
         Ok(AuthenticatedCommit {
             material: material.retained()?,
+            lifecycle: self.lifecycle.clone(),
         })
     }
-    fn proposed(&self, bound: BoundSession) -> Result<Self, Error> {
+    fn proposed(&self, mut bound: BoundSession) -> Result<Self, Error> {
+        bound.committed_generation = next_generation(self.session_generation)?;
+        bound.committed_account_generation = self.account_generation;
         Ok(Self {
             account: Account::from_pickle(self.account.pickle()),
             bound,
             account_generation: self.account_generation,
             session_generation: next_generation(self.session_generation)?,
             retry: None,
+            lifecycle: self.lifecycle.clone(),
         })
     }
 }
@@ -940,7 +1018,103 @@ impl BoundSession {
             session: Session::from_pickle(self.session.pickle()),
             anchor: self.anchor.clone(),
             initiator: self.initiator,
+            committed_generation: self.committed_generation,
+            committed_account_generation: self.committed_account_generation,
         }
+    }
+}
+impl crate::prekeys::AccountLifecycle {
+    /// Gated session composition only. Runtime must supply live retained selection
+    /// authority and commit the returned candidate before installing any state.
+    #[allow(clippy::too_many_arguments)]
+    pub fn prepare_outbound(
+        &self,
+        local: Endpoint,
+        remote: Endpoint,
+        selected: &kami_protocol::prekey_exchange::Selection,
+        conversation: ConversationId,
+        trust: &ContactTrust,
+        end_peer: &PeerId,
+        now: u64,
+    ) -> Result<QuarantinedSession, Error> {
+        local.matches_account(&self.account)?;
+        if selected.recipient != *local.device.as_bytes()
+            || !self.inventory().contains(&local.selected)
+        {
+            return Err(Error::AuthenticationRejected);
+        }
+        let usage = crate::prekeys::PrekeyUse::selected(selected, &remote, false)?;
+        let mut session = QuarantinedSession::outbound(
+            Account::from_pickle(self.account.pickle()),
+            local,
+            remote,
+            conversation,
+            trust,
+            end_peer,
+            now,
+        )?;
+        session.account_generation = self.generation();
+        session.lifecycle = Some(usage);
+        Ok(session)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn prepare_inbound(
+        &self,
+        local: Endpoint,
+        remote: Endpoint,
+        publication: &kami_protocol::prekey_exchange::Selection,
+        conversation: ConversationId,
+        frame: &[u8],
+        expected: &ExpectedContext,
+        trust: &ContactTrust,
+        end_peer: &PeerId,
+        now: u64,
+    ) -> Result<(AuthenticatedCommit, QuarantinedSession, Self), Error> {
+        local.matches_account(&self.account)?;
+        if publication.recipient != *remote.device.as_bytes()
+            || publication.account_generation > self.generation()
+            || !self.inventory().contains(&local.selected)
+        {
+            return Err(Error::AuthenticationRejected);
+        }
+        let usage = crate::prekeys::PrekeyUse::selected(publication, &local, true)?;
+        let selected = local.selected.clone();
+        let anchor = Anchor {
+            local,
+            remote,
+            conversation,
+            trust_generation: trust.generation(),
+        };
+        let (mut commit, mut session) = QuarantinedSession::inbound_generation(
+            Account::from_pickle(self.account.pickle()),
+            anchor,
+            frame,
+            expected,
+            trust,
+            end_peer,
+            now,
+            self.generation(),
+        )?;
+        commit.lifecycle = Some(usage.clone());
+        session.lifecycle = Some(usage);
+        let owner = self.consumed(&session.account, session.account_generation, &selected)?;
+        Ok((commit, session, owner))
+    }
+}
+impl QuarantinedSession {
+    /// Synchronize only with the opaque shared account owner after its commit.
+    /// Storage's exact old-session CAS still uses its original account generation.
+    pub fn synchronize_account(
+        mut self,
+        owner: &crate::prekeys::AccountLifecycle,
+    ) -> Result<Self, Error> {
+        self.bound.anchor.local.matches_account(&owner.account)?;
+        if owner.generation() < self.account_generation {
+            return Err(Error::StateEncoding);
+        }
+        self.account = Account::from_pickle(owner.account.pickle());
+        self.account_generation = owner.generation();
+        Ok(self)
     }
 }
 fn parse_frame(

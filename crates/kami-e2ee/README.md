@@ -2,7 +2,8 @@
 
 KAMI-51 provider/profile foundation (WP1), the accepted-with-limitations WP-A
 authenticated-context/provider-contract correction, quarantined WP2-A2 authenticated
-inner envelopes, bounded WP3 snapshots, and **WP2-B typed storage composition**, integrating the
+inner envelopes, bounded WP3 snapshots, **WP2-B typed storage composition** and
+WP-B opaque account/prekey lifecycle, integrating the
 [kami-identity WP2-A1 signed account/prekey binding](../kami-identity/README.md).
 **Production messaging is not enabled; the general provider's encryption/decryption
 remain fail-closed.** The separate public `QuarantinedSession` API is for bounded
@@ -17,8 +18,11 @@ foundation. WP2-B has conditional owner acceptance only within its quarantined
 scope; its implementation and independent QA/Evaluator reviews reported PASS. WP-A
 is accepted with limitations after implementation run 187, independent QA run 188,
 and final security evaluation run 189; its acceptance checkpoint is Kanban comment
-176. This does not enable production messaging, establish live network provenance,
-or complete KAMI-51/M1. Jira status is authoritative for the issue record and is not
+176. WP-B is subsequently bounded accepted with conditions: implementation
+`t_d364301b` run 204, QA `t_0dcc13ac` run 205 PASS, final Evaluator `t_250e6416`
+run 206 PASS-WITH-CONDITIONS. Its runtime supplies live provenance only for the
+prekey-only exchange, not application messaging or KAMI-51/M1 completion.
+Jira status is authoritative for the issue record and is not
 changed by this documentation.
 
 ## WP-A provider and API boundary
@@ -83,6 +87,8 @@ available.
   this does not enable the general provider API.
 - `persistence` (**private**): versioned bounded account/prekey and session
   snapshots, in-process digest checks and unsupported profile-restore refusal.
+- `prekeys`: opaque `AccountLifecycle`, `LifecycleCommit` and exact selected-key
+  `PrekeyUse` evidence; provider state stays in E2EE, persistence/CAS in storage.
 - `errors`: stable redacted error categories; provider/library diagnostics are
   not forwarded. The authenticated boundary uses uniform `AuthenticationRejected`.
 
@@ -150,8 +156,9 @@ production activation.
 The existing trusted in-process custodian can consume full provider/account/session
 snapshots. WP-A adds no new export, but this remains a custody limitation: no total
 private-material non-exportability or protection from a malicious legitimate
-custodian is claimed. Prekey lifecycle, durable recovery and rollback, integrated
-qualification, application delivery, and production E2EE remain disabled.
+custodian is claimed. WP-B adds bounded lifecycle below; durable recovery and
+external rollback authority, integrated qualification, application delivery and
+production E2EE remain unavailable.
 
 The WP1 ciphertext JSON input ceiling is 65,536 bytes **before provider parsing**
 in both public entry and private helper; its private plaintext staging ceiling is
@@ -364,7 +371,8 @@ for just its own last stage, not an unbounded retry history. No separate public
 neutral retry, account-load or raw snapshot-import path exists. First account bootstrap and OTK
 consumption are in the same IMMEDIATE transaction as session/message/frame;
 fallback does not advance the account. Initial account generation is 1; the bounded
-API does not import existing accounts or replenish/publish/rotate prekeys.
+WP2-B API does not import existing accounts; WP-B adds a separate lifecycle seam
+below rather than extending this API into a production messaging service.
 
 `AuthenticatedCommit`, `CommitMaterial` and `SnapshotTransfer` have private fields,
 no neutral constructors, Clone/Default/Debug/serde. Consuming
@@ -446,14 +454,64 @@ cargo test --locked -p kami-receiver --test receive
 No production provider activation, real-network/cross-platform qualification,
 runtime ACK emission, or exactly-once terminal rendering is implied.
 
+## WP-B bounded account/prekey lifecycle
+
+`prekeys::AccountLifecycle::create` generates a new Olm account, 32 OTKs and a
+reusable fallback only after runtime proves durable account absence. It is not a
+missing-key repair. The retained OTK cap is 50; `replenish` stages a copied account
+and advances account/bundle generations without relabelling earlier signed keys
+or permitting provider eviction. `rotate_fallback` retains current/previous slots
+and rejects overwriting an unexpired previous fallback. Old exposure/retirement
+evidence remains storage-owned even after provider forgetting. Signed validity
+is positive and at most 300,000 ms; expiry blocks rather than silently refreshes
+an already-issued selection.
+
+`prepare_commit` takes identity-owned independent per-selection signatures and
+returns an opaque `LifecycleCommit` with exact previous account generation,
+digest and bytes plus the next snapshot/inventory. Install the proposed lifecycle
+only after SQLCipher confirms CAS. Its consuming snapshot transfer is trusted
+in-process custody, not IPC, serialization, logging or a private-key export API;
+a malicious legitimate custodian can still capture provider pickles.
+
+`select` prefers available valid OTKs, with explicit fallback only when no eligible
+OTK remains. Storage globally reserves OTKs across contacts before a response
+escapes, caps degraded fallback issuance/use at 16 and atomically consumes an OTK
+with account/session/message/frame commit. Fallback does not consume an OTK or
+advance the account for consumption. `PrekeyUse` binds exact retained selection,
+request, digest, reference, kind and generation into authenticated staging. These
+local crypto/storage fixtures are not a live KAMI-28 message producer.
+
+Runtime combines this with identity custody and the same authenticated QUIC/TCP
+swarm: **one signed selection per response**, freeze-before-send, retain-before-
+publication-ACK, exact-byte retry and matching ACK-result reconciliation. No
+per-peer ACK calls provider-global mark-published. Transport enforces 16 KiB total
+framing, five-second deadlines/capability expiry, one per peer/direction, 16 global
+and a 16-entry reliable inbound queue; E2EE alone grants none of that provenance.
+
+After process restart only valid exact frozen exchanges may reconcile. There is
+no mutable account/session import or external rollback anchor (WP-C); new
+publication from a persisted account fails closed. Expired/exposed inventory and
+finite ledgers are not recycled/compacted. WP-D native-platform, real-network,
+interoperability, fuzz/DoS and load qualification remain open; public production
+encryption stays fail-closed. The [fixture runner](../../scripts/kami51-wpb-manual/README.md)
+is automated evidence only; the existing two-terminal KAMI-27 interface has no
+prekey/ACK commands and is not an owner-operated WP-B harness.
+
+Focused commands passed in WP-B QA run 205 and final evaluation run 206:
+
+```sh
+cargo test --locked -p kami-e2ee --test prekeys
+cargo test --locked -p kami-storage --test authenticated_boundary authenticated_positive_boundary -- --exact --nocapture
+```
+
 ## Deferred work and qualification (WP4/WP5)
 
-WP2-B supplies bounded typed composition, not production account custody/import,
-publication/prekey lifecycle, trusted external rollback authority or retained
-bundle-freshness policy. Opening storage is not permission to restore cryptography.
+WP2-B supplies bounded typed composition. WP-B adds opaque lifecycle/custody and
+retained freshness policy, not production account import or trusted external
+rollback authority. Opening storage is not permission to restore cryptography.
 
-Also deferred: runtime/transport/relay integration and real end-peer provenance,
-service trust-change race guards, production orchestration of the bounded
+Also deferred: application runtime/transport/relay integration and application
+end-peer provenance/trust-change race guards, production orchestration of the bounded
 sender/receiver inbox/outbox, exact-frame dedup/retry/order/receipt and Delivered
 commits now implemented by KAMI-24/KAMI-25, and integrated Linux/Windows/macOS and
 production security qualification. Private storage tests do not activate these
@@ -465,6 +523,7 @@ v2. Skipped-key retention/gap limits belong to upstream, not configurable Kami
 profile promises: the pinned receiver chain has a 40-key retention cap and a
 2,000-message gap ceiling. These finite windows are not qualified against Kami's
 durable retry/no-loss requirements; expiry/recovery policy remains unresolved.
-No Kami prekey-batch provisioning limit is implemented. No Signal/Matrix
+WP-B's inventory cap is distinct from a wire batch: responses carry one selection.
+No Signal/Matrix
 interoperability, network delivery, OS portability, production security or M1
 completion is established by these local tests.

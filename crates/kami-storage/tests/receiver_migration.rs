@@ -12,7 +12,7 @@ fn encrypted_v4_upgrade_preserves_canonical_rows_and_key() {
         .query_row("SELECT key FROM sender_binding_key", [], |r| r.get(0))
         .unwrap();
     db.execute_batch(
-        "DROP TABLE enrollment_complete; DROP TABLE delivery_artifact; DROP TABLE receiver_gap; PRAGMA user_version=4;",
+        "DROP TABLE prekey_session; DROP TABLE prekey_received; DROP TABLE prekey_query; DROP TABLE prekey_authority; DROP TABLE prekey_publication; DROP TABLE prekey_inventory; DROP TABLE prekey_clock; DROP TABLE enrollment_complete; DROP TABLE delivery_artifact; DROP TABLE receiver_gap; PRAGMA user_version=4;",
     )
     .unwrap();
     drop(db);
@@ -28,7 +28,7 @@ fn encrypted_v4_upgrade_preserves_canonical_rows_and_key() {
     assert_eq!(
         db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))
             .unwrap(),
-        6
+        7
     );
     assert_eq!(
         db.query_row("SELECT key FROM sender_binding_key", [], |r| r
@@ -48,7 +48,7 @@ fn receiver_migration_failure_rolls_back_new_artifact_table_and_version() {
     let dir = common::directory();
     common::create(&dir).shutdown().unwrap();
     let db = common::raw(&dir);
-    db.execute_batch("DROP TABLE enrollment_complete; DROP TABLE delivery_artifact; DROP TABLE receiver_gap; CREATE TABLE receiver_gap(conflict INTEGER); PRAGMA user_version=4;").unwrap();
+    db.execute_batch("DROP TABLE prekey_session; DROP TABLE prekey_received; DROP TABLE prekey_query; DROP TABLE prekey_authority; DROP TABLE prekey_publication; DROP TABLE prekey_inventory; DROP TABLE prekey_clock; DROP TABLE enrollment_complete; DROP TABLE delivery_artifact; DROP TABLE receiver_gap; CREATE TABLE receiver_gap(conflict INTEGER); PRAGMA user_version=4;").unwrap();
     drop(db);
     let result = Storage::open(
         ProfileLease::acquire(dir.path()).unwrap(),

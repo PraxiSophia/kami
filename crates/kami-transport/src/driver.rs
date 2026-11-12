@@ -1,9 +1,12 @@
+use crate::prekey_exchange::{Behaviour, Packet, WireEvent};
 use crate::{policy::direct_address, AuthenticatedConnection, Config, Error};
 use kami_identity::{
     send_decision, ContactTrust, ContactTrustState, SealedTransportCredentials, SendDecision,
 };
+use kami_protocol::prekey_exchange::Exchange;
+use libp2p::request_response as rr;
 use libp2p::{
-    connection_limits::{Behaviour, ConnectionLimits},
+    connection_limits::ConnectionLimits,
     futures::StreamExt,
     swarm::{dial_opts::DialOpts, ConnectionId, DialError, SwarmEvent},
     Multiaddr, PeerId, Swarm,
@@ -21,6 +24,11 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 type Reply<T> = oneshot::Sender<Result<T, Error>>;
 enum Command {
+    Prekey(
+        Box<AuthenticatedConnection>,
+        Exchange,
+        Reply<crate::LivePrekeyExchange>,
+    ),
     Register(Box<ContactTrust>, Reply<()>),
     Addresses(Reply<Vec<Multiaddr>>),
     Dial([u8; 32], Vec<Multiaddr>, Reply<AuthenticatedConnection>),
@@ -33,6 +41,18 @@ pub struct Handle {
     tx: mpsc::Sender<Command>,
 }
 impl Handle {
+    pub async fn exchange_prekey(
+        &self,
+        cap: &AuthenticatedConnection,
+        value: Exchange,
+    ) -> Result<crate::LivePrekeyExchange, Error> {
+        if !cap.is_current() || !matches!(value, Exchange::Query(_) | Exchange::Ack(_)) {
+            return Err(Error::Untrusted);
+        }
+        kami_protocol::prekey_exchange::encode(&value).map_err(|_| Error::Untrusted)?;
+        self.request(|r| Command::Prekey(Box::new(cap.retained()), value, r))
+            .await
+    }
     /// Reliable bounded control enqueue for runtime durable-trust refresh. On
     /// queue failure runtime must revoke the entire transport out-of-band.
     pub fn refresh_contact(
@@ -130,8 +150,32 @@ pub struct Driver {
     live: HashMap<PeerId, Live>,
     dials: HashMap<PeerId, Dial>,
     addresses: Vec<Multiaddr>,
+    local_device: [u8; 32],
+    inbound: Option<mpsc::Sender<crate::IncomingPrekeyExchange>>,
+    outgoing: HashMap<rr::OutboundRequestId, Outgoing>,
+    incoming: HashMap<PeerId, Incoming>,
+}
+struct Outgoing {
+    peer: PeerId,
+    cap: AuthenticatedConnection,
+    request: Exchange,
+    deadline: Instant,
+    reply: Reply<crate::LivePrekeyExchange>,
+}
+struct Incoming {
+    id: rr::InboundRequestId,
+    cap: AuthenticatedConnection,
+    request: Exchange,
+    deadline: Instant,
+    response: oneshot::Receiver<Exchange>,
+    channel: Option<rr::ResponseChannel<Packet>>,
 }
 impl Driver {
+    pub fn with_prekeys(mut self) -> (Self, mpsc::Receiver<crate::IncomingPrekeyExchange>) {
+        let (tx, rx) = mpsc::channel(16);
+        self.inbound = Some(tx);
+        (self, rx)
+    }
     /// Additional monotonic runtime revocation; not proof of a held profile lease.
     pub fn with_revocation(mut self, revocation: crate::Revocation) -> Self {
         self.revocation = revocation;
@@ -150,6 +194,7 @@ impl Driver {
             direct_address(addr, true)?;
         }
         let peer = credentials.local_peer_id();
+        let local_device = *credentials.invitation().device_key();
         let limits = ConnectionLimits::default()
             .with_max_pending_incoming(Some(config.max_connections))
             .with_max_pending_outgoing(Some(config.max_dials as u32))
@@ -179,6 +224,10 @@ impl Driver {
                 live: HashMap::new(),
                 dials: HashMap::new(),
                 addresses: Vec::new(),
+                local_device,
+                inbound: None,
+                outgoing: HashMap::new(),
+                incoming: HashMap::new(),
             },
             Handle { tx },
             rx,
@@ -199,6 +248,17 @@ impl Driver {
         })
     }
     fn revoke(&mut self, peer: PeerId, reason: Error) {
+        self.incoming.remove(&peer);
+        let ids: Vec<_> = self
+            .outgoing
+            .iter()
+            .filter_map(|(id, p)| (p.peer == peer).then_some(*id))
+            .collect();
+        for id in ids {
+            if let Some(p) = self.outgoing.remove(&id) {
+                let _ = p.reply.send(Err(reason));
+            }
+        }
         if let Some(c) = self.live.remove(&peer) {
             self.emit(Event::Disconnected(c.device));
         }
@@ -234,6 +294,46 @@ impl Driver {
     }
     fn command(&mut self, command: Command) {
         match command {
+            Command::Prekey(cap, value, reply) => {
+                let cap = *cap;
+                let peer = cap.peer;
+                let valid = self
+                    .live
+                    .get(&peer)
+                    .is_some_and(|live| Arc::ptr_eq(&live.flag, &cap.live))
+                    && self
+                        .contacts
+                        .get(&peer)
+                        .is_some_and(|t| cap.authenticated_peer(t).is_ok())
+                    && request_devices(&value) == Some((self.local_device, cap.device));
+                if !valid {
+                    let _ = reply.send(Err(Error::Untrusted));
+                    return;
+                }
+                if !prekey_capacity(
+                    self.incoming.len() + self.outgoing.len(),
+                    self.outgoing.values().any(|p| p.peer == peer),
+                ) {
+                    let _ = reply.send(Err(Error::Busy));
+                    return;
+                }
+                let deadline = cap.expires.min(Instant::now() + Duration::from_secs(5));
+                let id = self
+                    .swarm
+                    .behaviour_mut()
+                    .exchange
+                    .send_request(&peer, Packet::outgoing(value.clone()));
+                self.outgoing.insert(
+                    id,
+                    Outgoing {
+                        peer,
+                        cap,
+                        request: value,
+                        deadline,
+                        reply,
+                    },
+                );
+            }
             Command::Remove(device) => {
                 let peers: Vec<_> = self
                     .contacts
@@ -329,6 +429,7 @@ impl Driver {
         }
     }
     fn tick(&mut self) {
+        self.prekey_tick();
         let expired: Vec<_> = self
             .live
             .iter()
@@ -364,8 +465,181 @@ impl Driver {
             self.emit(Event::AttemptFailed(Error::Timeout));
         }
     }
-    fn network(&mut self, event: SwarmEvent<std::convert::Infallible>) {
+    fn prekey_event(&mut self, event: WireEvent) {
         match event {
+            rr::Event::Message {
+                peer,
+                connection_id,
+                message,
+            } => {
+                if !self.live.get(&peer).is_some_and(|c| {
+                    c.id == connection_id
+                        && c.flag.load(Ordering::Acquire)
+                        && Instant::now() < c.expires
+                }) {
+                    return;
+                }
+                match message {
+                    rr::Message::Request {
+                        request_id,
+                        request,
+                        channel,
+                    } => {
+                        let Ok(cap) = self.capability(peer) else {
+                            return;
+                        };
+                        if self
+                            .contacts
+                            .get(&peer)
+                            .is_none_or(|c| cap.authenticated_peer(c).is_err())
+                            || request_devices(&request.value)
+                                != Some((cap.device, self.local_device))
+                        {
+                            self.revoke(peer, Error::Untrusted);
+                            return;
+                        }
+                        if !prekey_capacity(
+                            self.incoming.len() + self.outgoing.len(),
+                            self.incoming.contains_key(&peer),
+                        ) {
+                            let error = Exchange::Error {
+                                request: *request.value.request_id(),
+                                failure: kami_protocol::prekey_exchange::Failure::Busy,
+                            };
+                            let _ = self
+                                .swarm
+                                .behaviour_mut()
+                                .exchange
+                                .send_response(channel, Packet::outgoing(error));
+                            return;
+                        }
+                        let deadline = cap.expires.min(Instant::now() + Duration::from_secs(5));
+                        let (tx, rx) = oneshot::channel();
+                        let incoming = crate::IncomingPrekeyExchange {
+                            evidence: crate::LivePrekeyExchange {
+                                capability: cap.retained(),
+                                value: request.value.clone(),
+                                deadline,
+                            },
+                            reply: tx,
+                        };
+                        if self
+                            .inbound
+                            .as_ref()
+                            .is_none_or(|queue| queue.try_send(incoming).is_err())
+                        {
+                            return;
+                        }
+                        self.incoming.insert(
+                            peer,
+                            Incoming {
+                                id: request_id,
+                                cap,
+                                request: request.value,
+                                deadline,
+                                response: rx,
+                                channel: Some(channel),
+                            },
+                        );
+                    }
+                    rr::Message::Response {
+                        request_id,
+                        response,
+                    } => {
+                        let Some(p) = self.outgoing.remove(&request_id) else {
+                            return;
+                        };
+                        let valid = p.peer == peer
+                            && p.cap.is_current()
+                            && Instant::now() < p.deadline
+                            && self.live.get(&peer).is_some_and(|c| {
+                                c.id == connection_id && Arc::ptr_eq(&c.flag, &p.cap.live)
+                            })
+                            && self
+                                .contacts
+                                .get(&peer)
+                                .is_some_and(|c| p.cap.authenticated_peer(c).is_ok())
+                            && matching_response(&p.request, &response.value);
+                        let result = if valid {
+                            Ok(crate::LivePrekeyExchange {
+                                capability: p.cap,
+                                value: response.value,
+                                deadline: p.deadline,
+                            })
+                        } else {
+                            Err(Error::Untrusted)
+                        };
+                        let _ = p.reply.send(result);
+                    }
+                }
+            }
+            rr::Event::OutboundFailure { request_id, .. } => {
+                if let Some(p) = self.outgoing.remove(&request_id) {
+                    let _ = p.reply.send(Err(Error::Unavailable));
+                }
+            }
+            rr::Event::InboundFailure {
+                peer, request_id, ..
+            }
+            | rr::Event::ResponseSent {
+                peer, request_id, ..
+            } => {
+                if self.incoming.get(&peer).is_some_and(|p| p.id == request_id) {
+                    self.incoming.remove(&peer);
+                }
+            }
+        }
+    }
+    fn prekey_tick(&mut self) {
+        let peers: Vec<_> = self
+            .outgoing
+            .values()
+            .filter_map(|p| {
+                (p.reply.is_closed() || !p.cap.is_current() || Instant::now() >= p.deadline)
+                    .then_some(p.peer)
+            })
+            .collect();
+        for peer in peers {
+            self.revoke(peer, Error::Cancelled);
+        }
+        let peers: Vec<_> = self.incoming.keys().copied().collect();
+        for peer in peers {
+            let p = self.incoming.get_mut(&peer).unwrap();
+            if !p.cap.is_current() || Instant::now() >= p.deadline {
+                self.revoke(peer, Error::Expired);
+                continue;
+            }
+            if p.channel.is_none() {
+                continue;
+            }
+            match p.response.try_recv() {
+                Ok(response) => {
+                    if !matching_response(&p.request, &response)
+                        || self
+                            .contacts
+                            .get(&peer)
+                            .is_none_or(|c| p.cap.authenticated_peer(c).is_err())
+                    {
+                        self.revoke(peer, Error::Untrusted);
+                        continue;
+                    }
+                    let channel = p.channel.take().unwrap();
+                    let _ = self
+                        .swarm
+                        .behaviour_mut()
+                        .exchange
+                        .send_response(channel, Packet::outgoing(response));
+                }
+                Err(oneshot::error::TryRecvError::Closed) => {
+                    self.incoming.remove(&peer);
+                }
+                Err(oneshot::error::TryRecvError::Empty) => {}
+            }
+        }
+    }
+    fn network(&mut self, event: SwarmEvent<WireEvent>) {
+        match event {
+            SwarmEvent::Behaviour(event) => self.prekey_event(event),
             SwarmEvent::NewListenAddr { address, .. } => {
                 if self.addresses.len() < 2 {
                     self.addresses.push(address.clone());
@@ -491,6 +765,31 @@ impl Driver {
         Ok(())
     }
 }
+fn prekey_capacity(pending: usize, same_direction: bool) -> bool {
+    pending < 16 && !same_direction
+}
+fn request_devices(value: &Exchange) -> Option<([u8; 32], [u8; 32])> {
+    match value {
+        Exchange::Query(q) => Some((q.requester, q.publisher)),
+        Exchange::Ack(a) => Some((a.sender, a.recipient)),
+        _ => None,
+    }
+}
+fn matching_response(request: &Exchange, response: &Exchange) -> bool {
+    if request.request_id() != response.request_id() {
+        return false;
+    }
+    match (request, response) {
+        (Exchange::Query(q), Exchange::Selection(s)) => {
+            q.requester == s.recipient
+                && q.publisher == s.publisher
+                && s.bundle_generation >= q.minimum_generation
+        }
+        (Exchange::Ack(a), Exchange::AckResult(b)) => a == b,
+        (_, Exchange::Error { .. }) => true,
+        _ => false,
+    }
+}
 fn network_failure(error: &DialError) -> bool {
     // WrongPeerId/denied/security/protocol errors never authorize downgrade.
     let DialError::Transport(errors) = error else {
@@ -522,4 +821,16 @@ fn network_failure(error: &DialError) -> bool {
         }
         false
     })
+}
+#[cfg(test)]
+mod prekey_limit_tests {
+    #[test]
+    fn peer_direction_and_global_admission_are_independent_and_bounded() {
+        assert!(super::prekey_capacity(0, false));
+        assert!(super::prekey_capacity(15, false));
+        assert!(!super::prekey_capacity(16, false));
+        assert!(!super::prekey_capacity(usize::MAX, false));
+        assert!(!super::prekey_capacity(0, true));
+        assert!(!super::prekey_capacity(15, true));
+    }
 }

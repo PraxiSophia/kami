@@ -165,22 +165,51 @@ Durable state engine for inbound delivery commits, replay recovery, gap observat
   - `pub fn commit_delivery_receipt(&self, receipt: AuthenticatedReceiptCommit, now_ms: i64) -> Result<(), StorageError>`
   - `pub fn recover_delivery_receipt(&self, permit: kami_e2ee::ReplayPermit, frame: Vec<u8>) -> Result<Option<kami_core::MessageFacts>, StorageError>`
 
-### 8. Runtime Supervisor Integration (KAMI-26)
+---
+
+### 8. Module `prekeys` ([crates/kami-storage/src/prekeys.rs](file:///home/phu/dev/kami/crates/kami-storage/src/prekeys.rs)) & Migration 007
+
+Introduced in **KAMI-51 WP-B** to persist and enforce prekey inventory lifecycle and exchange transactions:
+
+- **Migration `007_prekey_lifecycle.sql` Schema**:
+  - `prekey_clock`: Singleton table (`singleton=1`) enforcing monotonic time floor (`floor_ms`) and global generation retirement/revocation floors (`revoked_through`, `retired_through`).
+  - `prekey_inventory`: Local prekey inventory tracking `reference` (1..64 bytes BLOB), `kind` (1=OneTime, 2=Fallback), `proof` (1..1024 bytes BLOB `OlmBindingProof`), `bundle_generation`, `not_before_ms`, `expires_at_ms`, and status flags (`revoked`, `retired`, `consumed`). Bounded by capacity trigger `<= 1024` rows.
+  - `prekey_publication`: Tracks published prekeys for remote peer queries. Bounded by unique index `prekey_exclusive_otk ON prekey_publication(reference) WHERE kind=1`, which guarantees atomic single-winner exclusivity for OTKs. Bounded by capacity trigger `<= 1024` rows.
+  - `prekey_session`: Maps sessions to requests, contacts, and references.
+  - `prekey_authority`: Tracks per-device monotonic authority floors (`binding_floor`, `bundle_floor`, `account_floor`, `revoked_through`, `retired_through`). Bounded by capacity trigger `<= 32` rows.
+  - `prekey_query`: Outbound query ledger storing exact request challenge, target peer/device, trust generation, pin, and query bytes. Bounded by capacity trigger `<= 1024` rows.
+  - `prekey_received`: Inbound received selection ledger storing response and ACK frames. Bounded by capacity trigger `<= 1024` rows.
+
+- **Transaction Invariants & Operations (`execute`)**:
+  - `PrekeyFence`: Enforces verified contact trust, positive trust generation, exact pin, matching peer ID, and monotonic clock floor in every operation.
+  - `PrekeyOperation::Invalidate`: Monotonically raises revocation or retirement generation floors locally or for a specific remote device.
+  - `PrekeyOperation::Begin`: Registers or looks up an outbound query. Stored queries guarantee exact-byte retry idempotence.
+  - `PrekeyOperation::Install`: Consumes an `AccountLifecycle::LifecycleCommit`, atomically committing the next account snapshot and inserting new prekey proofs into `prekey_inventory`.
+  - `PrekeyOperation::State`: Evaluates available unreserved prekeys (up to 52) and retrieves frozen publication state if an exchange is already in-flight.
+  - `PrekeyOperation::Freeze`: Atomically reserves a prekey selection before transmission on the wire. Checks `prekey_exclusive_otk` to guarantee single-winner reservation, and verifies fallback usage limits (< 16 uses, OTK exhaustion prerequisite).
+  - `PrekeyOperation::Retain`: Persists received signed selection to `prekey_received` and updates `prekey_authority` floors *before* issuing publication acknowledgement.
+  - `PrekeyOperation::Acknowledge`: Marks `prekey_publication.acknowledged = 1` upon receipt of valid publication ACK with matching response digest.
+  - `PrekeyOperation::Finish`: Marks `prekey_received.completed = 1` and `prekey_query.completed = 1` upon verifying matching ACK result.
+
+---
+
+### 9. Runtime Supervisor Integration (KAMI-26 & WP-B)
 
 In [[kami-runtime]], `StorageWorker` is orchestrated by a dedicated single-thread blocking worker (`tokio::task::spawn_blocking`) over a bounded channel of capacity 8. The runtime guarantees:
 - **Flock Retention Across Timeout**: In the event of a graceful shutdown timeout (`ShutdownOutcome::TimedOut`), the runtime terminates asynchronous tasks but explicitly **retains** the `ProfileLease` file lock and worker handle in the dedicated thread until active kernel I/O completes or process termination, preventing split-brain database corruption.
 - **Startup Reconciliation**: On engine startup, `kami-runtime` executes storage reconciliation via `StorageWorker` to clean up expired uncommitted reservations (`cleanup_prepared`) and restore queued outbound attempts (`recover_sends`).
+- **Synchronous Prekey Staging**: All `PrekeyOperation` executions occur within immediate SQLite transactions on the blocking worker, ensuring neither uncommitted reservations nor mutable crypto handles cross async boundaries.
 
 ---
 
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **Functionally Implemented & Owner-Accepted Bounded Foundations** (KAMI-22 storage engine, KAMI-50 contact trust migration 002, KAMI-51 WP3 migration 003, WP2-B authenticated commits, KAMI-24 migration 004 sender state, and KAMI-25 migration 005 receiver state).
+  - *Milestone Status*: **Functionally Implemented & Owner-Accepted Bounded Foundations** (KAMI-22 storage engine, KAMI-50 contact trust migration 002, KAMI-51 WP3 migration 003, WP2-B authenticated commits, KAMI-24 migration 004 sender state, KAMI-25 migration 005 receiver state, and KAMI-51 WP-B migration 007 prekey lifecycle).
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: Full SQLCipher v4 encrypted persistence, profile directory leasing, numbered migrations 001-005, atomic outbox/inbox queues, duplicate filtering, gap ordering, contact trust CAS, E2EE session transactions, sequence reservations, attempt leases, exact-frame crash recovery, delivery artifact persistence, and receipt commits.
-  - **Tested Behavior**: Linux is verified via unit tests, migration rollback tests, WAL file inspections, 12 subprocess kill checkpoints, contact trust tests, `sender_state` durability tests, `receiver_migration` tests, `sender_input` quota tests, and negative plaintext probes.
+  - **Implemented Behavior**: Full SQLCipher v4 encrypted persistence, profile directory leasing, numbered migrations 001-007, atomic outbox/inbox queues, duplicate filtering, gap ordering, contact trust CAS, E2EE session transactions, sequence reservations, attempt leases, exact-frame crash recovery, delivery artifact persistence, receipt commits, prekey inventory CAS, freeze-before-send reservation, and exact-byte retry reconciliation.
+  - **Tested Behavior**: Linux is verified via unit tests, migration rollback tests, WAL file inspections, 12 subprocess kill checkpoints, contact trust tests, `sender_state` durability tests, `receiver_migration` tests, `sender_input` quota tests, `prekeys` lifecycle tests, and negative plaintext probes.
   - **Missing Behavior**: Native Windows and macOS profile leasing qualification.
   - **Known Limitations**: Database digests protect against corrupted data, but cannot detect full-database external rollback (e.g., restoring an entire old VM snapshot).
 
@@ -189,6 +218,9 @@ In [[kami-runtime]], `StorageWorker` is orchestrated by a dedicated single-threa
 ```sh
 # Run all unit and integration tests in kami-storage
 cargo test --locked -p kami-storage
+
+# Run KAMI-51 WP-B prekey lifecycle storage tests
+cargo test --locked -p kami-storage --test prekeys
 
 # Run KAMI-25 receiver migration and persistence tests
 cargo test --locked -p kami-storage --test receiver_migration

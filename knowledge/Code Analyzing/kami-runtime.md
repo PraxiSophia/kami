@@ -118,6 +118,14 @@ pub enum Lifecycle {
 - `engine.shutdown().await -> ShutdownOutcome`: Coordinates graceful drain within `shutdown_timeout`. Returns `Clean`, `TimedOut`, or `Failed`.
 - `engine.wait_stopped().await`: Awaits full worker and child task termination (may wait past timeout if blocking kernel I/O is held).
 
+#### WP-B Prekey Management & Exchange APIs
+Introduced in **KAMI-51 WP-B** to manage local prekey inventory and execute live peer prekey exchanges:
+- `engine.replenish_prekeys(count: usize).await -> Result<(), Error>`: Generates fresh OTKs up to `MAX_INVENTORY` (50), committing new proofs to SQLCipher.
+- `engine.rotate_prekey_fallback().await -> Result<(), Error>`: Rotates the fallback prekey, ensuring prior fallback remains valid through its TTL.
+- `engine.invalidate_prekeys(device: Option<[u8; 32]>, through: u64, retire: bool).await -> Result<(), Error>`: Raises monotonic revocation or retirement bundle floors for local inventory (`device=None`) or remote authority.
+- `engine.refresh_prekeys(cap: Arc<AuthenticatedConnection>).await -> Result<[u8; 32], Error>`: Performs a live `/kami/prekey-exchange/1` request-response exchange with an authenticated peer, returning the 32-byte request challenge upon exact reconciliation.
+- `engine.retry_prekeys(cap: Arc<AuthenticatedConnection>, request: [u8; 32]).await -> Result<(), Error>`: Re-attempts an exact durable prekey exchange across reconnect without creating a new query or re-allocating keys.
+
 ---
 
 ## 4. Ingress Boundary & Private Mock Seam (`src/ingress.rs`)
@@ -171,6 +179,7 @@ Verified on Linux (`protocol-storage` branch):
 | Capability | Status | Description |
 | :--- | :--- | :--- |
 | Direct Transport | Implemented (KAMI-27) | Bounded authenticated libp2p direct transport (QUIC/TCP/Noise/Yamux) supervised in Tokio JoinSet (Linux localhost qualified). |
+| Prekey Exchange | Implemented (KAMI-51 WP-B) | Bounded `/kami/prekey-exchange/1` subprotocol, 5s deadline, single-stream concurrency, and engine orchestration APIs (`refresh_prekeys`, `retry_prekeys`, `replenish_prekeys`). |
 | Application Messaging / Ingress | Deferred (KAMI-28) | Bridging live transport connection provenance into production E2EE sessions and transmitting application message payloads. |
 | Functioning Relay | Deferred | Relay network connection, reservations, and packet forwarding belong to KAMI-29/30. |
 | Local IPC / CLI | Deferred | Named pipes, Unix domain sockets, and daemon rendering belong to KAMI-32. |
