@@ -10,6 +10,7 @@ mod envelope;
 mod persistence;
 
 pub mod errors;
+pub mod prekeys;
 pub mod profile;
 pub mod provider;
 pub mod state;

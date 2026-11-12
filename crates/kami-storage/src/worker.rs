@@ -25,6 +25,10 @@ impl Default for Config {
     }
 }
 enum Request {
+    Prekey(
+        Box<crate::prekeys::PrekeyOperation>,
+        Reply<crate::prekeys::PrekeyOutcome>,
+    ),
     ReadEnrollment(Reply<Option<Vec<u8>>>),
     CommitEnrollment(Vec<u8>, Reply<Vec<u8>>),
     RecoverDeliveryReceipt(
@@ -119,6 +123,13 @@ pub struct Storage {
     thread: Option<JoinHandle<()>>,
 }
 impl Storage {
+    /// Typed prekey-only durable transition. Supplied fences are not provenance.
+    pub fn prekey(
+        &self,
+        operation: crate::prekeys::PrekeyOperation,
+    ) -> Result<crate::prekeys::PrekeyOutcome, StorageError> {
+        self.call(|reply| Request::Prekey(Box::new(operation), reply))
+    }
     /// Untrusted bounded evidence; the native identity anchor remains authority.
     pub fn enrollment_snapshot(&self) -> Result<Option<Vec<u8>>, StorageError> {
         self.call(Request::ReadEnrollment)
@@ -316,6 +327,9 @@ impl Storage {
                 let _ = ready.send(Ok(()));
                 while let Ok(request) = receiver.recv() {
                     match request {
+                        Request::Prekey(operation, reply) => {
+                            let _ = reply.send(crate::prekeys::execute(&mut db, *operation));
+                        }
                         Request::ReadEnrollment(reply) => {
                             let _ = reply.send(crate::enrollment::read(&db, &profile));
                         }

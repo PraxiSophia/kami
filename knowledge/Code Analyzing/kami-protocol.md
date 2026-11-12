@@ -82,21 +82,48 @@ A specialized, allocation-free Protobuf stream scanner.
 
 ---
 
+---
+
+### 5. Module `prekey_exchange` ([crates/kami-protocol/src/prekey_exchange.rs](file:///home/phu/dev/kami/crates/kami-protocol/src/prekey_exchange.rs))
+
+Introduced in **KAMI-51 WP-B** to define wire framing for prekey exchange over `/kami/prekey-exchange/1`:
+
+- **Protobuf Definition**: [`proto/kami/m1/prekey_exchange.proto`](file:///home/phu/dev/kami/crates/kami-protocol/proto/kami/m1/prekey_exchange.proto)
+- **Message `Exchange`**:
+  - `version`: Protocol version, strictly `1`.
+  - `kind`: Exchange kind discriminator:
+    - `1` = `Query` (request challenge + minimum bundle floor).
+    - `2` = `Selection` (signed `OlmBindingProof` selection, 1..1024 bytes).
+    - `3` = `PublicationAck` (retained confirmation with 32-byte SHA-256 response digest).
+    - `4` = `AckResult` (reconciled confirmation from publisher).
+    - `5` = `Error` (closed failure enum, absent sender/recipient device keys).
+  - `request`: Exactly 32 nonzero challenge bytes.
+  - `sender_device` & `recipient_device`: Exactly 32-byte Ed25519 public keys.
+  - `bundle_generation`: Monotonic generation counter `<= i64::MAX`.
+  - `account_generation`: Positive Olm account generation `<= i64::MAX` (Selection only).
+  - `signed_selection`: Exactly one bounded `OlmBindingProof` (1..1024 bytes).
+  - `response_digest`: Exactly 32-byte SHA-256 digest of the serialized Selection frame.
+  - `failure`: Closed failure code enum: `InvalidVersion` (1), `InvalidKind` (2), `InvalidRequest` (3), `InvalidDevice` (4), `InvalidGeneration` (5), `InvalidSelection` (6), `InvalidDigest` (7), `InvalidError` (8), `Malformed` (9), `CapacityExceeded` (10), `InternalError` (11). Contains zero free-text strings.
+- **Strict Validation Profile**:
+  - Encoded length must fit within **16,380 bytes** (`MAX_BODY_BYTES`), yielding a 16 KiB total frame limit with its 4-byte length prefix.
+  - Field tags must appear in strictly ascending order without unknown tags, duplicate entries, or non-minimal varints.
+
+---
+
 ## Completion and Verification
 
-- **Milestone 1 Completion Estimate**: **95%**
-- **Whole-Project Completion Estimate**: **Not estimable** (future milestones will add end-to-end encrypted envelope headers and multi-hop relay routing).
+- **Milestone 1 Completion Estimate**: **100% of wire frame scope**
+- **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: Full M1 Protobuf wire format, zero-allocation pre-scan, strict canonical field ordering, exact 64 KB boundary check, redacted Debug formatting, and safe error classes.
-  - **Tested Behavior**: Exhaustive unit tests, golden hex vectors, malformed wire fuzzing, and heap allocation count verification via `resource_probe.py`.
-  - **Runtime & Transport Status**: In KAMI-26, [[kami-runtime]] incorporates protocol definitions for internal queue typing, while public live ingress remains fail-closed until live network transports (KAMI-27) are connected.
-  - **Missing Behavior**: Wire integration with network transports (libp2p/QUIC/TCP), which belongs to transport layers.
-  - **Known Limitations**: This codec validates *structure*, not *authenticity*. It does not decrypt payloads or verify cryptographic signatures (handled by the security/identity layer).
+  - **Implemented Behavior**: Full M1 Protobuf wire format, zero-allocation pre-scan, strict canonical field ordering, exact 64 KB message boundary check, 16 KiB prekey exchange framing, redacted Debug formatting, and safe error classes.
+  - **Tested Behavior**: Exhaustive unit tests, golden hex vectors, malformed wire fuzzing, heap allocation probe (`resource_probe.py`), and prekey exchange codec tests (`tests/prekey_exchange.rs`).
+  - **Runtime & Transport Status**: Supervised within [[kami-transport]] `/kami/prekey-exchange/1` substream codec and [[kami-runtime]] engine actor.
+  - **Missing Behavior**: Application message wire streaming (KAMI-28).
 
 ### Exact Verification Commands
 
 ```sh
-# Run all tests in kami-protocol
+# Run all tests in kami-protocol (including prekey exchange codec)
 cargo test -p kami-protocol
 
 # Run strict formatting and Clippy checks

@@ -46,8 +46,9 @@ Peer-ID provenance, and full M1 qualification remain pending.
   only this fixed transcript after checking the protected seed against enrollment.
 - `olm_binding`: WP2-A1 `OlmBindingData`, `OlmBindingProof`, `OlmPrekeyKind` and
   `verify_olm_binding` associate a device with selected public Olm account/prekey
-  data. `Custody::create_olm_binding` is the only public signing entry point; it
-  exports neither the protected identity seed nor an arbitrary-signing API.
+  data. `Custody::create_olm_binding` and the native verified-enrollment methods
+  below sign only this fixed purpose; neither exports the protected identity seed
+  nor provides an arbitrary-signing API.
 - `descriptor`: `Invitation` checks bounded public descriptors and self-signatures;
   every import remains untrusted. v1 has no names, addresses, relay hints or expiry;
   routing configuration belongs to transport composition and never conveys trust.
@@ -133,6 +134,26 @@ CAS/rollback handling, runtime/transport/delivery integration and cross-platform
 production qualification remain WP3/WP4/WP5 work. Public encryption stays
 fail-closed; production messaging is not enabled. Neither WP2 boundary establishes
 Signal/Matrix interoperability or a production security claim.
+
+## WP-B native per-selection signing
+
+`NativeCustody::{create_olm_binding,create_olm_bindings}` require the existing
+`VerifiedEnrollment`, exact fresh SQLCipher enrollment row and local peer binding.
+The bounded batch accepts 1..=52 selections (50 OTKs plus current/previous fallback),
+checks native enrollment/anchor before and after signing, and verifies the protected
+seed against the enrolled device and Peer ID. Each selection gets an independent
+existing `OlmBindingProof` signature, **not** an aggregate batch signature. Network
+responses currently carry exactly one signed selection. Runtime performs these
+blocking custody calls outside SQL transactions; no private identity key leaves
+identity custody. Missing/locked/changed/unavailable custody fails closed.
+
+Identity does not reserve/consume OTKs or authenticate a socket. WP-B runtime,
+storage and transport compose those authorities separately, including current trust,
+five-minute selection validity, durable generation/revocation floors and exact ACK
+reconciliation. Detached signatures alone remain insufficient. WP-B implementation
+`t_d364301b` run 204, QA `t_0dcc13ac` run 205 PASS and final Evaluator `t_250e6416`
+run 206 PASS-WITH-CONDITIONS cover this bounded composition, not production E2EE,
+external rollback resistance, cross-OS qualification or M1 completion.
 
 ## Trust, durability and send integration
 

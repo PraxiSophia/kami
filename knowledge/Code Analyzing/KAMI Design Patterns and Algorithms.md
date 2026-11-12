@@ -1,6 +1,6 @@
 # Kami Design Patterns, Concurrency Models, and Algorithms Inventory
 
-Analysis Baseline: Git branch `protocol-storage`, HEAD commit `0de16c9` with uncommitted KAMI-26 working tree.
+Analysis Baseline: Git branch `protocol-storage`, HEAD commit `438d466` with accepted KAMI-51 WP-B working tree.
 
 ---
 
@@ -42,6 +42,9 @@ Analysis Baseline: Git branch `protocol-storage`, HEAD commit `0de16c9` with unc
 | **G. Network & Direct Transport** | Expected-Peer Swarm Dial Binding | Aborts connections if remote peer does not match expected ID | IMPLEMENTED AND VERIFIED | `kami-transport` |
 | **D. Security** | Inner Plaintext Envelope Authentication | Authenticates inner envelope; outer SHA-256 is correspondence check | IMPLEMENTED AND VERIFIED | `kami-e2ee` (WP-A) |
 | **F. Resilience** | Two-Process Interactive Qualification | Manual out-of-band fingerprint comparison and rejection verification | IMPLEMENTED AND VERIFIED | `kami-transport`, `kami-runtime` |
+| **C. Persistence / D. Security** | Freeze-Before-Send OTK Reservation | Prevents dual allocation of one-time prekeys under concurrent queries | IMPLEMENTED AND VERIFIED | `kami-storage`, `kami-e2ee` (WP-B) |
+| **C. Persistence / E. Messaging** | Retention-Before-ACK Reconciliation | Persists signed prekeys to durable storage prior to wire ACK emission | IMPLEMENTED AND VERIFIED | `kami-storage`, `kami-transport` (WP-B) |
+| **D. Security** | Degraded Fallback Prekey Reuse with Usage Cap | Fallback key reuse permitted only on OTK exhaustion; capped at 16 uses | IMPLEMENTED AND VERIFIED | `kami-e2ee`, `kami-storage` (WP-B) |
 
 ---
 
@@ -404,6 +407,41 @@ Analysis Baseline: Git branch `protocol-storage`, HEAD commit `0de16c9` with unc
 - **Relationships**: Bridges `kami-identity`, `kami-transport`, and `kami-runtime`.
 - **Status**: IMPLEMENTED AND VERIFIED.
 - **Tradeoffs / Limitations**: Requires manual operator interaction; cannot be automated in headless continuous integration pipelines.
+
+### 32. Monotonic Inventory Floor & Freeze-Before-Send OTK Reservation (KAMI-51 WP-B)
+- **Simple Explanation**: Atomically reserving a one-time prekey in the encrypted database via a strict unique constraint *before* transmitting the key over the network.
+- **Why Kami Uses It**: Guarantees that an exposed one-time prekey is never recycled or allocated to more than one remote query, even under concurrent incoming queries, network race conditions, or process crashes.
+- **Source Evidence**:
+  - `crates/kami-storage/migrations/007_prekey_lifecycle.sql`: Unique index `CREATE UNIQUE INDEX prekey_exclusive_otk ON prekey_publication(reference) WHERE kind=1;`.
+  - `crates/kami-storage/src/prekeys.rs`: `PrekeyOperation::Freeze` verifies unreserved status and atomically inserts publication records before wire response.
+  - `crates/kami-e2ee/src/prekeys.rs`: `AccountLifecycle::select` prioritizes OTKs before fallbacks.
+- **Implementation Mechanism**: SQLite `BEGIN IMMEDIATE` transaction + partial unique index on active OTK references.
+- **Relationships**: Bridges `kami-e2ee`, `kami-storage`, and `kami-protocol`.
+- **Status**: IMPLEMENTED AND VERIFIED.
+- **Tradeoffs / Limitations**: Exhausting OTKs forces fallback degradation until the owner account executes `replenish_prekeys`.
+
+### 33. Retention-Before-ACK & Exact-Byte Retry Reconciliation (KAMI-51 WP-B)
+- **Simple Explanation**: Writing received public prekey selections, verification commitments, and authority generation floors into durable SQLCipher storage *before* transmitting an acknowledgment (ACK) frame across the network.
+- **Why Kami Uses It**: If an ACK frame is lost in transit or network drops occur, the requester can safely reconnect and retry using the exact same request challenge without allocating fresh keys or desynchronizing cryptographic state.
+- **Source Evidence**:
+  - `crates/kami-storage/src/prekeys.rs`: `PrekeyOperation::Retain` inserts response and ACK digest into `prekey_received` before returning `Exchange::Ack`; `PrekeyOperation::Finish` and `PrekeyOperation::Acknowledge` verify byte-exact matches.
+  - `crates/kami-runtime/src/engine.rs`: `Engine::retry_prekeys` matches exact durable request query across reconnect.
+  - `crates/kami-transport/src/prekey_exchange.rs`: `/kami/prekey-exchange/1` bounded request-response framing.
+- **Implementation Mechanism**: Immediate database transaction enforcing `prekey_received` persistence before ACK emission + exact response digest verification.
+- **Relationships**: Bridges `kami-storage`, `kami-transport`, and `kami-runtime`.
+- **Status**: IMPLEMENTED AND VERIFIED.
+- **Tradeoffs / Limitations**: Requires local disk I/O before issuing network replies; bounded by a 5-second exchange timeout.
+
+### 34. Degraded Fallback Prekey Reuse with Bounded Usage Ceiling (KAMI-51 WP-B)
+- **Simple Explanation**: When all one-time prekeys are consumed, the system permits reuse of a signed fallback key, but strictly caps its validity window to 5 minutes and limits total uses to 16.
+- **Why Kami Uses It**: Prevents denial-of-service when a peer's OTKs are temporarily depleted while bounding the blast radius of key reuse and forward-secrecy loss.
+- **Source Evidence**:
+  - `crates/kami-e2ee/src/prekeys.rs`: `MAX_VALIDITY_MS = 300_000`, `rotate_fallback` retains at most current and previous fallback slots.
+  - `crates/kami-storage/src/prekeys.rs`: `PrekeyOperation::Freeze` aborts with `conflict` if `has_otk` is true or if fallback publication count exceeds 16.
+- **Implementation Mechanism**: Prekey inventory kind checks (`kind=2`), usage counting, and monotonic clock validity checks.
+- **Relationships**: Bridges `kami-e2ee` and `kami-storage`.
+- **Status**: IMPLEMENTED AND VERIFIED.
+- **Tradeoffs / Limitations**: Degraded forward secrecy during the fallback window; capped at 16 uses before requiring rotation.
 
 ---
 

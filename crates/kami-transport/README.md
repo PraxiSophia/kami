@@ -13,10 +13,13 @@ application messaging or claim production delivery.
   fresh identity/trust decision before authorizing a connection.
 - `driver`: owns the libp2p swarm, bounded/cancellable dialing, connection
   events, and capability lifetime/revocation.
+- `prekey_exchange`: fixed protocol framing, request-response behaviour and
+  connection-bound evidence for prekeys only, not arbitrary bytes.
 - `lib`: exposes the transport library boundary consumed by `kami-runtime`.
 
-The crate depends on `kami-identity` and libp2p 0.57.1 with only Tokio, QUIC,
-TCP, Noise, and Yamux features. `kami-identity` supplies sealed credentials;
+The crate depends on `kami-identity`, transport-independent `kami-protocol`, and
+libp2p 0.57.1 with Tokio, QUIC, TCP, Noise, Yamux and request-response features.
+`kami-identity` supplies sealed credentials;
 transport does not access identity seed material. `kami-runtime` owns production
 startup and supervision; transport is not coupled to storage or the message,
 sender, receiver, or E2EE crates.
@@ -30,7 +33,34 @@ are revocable and checked against live state, generation, and expiry. The runtim
 must retain the profile lease and revalidate enrollment/custody before use; this
 is a runtime invariant rather than compile-time proof.
 
-No payload/stream protocol, ACK, receipt, Delivered state, production E2EE,
+`prekey_exchange` adds only `/kami/prekey-exchange/1` on the same swarm:
+strict protocol-owned query/selection/publication-ACK/result/typed-error frames.
+The four-byte length prefix is included in the 16-KiB cap; payload allocation
+is bounded before reading. Admission permits one exchange per peer/direction,
+16 globally, with a five-second deadline further bounded by capability expiry.
+Driver evidence binds exact typed bytes to authenticated peer, connection ID and
+revocable capability; disconnect, dropped waiter, expiry and shutdown fence it.
+Runtime uses a separate reliable inbound queue of 16, not diagnostic events;
+driver command/event queues are bounded at 64/32. A response carries exactly one
+independently signed public selection, not an aggregate signature or batch.
+Publication ACKs are not application delivery receipts.
+
+Runtime/SQLCipher freeze exact signed response plus global OTK reservation before
+send and retain verified selection before publication ACK. Matching exact-byte
+retry and duplicate ACK/result reconcile; conflicts reject. Transport itself
+does not sign, choose OTK/fallback policy, persist or globally mark provider keys
+published. Identity/native custody and durable generation/validity checks remain
+runtime responsibilities, not authority derived from a parsed frame.
+
+WP-B is bounded accepted with conditions: implementation `t_d364301b` run 204,
+independent QA `t_0dcc13ac` run 205 PASS; final Evaluator `t_250e6416` run 206
+PASS-WITH-CONDITIONS. WP-C account/session restore and external rollback authority,
+WP-D network/platform/interoperability/fuzz/load qualification remain open.
+The [fixture-only alternative](../../scripts/kami51-wpb-manual/README.md) runs real
+automated paths; KAMI-27's existing two-terminal interface cannot request prekeys
+or display selection/ACK evidence. No owner WP-B manual qualification is claimed.
+
+No generic payload API, application receipt/Delivered state, production E2EE,
 session restoration, relay, NAT traversal/DCUtR, IPC, or CLI activation is
 implemented. Loopback handshake tests on Linux do not establish cross-network,
 Windows/macOS, or production qualification.

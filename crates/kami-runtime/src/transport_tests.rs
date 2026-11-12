@@ -94,7 +94,37 @@ mod native {
                     .connect(*ib.device_key(), addresses.clone())
                     .await
                     .unwrap();
+                let cap = std::sync::Arc::new(cap);
                 assert!(cap.is_current());
+                let prekey_request = ea.refresh_prekeys(cap.clone()).await.unwrap();
+                ea.retry_prekeys(cap.clone(), prekey_request).await.unwrap();
+                ea.disconnect(*ib.device_key()).await.unwrap();
+                assert!(!cap.is_current());
+                assert!(ea.retry_prekeys(cap.clone(), prekey_request).await.is_err());
+                // Both peers explicitly revoke the old connection before TCP admission.
+                eb.disconnect(*ia.device_key()).await.unwrap();
+                let tcp = addresses
+                    .iter()
+                    .filter(|a| a.to_string().contains("/tcp/"))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let cap = std::sync::Arc::new(
+                    tokio::time::timeout(Duration::from_secs(5), async {
+                        loop {
+                            if let Ok(cap) = ea.connect(*ib.device_key(), tcp.clone()).await {
+                                break cap;
+                            }
+                            tokio::time::sleep(Duration::from_millis(20)).await;
+                        }
+                    })
+                    .await
+                    .unwrap(),
+                );
+                // Reconnection may reconcile exact persisted bytes, never relabel them.
+                ea.retry_prekeys(cap.clone(), prekey_request).await.unwrap();
+                ea.refresh_prekeys(cap.clone()).await.unwrap();
+                eb.replenish_prekeys(1).await.unwrap();
+                ea.refresh_prekeys(cap.clone()).await.unwrap();
                 assert!(kami_storage::ProfileLease::acquire(a.path()).is_err());
                 ea.test_work(|storage| {
                     assert!(storage.recover_sends(64).unwrap().is_empty());
@@ -209,6 +239,62 @@ mod native {
         ] {
             assert!(invitation_hex(&malformed).is_err());
         }
+    }
+
+    #[test]
+    fn manual_retry_requires_exact_nonzero_lowercase_request_id() {
+        let request = [0x12; 32];
+        assert_eq!(manual_request_id(&public_hex(&request)).unwrap(), request);
+        for invalid in [
+            "".into(),
+            "00".repeat(32),
+            "12".repeat(31),
+            "12".repeat(33),
+            "AB".repeat(32),
+            format!("{} ", "12".repeat(32)),
+        ] {
+            assert!(manual_request_id(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn manual_prekey_status_is_bounded_and_not_a_durable_status_api() {
+        assert_eq!(manual_prekey_status(&None), "PREKEY_STATUS session-local unavailable (no observed durable query); publisher-side/historical status unavailable");
+        // Formatting-only values never enter Engine or manufacture live evidence.
+        let mut observed = crate::engine::ManualPrekeyObservation {
+            request: [1; 32],
+            peer: "formatting-only".into(),
+            device: [2; 32],
+            retained: None,
+            reconciled: false,
+        };
+        let query = manual_prekey_status(&Some(observed.clone()));
+        assert!(query
+            .contains("SELECTION=unobserved FRESHNESS=unknown RETENTION_BEFORE_ACK=unobserved"));
+        assert!(query.contains("PUBLICATION_ACK_RESULT=unobserved-or-indeterminate"));
+        assert!(!query.contains("SIGNED_REFERENCE="));
+        observed.retained = Some(crate::engine::ManualPrekeySelection {
+            kind: kami_identity::OlmPrekeyKind::OneTime,
+            reference: vec![0xab; kami_identity::MAX_OLM_PREKEY_REFERENCE_BYTES],
+            account_generation: 1,
+            bundle_generation: 2,
+            binding_generation: 3,
+            not_before_ms: 4,
+            expires_at_ms: 5,
+        });
+        let retained = manual_prekey_status(&Some(observed.clone()));
+        assert!(retained.contains("FRESHNESS=valid-at-retention RETENTION_BEFORE_ACK=committed"));
+        assert!(retained.contains("PUBLICATION_ACK_RESULT=unobserved-or-indeterminate"));
+        assert!(retained.contains(&format!(
+            "SIGNED_REFERENCE={}",
+            "ab".repeat(kami_identity::MAX_OLM_PREKEY_REFERENCE_BYTES)
+        )));
+        observed.reconciled = true;
+        let completed = manual_prekey_status(&Some(observed));
+        assert!(completed.contains("PUBLICATION_ACK_RESULT=exact-result-reconciled"));
+        assert!(completed
+            .ends_with("(not current authority, publisher-side readback, or DEVICE_DELIVERED)"));
+        assert!(completed.len() < 2048);
     }
 
     // Owner interface: run this exact command in EACH of two terminals:
@@ -370,6 +456,53 @@ mod native {
             .map_err(|_| "invalid invitation".into())
     }
 
+    fn manual_request_id(text: &str) -> Result<[u8; 32], String> {
+        if text.len() != 64
+            || !text
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err("request ID must be exactly 64 lowercase hex characters".into());
+        }
+        let mut request = [0; 32];
+        for (out, pair) in request.iter_mut().zip(text.as_bytes().as_chunks::<2>().0) {
+            *out = u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap();
+        }
+        if request == [0; 32] {
+            return Err("zero request ID rejected".into());
+        }
+        Ok(request)
+    }
+
+    fn manual_prekey_status(observed: &Option<crate::engine::ManualPrekeyObservation>) -> String {
+        let Some(observed) = observed else {
+            return "PREKEY_STATUS session-local unavailable (no observed durable query); publisher-side/historical status unavailable".into();
+        };
+        let mut output = format!(
+            "PREKEY_STATUS session-local last-observed REQUEST_ID={} AUTHENTICATED_REMOTE_PEER={} VERIFIED_REMOTE_DEVICE={} QUERY=durable",
+            public_hex(&observed.request), observed.peer, public_hex(&observed.device)
+        );
+        if let Some(selection) = &observed.retained {
+            output.push_str(&format!(
+                " SIGNED_KIND={:?} SIGNED_REFERENCE={} ACCOUNT_GENERATION={} BUNDLE_GENERATION={} BINDING_GENERATION={} NOT_BEFORE_MS={} EXPIRES_AT_MS={} FRESHNESS=valid-at-retention RETENTION_BEFORE_ACK=committed",
+                selection.kind, public_hex(&selection.reference), selection.account_generation,
+                selection.bundle_generation, selection.binding_generation, selection.not_before_ms,
+                selection.expires_at_ms
+            ));
+        } else {
+            output.push_str(
+                " SELECTION=unobserved FRESHNESS=unknown RETENTION_BEFORE_ACK=unobserved",
+            );
+        }
+        output.push_str(if observed.reconciled {
+            " PUBLICATION_ACK_RESULT=exact-result-reconciled"
+        } else {
+            " PUBLICATION_ACK_RESULT=unobserved-or-indeterminate"
+        });
+        output.push_str(" (not current authority, publisher-side readback, or DEVICE_DELIVERED)");
+        output
+    }
+
     async fn manual_session(engine: &Engine) -> Result<(), String> {
         engine
             .wait_running()
@@ -448,15 +581,66 @@ mod native {
         println!(
             "LOCAL_VERIFIED_DURABLE: wait until BOTH terminals reach this line before dialing"
         );
-        let mut capability: Option<kami_transport::AuthenticatedConnection> = None;
+        let mut capability: Option<std::sync::Arc<kami_transport::AuthenticatedConnection>> = None;
+        let mut last_attempt = "none";
         loop {
             let command = prompt(
-                "Command: quic | tcp | disconnect | quit (peer terminal must remain running):",
-                10,
+                "Command: quic | tcp | disconnect | prekey | prekey-status | retry <64-lowercase-hex-request-id> | quit (peer terminal must remain running):",
+                70,
             )
             .await?;
             match command.as_str() {
                 "quit" => return Ok(()),
+                "prekey-status" => {
+                    println!("PREKEY_LAST_ATTEMPT={last_attempt}");
+                    println!(
+                        "{}",
+                        manual_prekey_status(&engine.manual_prekey_observation())
+                    );
+                }
+                "prekey" => {
+                    let Some(cap) = &capability else {
+                        println!("PREKEY_REJECTED no locally dialed authenticated capability; connect first");
+                        continue;
+                    };
+                    match engine.refresh_prekeys(cap.clone()).await {
+                        Ok(_) => last_attempt = "completed",
+                        Err(error) => {
+                            last_attempt = "failed-or-indeterminate";
+                            println!("PREKEY_ATTEMPT_FAILED {error:?}; no success inferred; retain request ID for exact retry");
+                        }
+                    }
+                    println!("PREKEY_LAST_ATTEMPT={last_attempt}");
+                    println!(
+                        "{}",
+                        manual_prekey_status(&engine.manual_prekey_observation())
+                    );
+                }
+                retry if retry.starts_with("retry ") => {
+                    let request = match manual_request_id(&retry[6..]) {
+                        Ok(request) => request,
+                        Err(error) => {
+                            println!("PREKEY_REJECTED {error}; no network operation");
+                            continue;
+                        }
+                    };
+                    let Some(cap) = &capability else {
+                        println!("PREKEY_REJECTED no locally dialed authenticated capability; reconnect first");
+                        continue;
+                    };
+                    match engine.retry_prekeys(cap.clone(), request).await {
+                        Ok(()) => last_attempt = "completed",
+                        Err(error) => {
+                            last_attempt = "failed-or-indeterminate";
+                            println!("PREKEY_ATTEMPT_FAILED {error:?}; exact durable retry only, no new query substituted");
+                        }
+                    }
+                    println!("PREKEY_LAST_ATTEMPT={last_attempt}");
+                    println!(
+                        "{}",
+                        manual_prekey_status(&engine.manual_prekey_observation())
+                    );
+                }
                 "disconnect" => {
                     engine
                         .disconnect(device)
@@ -519,7 +703,7 @@ mod native {
                         .authenticated_peer(&fresh)
                         .map_err(|e| format!("{e:?}"))?;
                     println!("AUTHENTICATED_REMOTE_PEER={peer} TRANSPORT={command}");
-                    capability = Some(cap);
+                    capability = Some(std::sync::Arc::new(cap));
                 }
                 _ => return Err("unknown command".into()),
             }

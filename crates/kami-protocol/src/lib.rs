@@ -3,6 +3,7 @@
 mod codec;
 mod error;
 mod frame;
+pub mod prekey_exchange;
 mod scan;
 mod wire;
 

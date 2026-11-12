@@ -6,7 +6,8 @@ license.workspace = true
 
 [dependencies]
 kami-identity = { path = "../kami-identity" }
-libp2p = { version = "=0.57.1", default-features = false, features = ["tokio", "quic", "tcp", "noise", "yamux"] }
+kami-protocol = { path = "../kami-protocol" }
+libp2p = { version = "=0.57.1", default-features = false, features = ["tokio", "quic", "tcp", "noise", "yamux", "request-response"] }
 tokio = { version = "=1.54.1", features = ["sync", "time", "macros"] }
 
 [dev-dependencies]

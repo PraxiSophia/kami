@@ -82,7 +82,7 @@ logical deletion, **not forensic erasure**.
 
 `migrations/002_contact_trust.sql` adds encrypted neutral contact rows; existing
 v1/v2 databases originally upgraded through schema v3; current open upgrades through
-v5 and fresh create applies all five numbered migrations in one transaction. Each migration has its own
+v7 and fresh create applies all seven numbered migrations in one transaction. Each migration has its own
 version guard, so opening v2 never reruns migration 002. Existing profile namespace
 is checked before schema migration, so a wrong namespace cannot rewrite a v1 database. A failed upgrade leaves the old schema/version/data
 intact. No sidecar, second database, plaintext trust store or message-payload reuse.
@@ -227,10 +227,11 @@ cargo test --locked -p kami-e2ee --test privacy
 cargo test --locked -p kami-storage -p kami-e2ee
 ```
 
-Olm-v1 remains quarantined bounded-development only. Live transport/ACK emission,
-prekey publication/rotation/freshness policy, external rollback anchor,
+Olm-v1 remains quarantined bounded-development only. Application transport/ACK
+emission, external rollback anchor,
 interoperability, native macOS/Windows and public/production qualification remain
-separate gates. See [E2EE limits](../kami-e2ee/README.md).
+separate gates. WP-B adds the prekey-only lifecycle below, not application ACK
+authority. See [E2EE limits](../kami-e2ee/README.md).
 
 ## KAMI-24 sender persistence seam
 
@@ -378,6 +379,57 @@ cargo test --locked -p kami-storage --lib
 The enrollment tests cover immutable insert-once behavior and validated reads;
 they do not qualify rollback resistance, native cross-platform custody, or
 production message persistence/receipt behavior.
+
+## WP-B inventory and exact publication ledger (schema v7)
+
+`prekeys` and `007_prekey_lifecycle.sql` add bounded lifecycle metadata to the
+existing SQLCipher connection/worker, not a second database or plaintext key store.
+`PrekeyOperation::Install` consumes E2EE's opaque `LifecycleCommit`, matching exact
+prior account generation/digest/bytes before installing the next snapshot and
+individually identity-signed inventory. Replenishment preserves old records rather
+than relabelling exposed keys; expired/revoked/retired records remain evidence.
+
+`Begin` durably binds a random request to peer/device/current trust/pin; `Freeze`
+commits exact query, single signed selection and digest before send. OTK reservation
+is globally exclusive across contacts and generations; a reserved/exposed key is
+not offered to another requester. OTK-first selection falls back only to eligible
+explicit degraded fallback, with issuance/use capped at 16. `Retain` verifies and
+saves exact selection bytes, trust and monotonic authority floors before returning
+publication-ACK eligibility. `Acknowledge`/`Finish` reconcile exact matching duplicates
+and reject conflicts. Per-peer publication ACK does not globally mark provider keys
+published and is not an application delivery receipt.
+
+Selected `PrekeyUse` evidence must match durable reservation/retention in the same
+account/session/message/frame transaction. OTK consumption has one CAS winner;
+fallback consumes no OTK. Stale session candidates cannot overwrite replenished
+account state. `Invalidate` advances local/remote revocation or retirement floors;
+clock rollback, expired selection and stale generations fail closed. Database-local
+floors are **not** external rollback protection.
+
+Initial inventory is 32 OTKs plus fallback, retained OTK cap 50 and at most two
+provider fallback slots. Ledger caps are 1,024 rows each, 32 remote authorities and
+16 pending exchanges for bounded admission; exposure/tombstone evidence has no
+deletion/compaction path. Exhaustion fails closed. The runtime/transport—not these
+public fence assertions—establish actual authenticated same-swarm provenance,
+16-KiB framing, five-second deadlines and live capability/trust checks.
+
+WP-B is bounded accepted with conditions: implementation `t_d364301b` run 204,
+QA `t_0dcc13ac` run 205 PASS and final Evaluator `t_250e6416` run 206
+PASS-WITH-CONDITIONS. After process restart valid frozen exchanges may reconcile,
+but new publication from a persisted account blocks without WP-C mutable restore
+authority. SQLCipher cannot detect a coherent old DB/WAL rollback. No production
+E2EE, KAMI-28 message producer or WP-D qualification is implied. Snapshot custodians
+remain trusted consumers of full private provider state; never log those transfers.
+
+Focused commands verified by QA/final evaluation (local automated fixtures):
+
+```sh
+cargo test --locked -p kami-storage --test prekeys
+cargo test --locked -p kami-storage --test authenticated_boundary authenticated_positive_boundary -- --exact --nocapture
+```
+
+The [fixture-only runner](../../scripts/kami51-wpb-manual/README.md) is not a
+two-process human-verified WP-B endpoint interface or owner manual acceptance.
 
 ## Bounds and local protection
 

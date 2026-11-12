@@ -175,6 +175,131 @@ fn endpoint(account: &Account, seed: u8, fallback: bool) -> (Endpoint, ContactTr
     wire.extend(device.sign(&wire).unwrap());
     (Endpoint::new(DeviceId::from_bytes(public), peer_binding, OlmBindingProof::parse_bounded(&wire).unwrap(), selected), trust)
 }
+// Lifecycle fixtures remain assertion-based qualification, NOT live provenance.
+fn lifecycle_sign(data: OlmBindingData, seed: u8) -> OlmBindingProof {
+    let key=Keypair::ed25519_from_bytes([seed;32]).unwrap(); let public=key.public().try_into_ed25519().unwrap().to_bytes();
+    let mut wire=b"kami-olm-binding-v1\0".to_vec(); wire.push(1); wire.extend(public);
+    let peer=data.publisher_peer.to_bytes(); wire.extend((peer.len() as u16).to_be_bytes()); wire.extend(peer);
+    wire.extend(data.olm_ed25519); wire.extend(data.olm_curve25519); wire.push(data.prekey_kind as u8);
+    wire.extend((data.prekey_reference.len() as u16).to_be_bytes()); wire.extend(&data.prekey_reference); wire.extend(data.prekey_curve25519);
+    for n in [data.binding_generation,data.bundle_generation,data.not_before_ms,data.expires_at_ms] {wire.extend(n.to_be_bytes());}
+    wire.extend(key.sign(&wire).unwrap()); OlmBindingProof::parse_bounded(&wire).unwrap()
+}
+fn lifecycle_trust(n:u8)->ContactTrust { let mut a=Account::new(); a.generate_one_time_keys(1); endpoint(&a,n,false).1 }
+fn lifecycle_owner(n:u8,s:&Storage)->(kami_e2ee::prekeys::AccountLifecycle,Vec<OlmBindingProof>) {
+    let t=lifecycle_trust(n); let pin=t.pinned().unwrap();
+    let owner=kami_e2ee::prekeys::AccountLifecycle::create(*pin.device_key(),pin.binding().peer_id(),1,1,100_000).unwrap();
+    let commit=owner.prepare_commit(None,|d|Ok(lifecycle_sign(d,n))).unwrap(); let proofs=commit.proofs().to_vec();
+    s.prekey(kami_storage::prekeys::PrekeyOperation::Install(commit)).unwrap(); (owner,proofs)
+}
+fn lifecycle_fence(t:&ContactTrust,now:i64)->kami_storage::prekeys::PrekeyFence {
+    kami_storage::prekeys::PrekeyFence {contact:t.clone(),peer:t.pinned().unwrap().binding().peer_id().to_bytes(),now_ms:now}
+}
+fn lifecycle_freeze(s:&Storage,o:&kami_e2ee::prekeys::AccountLifecycle,p:&OlmBindingProof,t:&ContactTrust,id:u8)->Result<kami_protocol::prekey_exchange::Selection,StorageError> {
+    use kami_storage::prekeys::{PrekeyOperation as O,PrekeyOutcome as R}; use kami_protocol::prekey_exchange::{Exchange as E,Query};
+    let query=Query {request:[id;32],requester:*t.pinned().unwrap().device_key(),publisher:*p.device_key(),minimum_generation:1};
+    match s.prekey(O::Freeze {fence:lifecycle_fence(t,1000),query,proof:Box::new(p.clone()),account_generation:o.generation(),account_digest:o.snapshot_digest().unwrap()})? {R::Exchange(E::Selection(s))=>Ok(s),_=>panic!()}
+}
+fn lifecycle_handshake(publisher:&Storage,receiver:&Storage,owner:&kami_e2ee::prekeys::AccountLifecycle,proof:&OlmBindingProof,remote:&ContactTrust,local:&ContactTrust,id:u8)->kami_protocol::prekey_exchange::Selection {
+    use kami_storage::prekeys::{PrekeyOperation as O,PrekeyOutcome as R}; use kami_protocol::prekey_exchange::Exchange as E;
+    receiver.prekey(O::Begin {fence:lifecycle_fence(local,1000),requester:*remote.pinned().unwrap().device_key(),request:[id;32],retry:false}).unwrap();
+    let selection=lifecycle_freeze(publisher,owner,proof,remote,id).unwrap();
+    let R::Exchange(E::Ack(ack))=receiver.prekey(O::Retain {fence:lifecycle_fence(local,1000),selection:selection.clone()}).unwrap() else {panic!()};
+    publisher.prekey(O::Acknowledge {fence:lifecycle_fence(remote,1000),acknowledgement:ack.clone()}).unwrap();
+    receiver.prekey(O::Finish {fence:lifecycle_fence(local,1000),acknowledgement:ack}).unwrap(); selection
+}
+#[test]
+fn lifecycle_global_otk_race_exact_freeze_and_ack_conflicts() {
+    use kami_storage::prekeys::{PrekeyOperation as O,PrekeyOutcome as R}; use kami_protocol::prekey_exchange::{self as w,Exchange as E,Acknowledgement};
+    let ta=lifecycle_trust(7); let tc=lifecycle_trust(9); let dir=common::directory(); let s=common::create(&dir);
+    seed(&s,&ta,DeviceId::from_bytes(*ta.pinned().unwrap().device_key())); seed(&s,&tc,DeviceId::from_bytes(*tc.pinned().unwrap().device_key()));
+    let (owner,proofs)=lifecycle_owner(8,&s); let proof=proofs.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();
+    let (a,c)=std::thread::scope(|scope| {let a=scope.spawn(||lifecycle_freeze(&s,&owner,proof,&ta,31));let c=scope.spawn(||lifecycle_freeze(&s,&owner,proof,&tc,32));(a.join().unwrap(),c.join().unwrap())});
+    assert_ne!(a.is_ok(),c.is_ok()); let (selection,t)=if let Ok(a)=a {(a,&ta)} else {(c.unwrap(),&tc)};
+    let again=lifecycle_freeze(&s,&owner,proof,t,selection.request[0]).unwrap(); assert_eq!(w::encode(&E::Selection(selection.clone())).unwrap(),w::encode(&E::Selection(again)).unwrap());
+    let bytes=w::encode(&E::Selection(selection.clone())).unwrap(); let digest=kami_e2ee::prekeys::response_digest(&bytes).unwrap();
+    let ack=Acknowledgement {request:selection.request,sender:selection.recipient,recipient:selection.publisher,bundle_generation:selection.bundle_generation,response_digest:digest};
+    for _ in 0..2 {assert!(matches!(s.prekey(O::Acknowledge {fence:lifecycle_fence(t,1000),acknowledgement:ack.clone()}),Ok(R::Exchange(E::AckResult(_)))));}
+    let mut bad=ack.clone();bad.response_digest[0]^=1;assert!(s.prekey(O::Acknowledge {fence:lifecycle_fence(t,1000),acknowledgement:bad}).is_err());
+    let n:i64=common::raw(&dir).query_row("SELECT count(*) FROM prekey_publication",[],|r|r.get(0)).unwrap();assert_eq!(n,1);
+    s.shutdown().unwrap();let s=common::open(&dir);assert!(lifecycle_freeze(&s,&owner,proof,t,selection.request[0]).is_ok());s.shutdown().unwrap();
+}
+#[test]
+fn lifecycle_faults_freshness_relabel_and_fallback_bounds() {
+    use kami_storage::prekeys::{PrekeyOperation as O,PrekeyOutcome as R};
+    use kami_protocol::prekey_exchange::Exchange as E;
+    let ta=lifecycle_trust(7);let tb=lifecycle_trust(8);
+    let da=common::directory();let db=common::directory();let sa=common::create(&da);let sb=common::create(&db);
+    seed(&sa,&tb,DeviceId::from_bytes(*tb.pinned().unwrap().device_key()));seed(&sb,&ta,DeviceId::from_bytes(*ta.pinned().unwrap().device_key()));
+    let (owner,proofs)=lifecycle_owner(8,&sb);
+    let proof=proofs.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();
+    common::raw(&db).execute_batch("CREATE TRIGGER freeze_fault BEFORE INSERT ON prekey_publication BEGIN SELECT RAISE(ABORT,'fault'); END;").unwrap();
+    assert!(lifecycle_freeze(&sb,&owner,proof,&ta,51).is_err());
+    assert_eq!(common::raw(&db).query_row("SELECT count(*) FROM prekey_publication",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    common::raw(&db).execute_batch("DROP TRIGGER freeze_fault").unwrap();
+    let sel=lifecycle_freeze(&sb,&owner,proof,&ta,51).unwrap();
+    sa.prekey(O::Begin {fence:lifecycle_fence(&tb,1000),requester:sel.recipient,request:sel.request,retry:false}).unwrap();
+    common::raw(&da).execute_batch("CREATE TRIGGER retain_fault BEFORE INSERT ON prekey_received BEGIN SELECT RAISE(ABORT,'fault'); END;").unwrap();
+    assert!(sa.prekey(O::Retain {fence:lifecycle_fence(&tb,1000),selection:sel.clone()}).is_err());
+    assert_eq!(common::raw(&da).query_row("SELECT count(*) FROM prekey_received",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    common::raw(&da).execute_batch("DROP TRIGGER retain_fault").unwrap();
+    let mut bad=sel.clone();bad.request=[52;32];assert!(sa.prekey(O::Retain {fence:lifecycle_fence(&tb,1000),selection:bad}).is_err());
+    let R::Exchange(E::Ack(ack))=sa.prekey(O::Retain {fence:lifecycle_fence(&tb,1000),selection:sel.clone()}).unwrap() else {panic!()};
+    let mut wrong=lifecycle_fence(&ta,1000);wrong.peer=vec![1];assert!(sb.prekey(O::Acknowledge {fence:wrong,acknowledgement:ack.clone()}).is_err());
+    sb.prekey(O::Acknowledge {fence:lifecycle_fence(&ta,1000),acknowledgement:ack.clone()}).unwrap();
+    sa.prekey(O::Finish {fence:lifecycle_fence(&tb,1000),acknowledgement:ack}).unwrap();
+    let mut conflicting=sel.clone();conflicting.request=[53;32];
+    let mut data=proof.data().clone();data.prekey_curve25519[0]^=1;
+    conflicting.proof=lifecycle_sign(data,8).to_bytes();
+    sa.prekey(O::Begin {fence:lifecycle_fence(&tb,1000),requester:sel.recipient,request:conflicting.request,retry:false}).unwrap();
+    assert!(sa.prekey(O::Retain {fence:lifecycle_fence(&tb,1000),selection:conflicting}).is_err(),"signed reference equivocation accepted");
+    // Exhaust exclusive inventory through durable exposure, never provider deletion.
+    for (i,p) in proofs.iter().filter(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime && p.data().prekey_reference!=proof.data().prekey_reference).enumerate() {
+        lifecycle_handshake(&sb,&sa,&owner,p,&ta,&tb,60+i as u8);
+    }
+    let fallback=proofs.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::Fallback).unwrap();
+    for id in 100..116 { lifecycle_handshake(&sb,&sa,&owner,fallback,&ta,&tb,id); }
+    assert!(lifecycle_freeze(&sb,&owner,fallback,&ta,116).is_err());
+    assert_eq!(owner.one_time_count(),32);
+    // Local clock rollback and revocation block even exact previously acknowledged bytes.
+    assert!(sb.prekey(O::State {fence:lifecycle_fence(&ta,999),request:sel.request}).is_err());
+    sb.prekey(O::Invalidate {device:None,through:10,retire:false,now_ms:1000}).unwrap();
+    let renewed=owner.replenish(1,1000,100_000).unwrap();
+    let commit=renewed.prepare_commit(Some(&owner),|d|Ok(lifecycle_sign(d,8))).unwrap();
+    let new_proof=commit.proofs().iter().find(|p|p.data().bundle_generation==2).unwrap().clone();
+    sb.prekey(O::Install(commit)).unwrap();
+    assert!(lifecycle_freeze(&sb,&renewed,&new_proof,&ta,117).is_err(),"revocation floor lost on inventory installation");
+    assert!(lifecycle_freeze(&sb,&owner,proof,&ta,51).is_err());
+    sa.prekey(O::Invalidate {device:Some(sel.publisher),through:1,retire:true,now_ms:1000}).unwrap();
+    assert!(sa.prekey(O::Retain {fence:lifecycle_fence(&tb,1000),selection:sel}).is_err());
+    // Expiry is checked in storage, independent of the detached signature.
+    assert!(sb.prekey(O::State {fence:lifecycle_fence(&ta,100_001),request:[51;32]}).is_err());
+    sa.shutdown().unwrap();sb.shutdown().unwrap();
+}
+#[test]
+fn lifecycle_first_message_consumption_is_atomic_and_exact_retry_is_idempotent() {
+    use kami_protocol::prekey_exchange::Exchange as E;
+    let ta=lifecycle_trust(7);let tb=lifecycle_trust(8);let da=common::directory();let db=common::directory();let sa=common::create(&da);let sb=common::create(&db);
+    seed(&sa,&tb,DeviceId::from_bytes(*tb.pinned().unwrap().device_key()));seed(&sb,&ta,DeviceId::from_bytes(*ta.pinned().unwrap().device_key()));
+    let (ao,ap)=lifecycle_owner(7,&sa);let (bo,bp)=lifecycle_owner(8,&sb);
+    let ap=ap.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();let bp=bp.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();
+    let _asel=lifecycle_handshake(&sa,&sb,&ao,ap,&tb,&ta,41);let bsel=lifecycle_handshake(&sb,&sa,&bo,bp,&ta,&tb,42);
+    let a=Endpoint::new(DeviceId::from_bytes(*ap.device_key()),ta.pinned().unwrap().binding().clone(),ap.clone(),ap.data().clone());
+    let b=Endpoint::new(DeviceId::from_bytes(*bp.device_key()),tb.pinned().unwrap().binding().clone(),bp.clone(),bp.data().clone());
+    let sender=ao.prepare_outbound(a.clone(),b.clone(),&bsel,ConversationId::from_u128(1),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let (sent,_sender)=sender.prepare_text(MessageId::from_u128(801),SenderSequence::new(1),1000,"lifecycle atomic marker",&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();let frame=sa.commit_authenticated(sent).unwrap();
+    let expected=kami_protocol::ExpectedContext {conversation_id:ConversationId::from_u128(1),message_id:MessageId::from_u128(801),sender:DeviceId::from_bytes(*ap.device_key()),recipient:DeviceId::from_bytes(*bp.device_key()),receipt_target:None};
+    let (candidate,session,proposed)=bo.prepare_inbound(b,a,&bsel,ConversationId::from_u128(1),&frame,&expected,&ta,&ta.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    common::raw(&db).execute_batch("CREATE TRIGGER prekey_fault BEFORE INSERT ON e2ee_frame BEGIN SELECT RAISE(ABORT,'fault'); END;").unwrap();assert!(sb.commit_authenticated(candidate).is_err());
+    assert_eq!(counts(&db),[1,0,0,0]);let consumed:i64=common::raw(&db).query_row("SELECT sum(consumed) FROM prekey_inventory",[],|r|r.get(0)).unwrap();assert_eq!(consumed,0);
+    common::raw(&db).execute_batch("DROP TRIGGER prekey_fault").unwrap();
+    for _ in 0..2 {let retry=session.prepare_retry(&ta,&ta.pinned().unwrap().binding().peer_id(),1000).unwrap();assert_eq!(sb.commit_authenticated(retry).unwrap(),frame);}
+    assert_eq!(proposed.generation(),2);assert_eq!(proposed.one_time_count(),31);assert_eq!(bo.one_time_count(),32);assert_eq!(counts(&db),[1,1,1,1]);
+    let consumed:i64=common::raw(&db).query_row("SELECT sum(consumed) FROM prekey_inventory",[],|r|r.get(0)).unwrap();assert_eq!(consumed,1);
+    let renewed=proposed.replenish(1,1001,100_000).unwrap();let commit=renewed.prepare_commit(Some(&proposed),|d|Ok(lifecycle_sign(d,8))).unwrap();sb.prekey(kami_storage::prekeys::PrekeyOperation::Install(commit)).unwrap();
+    let session=session.synchronize_account(&renewed).unwrap();let _=session.prepare_retry(&ta,&ta.pinned().unwrap().binding().peer_id(),1001).unwrap();
+    let _=E::Selection(bsel);sa.shutdown().unwrap();sb.shutdown().unwrap();
+}
 fn seed(s: &Storage, t: &ContactTrust, device: DeviceId) {
     assert_eq!(t.generation(), 2);
     s.compare_and_swap_contact(None, ContactTrustRow::new(*device.as_bytes(), TrustState::Pending, 1, None, t.candidate().to_bytes()).unwrap()).unwrap();

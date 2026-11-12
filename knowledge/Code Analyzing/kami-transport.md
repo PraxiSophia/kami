@@ -137,18 +137,46 @@ Runs the polled libp2p `Swarm` actor inside the Tokio runtime.
 
 ---
 
+### 6. Module `prekey_exchange` ([crates/kami-transport/src/prekey_exchange.rs](file:///home/phu/dev/kami/crates/kami-transport/src/prekey_exchange.rs))
+
+Introduced in **KAMI-51 WP-B** to provide a dedicated, bounded request-response wire subprotocol for prekey exchange:
+
+- **Protocol ID**: `/kami/prekey-exchange/1` over libp2p `request_response::Behaviour`.
+- **Framing & Size Limits**:
+  - 4-byte big-endian length prefix.
+  - Maximum body size is **16,384 bytes (16 KiB)** (`MAX_BODY_BYTES`).
+  - Request and response substreams are half-closed immediately after the single fixed frame.
+- **Concurrency & Timeouts**:
+  - Request timeout: **5 seconds** (`Duration::from_secs(5)`).
+  - Stream limit: At most **1 concurrent stream per peer connection** (`with_max_concurrent_streams(1)`).
+  - Global limit: Global concurrency cap of **16 concurrent inbound operations** via atomic permit in `Codec`.
+- **Message Types**:
+  - Requests: `Exchange::Query` or `Exchange::Ack`.
+  - Responses: `Exchange::Selection`, `Exchange::AckResult`, or `Exchange::Error` (with closed failure code 1..=11, zero free-text strings).
+
+---
+
 ## 4. Operational & Manual Qualification Evidence
 
+### KAMI-27 Direct Transport Qualification
 KAMI-27 was accepted following automated tests and an owner-operated two-process manual qualification harness on Linux:
-
 1. **Owner-Operated Qualification Harness**:
-   - Helper scripts located at [`scripts/kami27-manual/`](file:///home/phu/dev/kami/scripts/kami27-manual/):
-     - `setup.sh`: Validates Linux prerequisites, D-Bus session, and GNOME Keyring.
-     - `start-a.sh` & `start-b.sh`: Launches independent endpoint processes executing `transport_tests::native::manual_endpoint`.
-     - `reject-negative.sh`: Guides manual negative testing (verifying that typing `REJECT` blocks connection establishment and persists no trust).
+   - Helper scripts located at [`scripts/kami27-manual/`](file:///home/phu/dev/kami/scripts/kami27-manual/): `setup.sh`, `start-a.sh`, `start-b.sh`, `reject-negative.sh`.
    - Confirmed manual fingerprint comparison, explicit verification, QUIC and TCP authentication, disconnect/reconnect, and clean process termination on Linux localhost.
 2. **Automated Test Coverage**:
    - [`crates/kami-transport/tests/direct.rs`](file:///home/phu/dev/kami/crates/kami-transport/tests/direct.rs): Multi-identity automated test verifying expected-peer dialing, address filtering, candidate fallback, and strict socket-negative rejection when an unexpected peer answers.
+
+### KAMI-51 WP-B Prekey Endpoint Qualification
+KAMI-51 WP-B extended the native manual endpoint harness for prekey exchange:
+1. **Harness & Scripts**:
+   - Helper scripts located at [`scripts/kami51-wpb-manual/`](file:///home/phu/dev/kami/scripts/kami51-wpb-manual/):
+     - `verify.sh --check`: Verifies compilation, tool dependencies (`dbus-run-session`, `gnome-keyring-daemon`), and runtime tests.
+     - `verify.sh --endpoint`: Launches `transport_tests::native::manual_endpoint` under private D-Bus and disposable home/keyring.
+     - `verify.sh --fixtures`: Executes joint runtime, storage, and E2EE prekey tests in private child processes.
+2. **Provenance Distinction**:
+   - **Owner-Observed QUIC Exchange (Terminal Evidence)**: Verified live two-terminal QUIC run with terminal output: `PREKEY_LAST_ATTEMPT=completed`, `QUERY=durable`, `SIGNED_KIND=OneTime`, `FRESHNESS=valid-at-retention`, `RETENTION_BEFORE_ACK=committed`, `PUBLICATION_ACK_RESULT=exact-result-reconciled`. An initial `Transport(Expired)` failure and subsequent successful reconnect were observed and retained as valuable qualification evidence.
+   - **Owner-Reported Scenarios (Pending Log Archival)**: Subsequent TCP, reverse, and retry command sequences reported successful by owner; awaiting local test log archival.
+   - **Antigravity Execution Boundary**: Antigravity did **not** execute, simulate, or fabricate interactive manual tests.
 
 ---
 
@@ -179,6 +207,12 @@ cargo test --locked -p kami-transport --test direct real_native_quic_tcp_and_fal
 
 # Run compile-fail doctests (verifying capability cannot be default-constructed or cloned)
 cargo test --locked -p kami-transport --doc -- --nocapture
+
+# Run KAMI-51 WP-B manual verification check
+bash scripts/kami51-wpb-manual/verify.sh --check
+
+# Run KAMI-51 WP-B prekey test fixtures
+bash scripts/kami51-wpb-manual/verify.sh --fixtures
 
 # Verify formatting and warnings-denied Clippy checks across workspace
 cargo fmt --all -- --check

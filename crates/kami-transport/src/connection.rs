@@ -49,6 +49,19 @@ pub struct AuthenticatedConnection {
     pub(crate) expires: Instant,
 }
 impl AuthenticatedConnection {
+    pub(crate) fn retained(&self) -> Self {
+        Self {
+            authority: self.authority.clone(),
+            peer: self.peer,
+            device: self.device,
+            generation: self.generation,
+            live: self.live.clone(),
+            expires: self.expires,
+        }
+    }
+    pub fn remote_device(&self) -> [u8; 32] {
+        self.device
+    }
     pub fn is_current(&self) -> bool {
         self.authority.current()
             && self.live.load(Ordering::Acquire)

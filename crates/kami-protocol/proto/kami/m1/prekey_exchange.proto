@@ -1,0 +1,19 @@
+syntax = "proto3";
+package kami.m1.prekey;
+// Dedicated /kami/prekey-exchange/1; NOT an application frame or delivery receipt.
+// Strict profile: fields in ascending order, no unknown/duplicate/omitted fields,
+// minimal varints; version=1. A 4-byte big-endian length prefix plus message
+// must fit 16384 bytes. Exactly one signed selection per response.
+message Exchange {
+  uint32 version = 1;
+  // 1 Query, 2 Selection, 3 PublicationAck, 4 AckResult, 5 Error.
+  uint32 kind = 2;
+  bytes request = 3; // exactly 32 nonzero bytes (challenge)
+  bytes sender_device = 4; // exactly 32 bytes; absent for Error
+  bytes recipient_device = 5; // exactly 32 bytes; absent for Error
+  uint64 bundle_generation = 6; // positive <= i64::MAX; Query: minimum floor
+  uint64 account_generation = 7; // Selection only, positive <= i64::MAX
+  bytes signed_selection = 8; // Selection only, 1..1024 bytes, exact OlmBindingProof
+  bytes response_digest = 9; // PublicationAck/AckResult only, exact 32-byte SHA256
+  uint32 failure = 10; // Error only, closed enumeration 1..11; no free text
+}
