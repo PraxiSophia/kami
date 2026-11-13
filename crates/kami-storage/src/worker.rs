@@ -25,6 +25,8 @@ impl Default for Config {
     }
 }
 enum Request {
+    RecoveryStatus(Reply<crate::RecoveryStatus>),
+    Enroll(kami_identity::FreshEnrollment, Reply<()>),
     Prekey(
         Box<crate::prekeys::PrekeyOperation>,
         Reply<crate::prekeys::PrekeyOutcome>,
@@ -123,6 +125,14 @@ pub struct Storage {
     thread: Option<JoinHandle<()>>,
 }
 impl Storage {
+    pub fn recovery_status(&self) -> Result<crate::RecoveryStatus, StorageError> {
+        self.call(Request::RecoveryStatus)
+    }
+    /// One-use native enrollment, completed on this worker after durable readback.
+    /// Ordinary create/open and public enrollment bytes cannot enable authority.
+    pub fn enroll_fresh(&self, fresh: kami_identity::FreshEnrollment) -> Result<(), StorageError> {
+        self.call(|reply| Request::Enroll(fresh, reply))
+    }
     /// Typed prekey-only durable transition. Supplied fences are not provenance.
     pub fn prekey(
         &self,
@@ -324,11 +334,47 @@ impl Storage {
                         return;
                     }
                 };
+                let mut authority = match crate::recovery::startup(&mut db) {
+                    Ok(status) => status,
+                    Err(error) => {
+                        let _ = ready.send(Err(error));
+                        return;
+                    }
+                };
                 let _ = ready.send(Ok(()));
                 while let Ok(request) = receiver.recv() {
                     match request {
+                        Request::RecoveryStatus(reply) => {
+                            let _ = reply.send(Ok(authority));
+                        }
+                        Request::Enroll(fresh, reply) => {
+                            // Failure burns this worker's enrollment opportunity too.
+                            let result = if authority == crate::RecoveryStatus::Disabled {
+                                crate::recovery::enroll(
+                                    &mut db,
+                                    &lease,
+                                    &profile,
+                                    create,
+                                    config.max_database_pages,
+                                    fresh,
+                                )
+                            } else {
+                                Err(StorageError::EnrollmentRequired)
+                            };
+                            authority = if result.is_ok() {
+                                crate::RecoveryStatus::FreshEnrollment
+                            } else {
+                                crate::RecoveryStatus::Quarantined
+                            };
+                            let _ = reply.send(result);
+                        }
                         Request::Prekey(operation, reply) => {
-                            let _ = reply.send(crate::prekeys::execute(&mut db, *operation));
+                            let result = crate::prekeys::execute(
+                                &mut db,
+                                *operation,
+                                authority == crate::RecoveryStatus::FreshEnrollment,
+                            );
+                            let _ = reply.send(authority.observe(result));
                         }
                         Request::ReadEnrollment(reply) => {
                             let _ = reply.send(crate::enrollment::read(&db, &profile));
@@ -338,29 +384,39 @@ impl Storage {
                                 .send(crate::enrollment::commit(&mut db, &profile, &row, create));
                         }
                         Request::RecoverDeliveryReceipt(permit, frame, reply) => {
-                            let _ = reply
-                                .send(crate::receiver_state::recover_receipt(&db, permit, frame));
+                            let result = crate::recovery::read(&mut db, |db| {
+                                crate::receiver_state::recover_receipt(db, permit, frame)
+                            });
+                            let _ = reply.send(result);
                         }
                         Request::CommitDelivery(stage, reply) => {
-                            let _ = reply.send(crate::receiver_state::commit(
-                                &mut db,
-                                *stage,
-                                config.outbox_bytes,
-                                config.outbox_messages,
-                            ));
+                            let result = authority.require().and_then(|()| {
+                                crate::receiver_state::commit(
+                                    &mut db,
+                                    *stage,
+                                    config.outbox_bytes,
+                                    config.outbox_messages,
+                                )
+                            });
+                            let _ = reply.send(authority.observe(result));
                         }
                         Request::RecoverDelivery(permit, frame, reply) => {
-                            let _ = reply.send(crate::receiver_state::recover(&db, permit, frame));
+                            let result = crate::recovery::read(&mut db, |db| {
+                                crate::receiver_state::recover(db, permit, frame)
+                            });
+                            let _ = reply.send(result);
                         }
                         Request::CommitDeliveryReceipt(stage, reply) => {
-                            let _ = reply.send(crate::receiver_state::consume(
-                                &mut db,
-                                stage,
-                                config.outbox_bytes,
-                            ));
+                            let result = authority.require().and_then(|()| {
+                                crate::receiver_state::consume(&mut db, stage, config.outbox_bytes)
+                            });
+                            let _ = reply.send(authority.observe(result));
                         }
                         Request::SenderRecord(sender, id, reply) => {
-                            let _ = reply.send(crate::sender_state::load(&db, sender, id));
+                            let result = crate::recovery::read(&mut db, |db| {
+                                crate::sender_state::load(db, sender, id)
+                            });
+                            let _ = reply.send(result);
                         }
                         Request::HoldSend(sender, id, reply) => {
                             let _ = reply.send(crate::sender_state::hold(&mut db, sender, id));
@@ -371,7 +427,10 @@ impl Storage {
                             ));
                         }
                         Request::RecoverSends(after, limit, reply) => {
-                            let _ = reply.send(crate::sender_state::recover(&db, after, limit));
+                            let result = crate::recovery::read(&mut db, |db| {
+                                crate::sender_state::recover(db, after, limit)
+                            });
+                            let _ = reply.send(result);
                         }
                         Request::CancelSend(sender, id, reply) => {
                             let _ = reply.send(crate::sender_state::cancel(&mut db, sender, id));
@@ -385,32 +444,44 @@ impl Storage {
                                 reply.send(crate::sender_state::fail(&mut db, lease, reason, now));
                         }
                         Request::CommitPrepared(reservation, stage, now, reply) => {
-                            let _ = reply.send(crate::session_state::commit_prepared(
-                                &mut db,
-                                stage,
-                                config.outbox_bytes,
-                                config.outbox_messages,
-                                Some((&reservation, now)),
-                            ));
+                            let result = if authority == crate::RecoveryStatus::FreshEnrollment {
+                                crate::session_state::commit_prepared(
+                                    &mut db,
+                                    stage,
+                                    config.outbox_bytes,
+                                    config.outbox_messages,
+                                    Some((&reservation, now)),
+                                )
+                            } else {
+                                crate::recovery::authenticated(&mut db, stage, Some(&reservation))
+                            };
+                            let _ = reply.send(authority.observe(result));
                         }
                         Request::CleanupPrepared(now, reply) => {
                             let _ = reply.send(crate::sender_state::cleanup(&mut db, now));
                         }
                         Request::PrepareSend(request, now, reply) => {
-                            let _ = reply.send(crate::sender_state::prepare(
+                            let result = crate::recovery::prepare(
                                 &mut db,
+                                authority,
                                 request,
                                 now,
                                 config.outbox_messages,
-                            ));
+                            );
+                            let _ = reply.send(authority.observe(result));
                         }
                         Request::Authenticated(stage, reply) => {
-                            let _ = reply.send(crate::session_state::commit_authenticated(
-                                &mut db,
-                                stage,
-                                config.outbox_bytes,
-                                config.outbox_messages,
-                            ));
+                            let result = if authority == crate::RecoveryStatus::FreshEnrollment {
+                                crate::session_state::commit_authenticated(
+                                    &mut db,
+                                    stage,
+                                    config.outbox_bytes,
+                                    config.outbox_messages,
+                                )
+                            } else {
+                                crate::recovery::authenticated(&mut db, stage, None)
+                            };
+                            let _ = reply.send(authority.observe(result));
                         }
                         Request::E2eeLoad(id, reply) => {
                             let result =
@@ -421,22 +492,29 @@ impl Storage {
                             let _ = reply.send(result);
                         }
                         Request::E2eeAccount(previous, next, reply) => {
-                            let _ = reply.send(crate::session_state::commit_account(
-                                &mut db, previous, next,
-                            ));
+                            let result = authority.require().and_then(|()| {
+                                crate::session_state::commit_account(&mut db, previous, next)
+                            });
+                            let _ = reply.send(authority.observe(result));
                         }
                         Request::E2eeCommit(command, reply) => {
-                            let _ = reply.send(crate::session_state::commit(
-                                &mut db,
-                                *command,
-                                config.outbox_bytes,
-                                config.outbox_messages,
-                            ));
+                            let result = authority.require().and_then(|()| {
+                                crate::session_state::commit(
+                                    &mut db,
+                                    *command,
+                                    config.outbox_bytes,
+                                    config.outbox_messages,
+                                )
+                            });
+                            let _ = reply.send(authority.observe(result));
                         }
                         Request::E2eeReconcile(session, facts, frame, incoming, reply) => {
-                            let _ = reply.send(crate::session_state::reconcile(
-                                &db, &session, facts, &frame, incoming,
-                            ));
+                            let result = crate::recovery::read(&mut db, |db| {
+                                crate::session_state::reconcile(
+                                    db, &session, facts, &frame, incoming,
+                                )
+                            });
+                            let _ = reply.send(result);
                         }
                         Request::LoadContact(contact, reply) => {
                             let _ = reply.send(crate::contact_trust::load(&db, contact));

@@ -165,6 +165,7 @@ pub struct DeliveryArtifact {
 ## 4. Key Guarantees & Non-Bypass Properties
 
 - **Replay Protection**: Identical frames return previously stored receipt frames without stepping the cryptographic ratchet.
+- **WP-C Exact Artifact Reconciliation on Restart**: Under KAMI-51 WP-C, reopened workers (`RecoveryStatus::Disabled`) safely reconcile previously committed deliveries, receipts, and Delivered projections through coherent read transactions without stepping the ratchet or re-encrypting. Attempting to commit new deliveries on a disabled worker is fenced (`StorageError::EnrollmentRequired`), refusing unsafe restoration.
 - **Tamper Resistance**: Inbound frames failing AEAD authentication or claiming an identity not matching `end_peer` are rejected prior to session or storage updates.
 - **Receipt Binding**: The staged `DeviceDelivered` receipt binds the exact SHA-256 digest of the inbound text frame, preventing receipt swapping or spoofing across messages.
 - **Session Monotonicity**: Ratchet advances are conditional on atomic database commit. An uncommitted or failed frame will not advance caller session state.

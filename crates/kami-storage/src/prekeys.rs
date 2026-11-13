@@ -134,7 +134,9 @@ fn pending(db: &Connection, table: &str, now: i64) -> Result<(), StorageError> {
 pub(crate) fn execute(
     db: &mut Connection,
     operation: PrekeyOperation,
+    allow_new: bool,
 ) -> Result<PrekeyOutcome, StorageError> {
+    let invalidation = matches!(&operation, PrekeyOperation::Invalidate { .. });
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let result = match operation {
         PrekeyOperation::Invalidate { device, through, retire, now_ms } => {
@@ -153,6 +155,7 @@ pub(crate) fn execute(
             PrekeyOutcome::Installed
         }
         PrekeyOperation::Begin { fence: f, requester, request, retry } => {
+            if !allow_new && !retry { return Err(StorageError::EnrollmentRequired); }
             let (device, pin) = fence(&tx, &f)?;
             if let Some(bytes) = read_blob(&tx, "SELECT length(query),query FROM prekey_query WHERE request=?1", request)? {
                 let valid: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM prekey_query WHERE request=?1 AND peer=?2 AND device=?3 AND trust_generation=?4 AND pin=?5)",params![request,f.peer,device,f.contact.generation() as i64,pin],|r|r.get(0))?;
@@ -175,6 +178,7 @@ pub(crate) fn execute(
             let next = AccountRow::new(generation, state.to_vec(), digest)?;
             // Exact committed replay is reconciliation, never a second mutation.
             if session_state::load_account(&tx)?.as_ref() == Some(&next) { return Ok(PrekeyOutcome::Installed); }
+            if !allow_new { return Err(StorageError::EnrollmentRequired); }
             session_state::put_account(&tx, previous.as_ref(), &next)?;
             if proofs.is_empty() || proofs.len() > kami_e2ee::prekeys::MAX_INVENTORY + 2 { return Err(StorageError::InvalidInput); }
             for proof in proofs {
@@ -198,6 +202,7 @@ pub(crate) fn execute(
                 let proof = OlmBindingProof::parse_bounded(&bytes).map_err(|_| StorageError::WrongKeyOrCorrupt)?;
                 available.push(proof);
             }
+            if !allow_new { available.clear(); }
             PrekeyOutcome::State(PrekeyState { account_generation: account.as_ref().map(|a| a.generation), account_digest: account.map(|a| a.digest), available, frozen, minimum_generation })
         }
         PrekeyOperation::Freeze { fence: f, query, proof, account_generation, account_digest } => {
@@ -208,6 +213,7 @@ pub(crate) fn execute(
                 let old = read_blob(&tx, "SELECT length(query),query FROM prekey_publication WHERE request=?1", query.request)?.ok_or(StorageError::Conflict)?;
                 if old != bytes { return conflict(); } value
             } else {
+                if !allow_new { return Err(StorageError::EnrollmentRequired); }
                 pending(&tx, "prekey_publication", f.now_ms)?;
                 let account = session_state::load_account(&tx)?.ok_or(StorageError::Conflict)?;
                 if account.generation != account_generation || account.digest != account_digest { return conflict(); }
@@ -245,7 +251,9 @@ pub(crate) fn execute(
             if let Some(old) = read_blob(&tx, "SELECT length(response),response FROM prekey_received WHERE request=?1", selection.request)? {
                 if old != response { return conflict(); }
                 check_received(&tx, &f, device, &pin, selection.request)?;
+                if !allow_new && read_blob(&tx, "SELECT length(ack),ack FROM prekey_received WHERE request=?1", selection.request)? != Some(ack.clone()) { return conflict(); }
             } else {
+                if !allow_new { return Err(StorageError::EnrollmentRequired); }
                 pending(&tx, "prekey_received", f.now_ms)?;
                 tx.execute("INSERT INTO prekey_received(request,peer,device,trust_generation,pin,response,ack,bundle_generation,expires_at_ms) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)", params![selection.request,f.peer,device,f.contact.generation() as i64,pin,response,ack,selection.bundle_generation as i64,p.expires_at_ms as i64])?;
             }
@@ -253,6 +261,7 @@ pub(crate) fn execute(
             PrekeyOutcome::Exchange(Exchange::Ack(acknowledgement))
         }
         PrekeyOperation::Acknowledge { fence: f, acknowledgement: a } => {
+            if !allow_new && !tx.query_row("SELECT EXISTS(SELECT 1 FROM prekey_publication WHERE request=?1 AND acknowledged=1)", [a.request], |r| r.get::<_,bool>(0))? { return Err(StorageError::EnrollmentRequired); }
             let (device, pin) = fence(&tx, &f)?;
             let Some(Exchange::Selection(s)) = frozen(&tx, &f, device, &pin, a.request)? else { return conflict(); };
             let expected: [u8; 32] = Sha256::digest(encoded(&Exchange::Selection(s.clone()))?).into();
@@ -263,6 +272,7 @@ pub(crate) fn execute(
             PrekeyOutcome::Exchange(Exchange::AckResult(a))
         }
         PrekeyOperation::Finish { fence: f, acknowledgement: a } => {
+            if !allow_new && !tx.query_row("SELECT EXISTS(SELECT 1 FROM prekey_received r JOIN prekey_query q USING(request) WHERE r.request=?1 AND r.completed=1 AND q.completed=1)", [a.request], |r| r.get::<_,bool>(0))? { return Err(StorageError::EnrollmentRequired); }
             let (device, pin) = fence(&tx, &f)?; check_received(&tx, &f, device, &pin, a.request)?;
             let ack = read_blob(&tx, "SELECT length(ack),ack FROM prekey_received WHERE request=?1", a.request)?.ok_or(StorageError::Conflict)?;
             if ack != encoded(&Exchange::Ack(a.clone()))? { return conflict(); }
@@ -271,7 +281,11 @@ pub(crate) fn execute(
             PrekeyOutcome::Exchange(Exchange::AckResult(a))
         }
     };
-    tx.commit()?;
+    if allow_new || invalidation {
+        tx.commit()?;
+    } else {
+        tx.rollback()?;
+    }
     Ok(result)
 }
 // History is capped at 1024 durable rows; inspect one bounded frame at a time.

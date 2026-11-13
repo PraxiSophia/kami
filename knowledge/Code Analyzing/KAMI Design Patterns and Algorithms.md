@@ -1,6 +1,6 @@
 # Kami Design Patterns, Concurrency Models, and Algorithms Inventory
 
-Analysis Baseline: Git branch `protocol-storage`, HEAD commit `438d466` with accepted KAMI-51 WP-B working tree.
+Analysis Baseline: Git branch `protocol-storage`, HEAD commit `c76a10eb5d1efaca93c62e5bce2778d9c9a0f074` (`c76a10e`) with accepted KAMI-51 WP-C working tree.
 
 ---
 
@@ -45,6 +45,7 @@ Analysis Baseline: Git branch `protocol-storage`, HEAD commit `438d466` with acc
 | **C. Persistence / D. Security** | Freeze-Before-Send OTK Reservation | Prevents dual allocation of one-time prekeys under concurrent queries | IMPLEMENTED AND VERIFIED | `kami-storage`, `kami-e2ee` (WP-B) |
 | **C. Persistence / E. Messaging** | Retention-Before-ACK Reconciliation | Persists signed prekeys to durable storage prior to wire ACK emission | IMPLEMENTED AND VERIFIED | `kami-storage`, `kami-transport` (WP-B) |
 | **D. Security** | Degraded Fallback Prekey Reuse with Usage Cap | Fallback key reuse permitted only on OTK exhaustion; capped at 16 uses | IMPLEMENTED AND VERIFIED | `kami-e2ee`, `kami-storage` (WP-B) |
+| **C. Persistence / D. Security** | Default-Deny Mutable Cryptographic Authority | Prevents rollback/split-brain by requiring native one-use FreshEnrollment | IMPLEMENTED AND VERIFIED | `kami-storage`, `kami-identity`, `kami-runtime` (WP-C) |
 
 ---
 
@@ -442,6 +443,18 @@ Analysis Baseline: Git branch `protocol-storage`, HEAD commit `438d466` with acc
 - **Relationships**: Bridges `kami-e2ee` and `kami-storage`.
 - **Status**: IMPLEMENTED AND VERIFIED.
 - **Tradeoffs / Limitations**: Degraded forward secrecy during the fallback window; capped at 16 uses before requiring rotation.
+
+### 35. Default-Deny Mutable Cryptographic Authority & Process-Local Quarantine (KAMI-51 WP-C)
+- **Simple Explanation**: Every storage worker starts in a "Disabled" state with zero authority to advance Double Ratchet sessions, issue new prekeys, or record new deliveries. Authority is granted exclusively when a worker directly consumes identity's native one-use `FreshEnrollment` capability, and any guarded I/O ambiguity permanently quarantines that worker.
+- **Why Kami Uses It**: Solves the absence of an external rollback anchor. Because local SQLite DB+WAL snapshots cannot prove freshness, Kami refuses unsafe mutable restoration after process restart. Reopening an older database copy (even one predating key exposure, retirement, or quarantine) can never gain permission to mutate cryptographic state or publish keys.
+- **Source Evidence**:
+  - `crates/kami-storage/src/recovery.rs`: `RecoveryStatus` (`Disabled`, `FreshEnrollment`, `Quarantined`), `Storage::enroll_fresh`, `Storage::recovery_status`, `ReestablishmentPreconditions`.
+  - `crates/kami-identity/src/enrollment.rs`: Non-cloneable `FreshEnrollment` capability consumed on the worker.
+  - `crates/kami-runtime/src/engine.rs`: Worker status query `engine.recovery_status()`.
+- **Implementation Mechanism**: Process-local in-memory status enum + native one-use capability consumption + guarded operation failure transitions.
+- **Relationships**: Bridges `kami-identity`, `kami-storage`, and `kami-runtime`.
+- **Status**: IMPLEMENTED AND VERIFIED (WP-C).
+- **Tradeoffs / Limitations**: Reopened profiles cannot initiate new cryptographic transitions without fresh enrollment re-establishment; exact-artifact recovery is supported, but transparent mutable session restoration is refused.
 
 ---
 

@@ -31,6 +31,7 @@ The engine uses bounded Tokio `mpsc` channels for commands, events, blocking job
 Important methods include:
 
 - `Engine::wait_running`, `health`, `snapshot`, and `recovered` for lifecycle and durable-reconciliation state;
+- `recovery_status` for the storage worker's process-local mutable-authority status, not production readiness;
 - `cancel` for durable sender cancellation;
 - `request_shutdown`, `shutdown`, and `wait_stopped` for cancellation and drain coordination;
 - `enqueue`, which currently returns `Error::LiveTransportUnavailable` rather than accepting asserted authentication authority.
@@ -87,9 +88,10 @@ local clock floor fail closed. Durable history is capped at 1,024 rows per ledge
 and 32 remote authority records, with no deletion of exposure/tombstone evidence.
 Capacity exhaustion blocks rather than silently discarding records.
 
-After restart, already-frozen exchanges can reconcile while valid, but new
-publication from an existing account fails closed: database-only mutable account/
-session restore is not authorized (WP-C). SQLCipher floors are not an external
+Under the later bounded WP-C fence, already-frozen exact exchanges can reconcile
+after restart while valid, but new publication from an existing account remains
+blocked: WP-C does not authorize database-only mutable account/session restore.
+SQLCipher floors are not an external
 rollback anchor. `enqueue` stays unavailable; this does not activate public E2EE,
 KAMI-28 messaging, WP-D qualification, offline publication, relay, or CLI/IPC.
 
@@ -108,24 +110,53 @@ PASS-WITH-CONDITIONS on the uncommitted tree at baseline
 WP-D cross-network, Windows/macOS, interoperability, sustained fuzz/DoS and native
 load qualification remain outstanding.
 
-### Owner-operated interface is not yet available for WP-B
+### WP-B owner-operated interface — available, manual acceptance separate
 
-`transport_tests::native::manual_endpoint`/`manual_session` is the existing KAMI-27
-two-process Linux loopback harness. It displays invitations/fingerprints and
-requires independent comparison plus explicit VERIFY/REJECT, then offers only
-quic/tcp/disconnect/quit. It never calls `Engine::{refresh_prekeys,retry_prekeys}`
-and has no public selection/generation/freshness/ACK evidence display. Adding
-those commands and a bounded public-only diagnostic view to
-`src/transport_tests.rs::manual_session` requires separate Rust test-interface
-authorization; no such source change is made by this documentation task.
+`transport_tests::native::manual_endpoint`/`manual_session` now extends the
+KAMI-27 two-process Linux loopback harness with `prekey`, `prekey-status` and
+`retry <REQUEST_ID>`, alongside quic/tcp/disconnect/quit. Independent fingerprint
+comparison and explicit VERIFY/REJECT remain mandatory. The ignored test endpoint
+calls real `Engine::{refresh_prekeys,retry_prekeys}` on an actual selected live
+capability. Its private test-only view reports bounded public last-observed request,
+selection/generation/validity and retention/ACK-result evidence, never secrets or
+authority. Status is historical/session-local, not a publisher DB readback or
+current freshness guarantee. Interface implementation `t_a328ea09`, independent
+QA `t_c21848ef` and final Evaluator `t_78919fc8` are separate from owner acceptance.
 
-The [WP-B fixture runner](../../scripts/kami51-wpb-manual/README.md) invokes the
-existing real native automated runtime test instead. That fixture starts two
-engines within a private child process and simulates trust decisions; it is not
-two owner-operated endpoints and cannot count as independent human verification.
-Manual WP-B qualification remains blocked/pending, including selection/ACK display,
-duplicate retry, TCP exchange and explicit prekey rejection outcomes. KAMI-27's
-manual suite is unchanged; its acceptance does not transfer to WP-B.
+The [WP-B runner](../../scripts/kami51-wpb-manual/README.md) documents `--endpoint`
+for separate owner-operated processes and `--fixtures` for automated checks. The
+fixture starts two engines in one private child process with simulated trust;
+it cannot count as independent human verification. Owner-operated WP-B qualification
+remains pending, not blocked by a missing interface. Temporary profiles do not
+qualify WP-C restart recovery. KAMI-27 acceptance does not transfer to WP-B/WP-C.
+
+## WP-C bounded recovery foundation — accepted with limitations
+
+`Engine::recovery_status()` queries the storage worker through the bounded
+blocking owner; it is separate from `Lifecycle::Running` and artifact recovery.
+Every worker begins `Disabled`. Only a consumed native one-use `FreshEnrollment`,
+bound to the actual encrypted DB and completed/readback-verified on that worker,
+admits process-local mutable authority. Reopen/static enrollment evidence never
+does. Failed admission or guarded ambiguous I/O/corrupt outcomes quarantine the
+worker; restarting cannot recover authority from DB-local quarantine or counters.
+
+Exact committed sender frames, inbox/receipt/retry artifacts and Delivered
+projections can reconcile without new cryptographic transitions. Missing evidence
+does not authorize repair/re-encryption; new account/prekey/session/delivery/receipt
+transitions remain fenced. Typed storage re-establishment preconditions require
+independently fresh enrollment/material, new session identity and verified contact,
+not a new transport connection alone. No independent rollback witness/detection,
+transparent mutable-session restoration or live fresh-session establishment exists.
+
+Owner acceptance is bounded: implementation `t_e3a1ba25` run 229; independent QA
+`t_e022f9b4` run 230 PASS; final Evaluator `t_10759b1a` run 231
+PASS-WITH-CONDITIONS. Reused QA evidence is 26 runtime passes/1 ignored and
+284 workspace passes/0 failures/3 existing ignored, with fmt/check/Clippy/diff
+gates passing. Native positives use Linux disposable private D-Bus stores.
+Windows/macOS, cross-network, interoperability, sustained fuzz/DoS, load and
+owner-operated WP-C endpoint qualification remain open. This documentation run
+reruns no Cargo tests and enables no production E2EE/application messaging,
+KAMI-28, WP-D, full KAMI-51 or M1.
 
 ## Blocking work, ownership, and recovery
 
@@ -178,7 +209,7 @@ cargo test --locked --workspace --quiet
 git diff --check
 ```
 
-The completed KAMI-26 implementation and independent QA/Evaluator runs recorded all of these checks passing. The focused runtime suite recorded 21 passing tests; the workspace suite recorded 236 passing tests with two pre-existing native secure-store tests ignored because they require an isolated logged-in D-Bus/gnome-keyring environment.
+Historical KAMI-26 implementation and independent QA/Evaluator runs recorded these checks passing: 21 focused runtime tests and 236 workspace tests with two pre-existing native secure-store tests ignored. Those counts describe the KAMI-26 baseline, not the current WP-C tree; current reused run-230 evidence is 26 runtime passes/1 ignored and 284 workspace passes/0 failures/3 existing ignored as recorded above.
 
 ## Limitations and deferred work
 

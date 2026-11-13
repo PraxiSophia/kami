@@ -14,8 +14,11 @@ fn request(id: u128, text: &str) -> SendRequest {
 }
 #[test]
 fn reservation_is_single_lane_durable_and_keyed() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let dir = common::directory();
-    let s = common::create(&dir);
+    let s = common::fresh_create(&dir);
     let Preparation::Prepared(first) = s.prepare_send(request(10, "private text"), 1000).unwrap()
     else {
         panic!()
@@ -29,8 +32,6 @@ fn reservation_is_single_lane_durable_and_keyed() {
         s.prepare_send(request(10, "changed"), 1000),
         Err(StorageError::Conflict)
     ));
-    s.shutdown().unwrap();
-    let s = common::open(&dir);
     let Preparation::Prepared(recovered) =
         s.prepare_send(request(10, "private text"), 1001).unwrap()
     else {
@@ -43,7 +44,7 @@ fn reservation_is_single_lane_durable_and_keyed() {
         .unwrap();
     assert_eq!(mac.len(), 32);
     let other_dir = common::directory();
-    let other = common::create(&other_dir);
+    let other = common::fresh_create(&other_dir);
     other
         .prepare_send(request(10, "private text"), 1000)
         .unwrap();
@@ -73,12 +74,28 @@ fn reservation_is_single_lane_durable_and_keyed() {
     }
     assert!(!format!("{:?}", request(10, "private text")).contains("private text"));
     s.shutdown().unwrap();
+    let s = common::open(&dir);
+    assert_eq!(
+        s.prepare_send(request(10, "private text"), 1002),
+        Err(StorageError::EnrollmentRequired)
+    );
+    assert_eq!(
+        common::raw(&dir)
+            .query_row("SELECT state FROM sender_prepare", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    s.shutdown().unwrap();
 }
 
 #[test]
 fn expired_preparation_can_resume_same_request_but_rotates_fence() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let dir = common::directory();
-    let s = common::create(&dir);
+    let s = common::fresh_create(&dir);
     let old = s.prepare_send(request(10, "same"), 1000).unwrap();
     s.cleanup_prepared(61_000).unwrap();
     let renewed = s.prepare_send(request(10, "same"), 61_000).unwrap();
@@ -91,8 +108,11 @@ fn expired_preparation_can_resume_same_request_but_rotates_fence() {
 }
 #[test]
 fn cleanup_releases_only_uncommitted_sequence_and_blocks_legacy_overtake() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let dir = common::directory();
-    let s = common::create(&dir);
+    let s = common::fresh_create(&dir);
     let old = s.prepare_send(request(10, "old"), 1000).unwrap();
     assert_eq!(
         s.enqueue(common::message(common::facts(20, 1))),
@@ -113,8 +133,11 @@ fn cleanup_releases_only_uncommitted_sequence_and_blocks_legacy_overtake() {
 }
 #[test]
 fn sender_schema_is_durable_across_reopen() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let dir = common::directory();
-    let s = common::create(&dir);
+    let s = common::fresh_create(&dir);
     s.shutdown().unwrap();
     let s = common::open(&dir);
     let db = common::raw(&dir);

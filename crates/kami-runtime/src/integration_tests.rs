@@ -12,6 +12,39 @@ use kami_identity::{
 use kami_storage::{ContactTrustRow, Storage, TrustState};
 use libp2p_identity::Keypair;
 use vodozemac::olm::Account;
+#[path = "../../kami-storage/tests/common/native.rs"]
+mod native;
+
+fn native_profile(dir: &tempfile::TempDir, create: bool) -> crate::Profile {
+    let mut p = profile(
+        dir,
+        Some(std::sync::Arc::new(kami_identity::NativeCustody::open())),
+    );
+    p.key_id = if create {
+        native::new_profile(dir.path())
+    } else {
+        native::profile(dir.path())
+    };
+    p.create = create;
+    p
+}
+async fn fresh_engine(dir: &tempfile::TempDir) -> Engine {
+    let p = native_profile(dir, true);
+    let fresh = kami_identity::begin_fresh_native(&kami_identity::NativeCustody::open(), &p.key_id)
+        .unwrap();
+    let (engine, _) = Engine::start(p, Config::default()).unwrap();
+    engine.wait_running().await.unwrap();
+    engine
+        .test_work(move |storage| {
+            storage
+                .enroll_fresh(fresh)
+                .map(|()| 0)
+                .map_err(crate::Error::Storage)
+        })
+        .await
+        .unwrap();
+    engine
+}
 
 fn endpoint(account: &Account, seed: u8) -> (Endpoint, ContactTrust, DeviceId) {
     let device = Keypair::ed25519_from_bytes([seed; 32]).unwrap();
@@ -115,11 +148,16 @@ fn seed(storage: &Storage, trust: &ContactTrust, id: DeviceId) {
 }
 #[tokio::test]
 async fn lost_enqueue_reply_reconciles_exact_frame_after_runtime_restart() {
+    let Some(_native) = native::isolated() else {
+        return;
+    };
     let dir = directory();
-    let mut reopen = profile(&dir, None);
-    reopen.create = false;
-    let (engine, _) = Engine::start(profile(&dir, None), Config::default()).unwrap();
-    engine.wait_running().await.unwrap();
+    let engine = fresh_engine(&dir).await;
+    assert_eq!(
+        engine.recovery_status().await.unwrap(),
+        kami_storage::RecoveryStatus::FreshEnrollment
+    );
+    let reopen = native_profile(&dir, false);
     let (committed, durable) = tokio::sync::oneshot::channel();
     let (release, wait) = std::sync::mpsc::channel();
     let e = engine.clone();
@@ -166,6 +204,10 @@ async fn lost_enqueue_reply_reconciles_exact_frame_after_runtime_restart() {
     engine.wait_stopped().await;
     let (again, _) = Engine::start(reopen, Config::default()).unwrap();
     again.wait_running().await.unwrap();
+    assert_eq!(
+        again.recovery_status().await.unwrap(),
+        kami_storage::RecoveryStatus::Disabled
+    );
     assert_eq!(again.snapshot().recovered, 1);
     assert_eq!(
         again
@@ -184,11 +226,18 @@ async fn lost_enqueue_reply_reconciles_exact_frame_after_runtime_restart() {
 
 #[tokio::test]
 async fn private_mock_ingress_reuses_sender_receiver_and_durable_receipts_on_blocking_owner() {
+    let Some(_native) = native::isolated() else {
+        return;
+    };
     let ad = directory();
     let bd = directory();
-    let bob_profile = profile(&bd, None);
-    let (engine, _) = Engine::start(profile(&ad, None), Config::default()).unwrap();
-    engine.wait_running().await.unwrap();
+    let bob_profile = native_profile(&bd, true);
+    let bob_fresh = kami_identity::begin_fresh_native(
+        &kami_identity::NativeCustody::open(),
+        &bob_profile.key_id,
+    )
+    .unwrap();
+    let engine = fresh_engine(&ad).await;
     let result = engine
         .test_work(move |sa| {
             let sb = Storage::create(
@@ -198,6 +247,7 @@ async fn private_mock_ingress_reuses_sender_receiver_and_durable_receipts_on_blo
                 bob_profile.storage,
             )
             .unwrap();
+            sb.enroll_fresh(bob_fresh).unwrap();
             let mut alice = Account::new();
             alice.generate_one_time_keys(1);
             let mut bob = Account::new();

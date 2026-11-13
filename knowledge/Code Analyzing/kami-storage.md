@@ -193,31 +193,72 @@ Introduced in **KAMI-51 WP-B** to persist and enforce prekey inventory lifecycle
 
 ---
 
-### 9. Runtime Supervisor Integration (KAMI-26 & WP-B)
+---
+
+### 9. Module `recovery` ([crates/kami-storage/src/recovery.rs](file:///home/phu/dev/kami/crates/kami-storage/src/recovery.rs))
+
+Introduced in **KAMI-51 WP-C** as a bounded fail-closed recovery foundation:
+
+- **Enum `RecoveryStatus`**:
+  - `Disabled`: Default initial state for every worker create or reopen. Exact durable artifacts remain readable, but all mutable cryptographic operations are denied.
+  - `FreshEnrollment`: Granted only when the worker directly consumes a native one-use `FreshEnrollment` capability and completes verification.
+  - `Quarantined`: Set when an ambiguous I/O error or corruption occurs during guarded durable operations, permanently revoking that worker's mutable authority.
+  - *Process-Local Invariant*: `RecoveryStatus` is process-local in-memory state; it is never persisted into the database (where a rollback could revert it).
+
+- **Default-Deny Mutable Authority & Enrollment Gate**:
+  - Every storage-worker create/open starts with `RecoveryStatus::Disabled`.
+  - Generic `Storage::create/open`, fixture keys, `create=true`, empty database rows, ordinary `VerifiedEnrollment`, database generation counters, digests, and persisted clean-shutdown or quarantine/retirement records confer **no mutable account, prekey, or session authority**.
+  - `Storage::enroll_fresh(lease, profile, create, max_pages, fresh)`:
+    - Consumes identity's native one-use `FreshEnrollment` capability on the worker.
+    - Requires `create == true` and verifies absolute absence of prior cryptographic state (`e2ee_account`, `e2ee_session`, `e2ee_frame`, `enrollment_complete`).
+    - Connects to the actual encrypted database under the newly provisioned native key.
+    - Commits and reads back the enrollment record, completes native custody, and verifies exact readback before granting `FreshEnrollment` authority to that worker only.
+    - Failure immediately quarantines the worker.
+
+- **Refusal of Unsafe Restoration vs. Rollback Detection**:
+  - **Rollback detection is NOT available**: There is no external witness, monotonic remote counter, or distributed anchor to distinguish a coherent older SQLite DB+WAL snapshot from current state.
+  - **Safety is achieved by refusing unsafe restoration**: Restart always returns to `RecoveryStatus::Disabled`, even if an older database copy predates key exposure, consumption, retirement, or quarantine. Safety comes from refusing to grant mutable authority to reopened profiles, NOT from claiming database-local evidence detects rollback.
+
+- **Exact-Artifact Recovery**:
+  - Disabled and quarantined workers can reconcile exact committed request/frame bytes (`prepare` returning `Preparation::Committed`), inbox/receipt/retry records, and Delivered projections using coherent read transactions and existing trust/pin/context checks.
+  - This reconciliation requires **no re-encryption, no Double Ratchet advancement, and no missing-row repair**.
+  - All new cryptographic transitions are fenced: available prekey inventory is hidden, and new publication, retention, and ACK transitions are denied.
+
+- **Struct `ReestablishmentPreconditions`**:
+  - Typed contract: `independently_fresh_enrollment`, `fresh_account_and_prekeys`, `new_session_identity`, `independently_verified_contact`.
+  - These are explicit requirements, **not** a capability or live fresh-session exchange.
+
+---
+
+### 10. Runtime Supervisor Integration (KAMI-26, WP-B & WP-C)
 
 In [[kami-runtime]], `StorageWorker` is orchestrated by a dedicated single-thread blocking worker (`tokio::task::spawn_blocking`) over a bounded channel of capacity 8. The runtime guarantees:
 - **Flock Retention Across Timeout**: In the event of a graceful shutdown timeout (`ShutdownOutcome::TimedOut`), the runtime terminates asynchronous tasks but explicitly **retains** the `ProfileLease` file lock and worker handle in the dedicated thread until active kernel I/O completes or process termination, preventing split-brain database corruption.
 - **Startup Reconciliation**: On engine startup, `kami-runtime` executes storage reconciliation via `StorageWorker` to clean up expired uncommitted reservations (`cleanup_prepared`) and restore queued outbound attempts (`recover_sends`).
-- **Synchronous Prekey Staging**: All `PrekeyOperation` executions occur within immediate SQLite transactions on the blocking worker, ensuring neither uncommitted reservations nor mutable crypto handles cross async boundaries.
+- **Synchronous Prekey & Recovery Staging**: All `PrekeyOperation` executions and `RecoveryStatus` authority checks occur within immediate SQLite transactions on the blocking worker, ensuring unadmitted mutable crypto handles never cross async boundaries.
 
 ---
 
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **Functionally Implemented & Owner-Accepted Bounded Foundations** (KAMI-22 storage engine, KAMI-50 contact trust migration 002, KAMI-51 WP3 migration 003, WP2-B authenticated commits, KAMI-24 migration 004 sender state, KAMI-25 migration 005 receiver state, and KAMI-51 WP-B migration 007 prekey lifecycle).
+  - *Milestone Status*: **Functionally Implemented & Owner-Accepted Bounded Foundations** (KAMI-22 storage engine, KAMI-50 contact trust migration 002, KAMI-51 WP3 migration 003, WP2-B authenticated commits, KAMI-24 migration 004 sender state, KAMI-25 migration 005 receiver state, KAMI-51 WP-B migration 007 prekey lifecycle, and KAMI-51 WP-C bounded recovery foundation).
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: Full SQLCipher v4 encrypted persistence, profile directory leasing, numbered migrations 001-007, atomic outbox/inbox queues, duplicate filtering, gap ordering, contact trust CAS, E2EE session transactions, sequence reservations, attempt leases, exact-frame crash recovery, delivery artifact persistence, receipt commits, prekey inventory CAS, freeze-before-send reservation, and exact-byte retry reconciliation.
-  - **Tested Behavior**: Linux is verified via unit tests, migration rollback tests, WAL file inspections, 12 subprocess kill checkpoints, contact trust tests, `sender_state` durability tests, `receiver_migration` tests, `sender_input` quota tests, `prekeys` lifecycle tests, and negative plaintext probes.
+  - **Implemented Behavior**: Full SQLCipher v4 encrypted persistence, profile directory leasing, numbered migrations 001-007, atomic outbox/inbox queues, duplicate filtering, gap ordering, contact trust CAS, E2EE session transactions, sequence reservations, attempt leases, exact-frame crash recovery, delivery artifact persistence, receipt commits, prekey inventory CAS, freeze-before-send reservation, exact-byte retry reconciliation, default-deny mutable authority, process-local quarantine, and exact-artifact recovery without re-encryption.
+  - **Tested Behavior**: Linux is verified via unit tests, migration rollback tests, WAL file inspections, 12 subprocess kill checkpoints, contact trust tests, `sender_state` durability tests, `receiver_migration` tests, `sender_input` quota tests, `prekeys` lifecycle tests, `recovery` tests (6 passed), authenticated positive boundary tests, and negative plaintext probes.
+  - **Accepted WP-C Review Evidence**: Implementation `t_e3a1ba25` run 229, independent QA `t_e022f9b4` run 230 PASS, final Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS; workspace 284 passed, 0 failed, 3 existing ignored.
   - **Missing Behavior**: Native Windows and macOS profile leasing qualification.
-  - **Known Limitations**: Database digests protect against corrupted data, but cannot detect full-database external rollback (e.g., restoring an entire old VM snapshot).
+  - **Known Limitations**: No independent rollback witness or detection exists; safety relies strictly on refusing unsafe mutable restoration. Transparent mutable session restoration and live fresh-session establishment remain unavailable.
 
 ### Exact Verification Commands
 
 ```sh
 # Run all unit and integration tests in kami-storage
 cargo test --locked -p kami-storage
+
+# Run KAMI-51 WP-C recovery foundation tests
+cargo test --locked -p kami-storage --test recovery
 
 # Run KAMI-51 WP-B prekey lifecycle storage tests
 cargo test --locked -p kami-storage --test prekeys

@@ -113,6 +113,9 @@ fn seed(s: &kami_storage::Storage, t: &ContactTrust, id: DeviceId) {
 }
 #[test]
 fn coordinator_persists_before_ack_and_recovers_without_live_ratchet() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let mut alice = Account::new();
     alice.generate_one_time_keys(1);
     let mut bob = Account::new();
@@ -123,8 +126,8 @@ fn coordinator_persists_before_ack_and_recovers_without_live_ratchet() {
     let bp = tb.pinned().unwrap().binding().peer_id();
     let ad = common::directory();
     let bd = common::directory();
-    let sa = common::create(&ad);
-    let sb = common::create(&bd);
+    let sa = common::fresh_create(&ad);
+    let sb = common::fresh_create(&bd);
     seed(&sa, &tb, bid);
     seed(&sb, &ta, aid);
     let source = QuarantinedSession::outbound(

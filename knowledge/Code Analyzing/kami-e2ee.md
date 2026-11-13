@@ -15,14 +15,14 @@
     - **WP3** (Private persistence foundation): Implemented, independently reviewed, and **owner accepted** as a bounded private storage foundation (`t_fd283614`, QA `t_2d834cf1`, Evaluator `t_82d8776a`).
     - **WP2-B** (Typed storage composition): Implemented, independently reviewed, and **owner accepted with conditions** for quarantined scope only (task `t_b8cb3f89` run 126, QA `t_48119cc5` run 127, Evaluator `t_21f65076` run 128). Conditions mandate no public activation, no ACK emission authority, no external rollback anchor, and no claim of production qualification.
     - **WP-A** (Authenticated context & provider contract correction): **Accepted with Limitations** (implementation `t_b295f09f` run 187 PASS, independent QA `t_d92abbc2` run 188 PASS, final security Evaluator `t_e03aec4f` run 189 PASS, Kanban checkpoint comment 176). Corrects provider contract to `NativeAadProvider` with `supports_aad() = false`, establishes canonical `InnerEnvelopeV1` inside Olm with correspondence commitments, and validates negative-security boundaries.
-    - **Remaining KAMI-51 Work Packages (Explicitly Outside WP-A Acceptance)**:
-      - **WP-B** (Production Prekey Lifecycle): Prekey publication, rotation, freshness, replenishment, consumption, and fallback.
-      - **WP-C** (Durable Session Recovery & Rollback Policy): Durable mutable session recovery, crash-safe CAS, restart reconciliation, and an external rollback anchor.
+    - **Remaining KAMI-51 Work Packages & Recovery Foundation**:
+      - **WP-B** (Production Prekey Lifecycle): **Accepted with Limitations** (runs 204, 205, 206, 207, 208, 211). Prekey publication, rotation, replenishment, 5-minute validity, and fallback keys.
+      - **WP-C** (Bounded Recovery Foundation & Refusal of Unsafe Restoration): **Accepted with Limitations** (implementation `t_e3a1ba25` run 229, QA `t_e022f9b4` run 230 PASS, Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS). Implemented in `kami-storage`/`kami-runtime` as process-local default-deny mutable authority and exact-artifact recovery; refuses unsafe restoration. Does not provide transparent mutable session restoration or independent rollback detection; `ProfileRestore` remains fail-closed.
       - **WP-D** (Integrated Qualification): Runtime/transport/E2EE integration, cross-platform and interoperability evidence, and production security review.
     - **Downstream Milestones**:
       - **KAMI-28** (First Encrypted Application Message Delivery): Depends directly on WP-D and live transport provenance.
-      - **Historical Terminology Reconciliation**: Original WP4 (runtime and delivery, covering KAMI-24 through KAMI-32) and WP5 (qualification and evidence, covering KAMI-33 through KAMI-39) are high-level internal planning groups. WP-A belongs strictly to KAMI-51 and does not replace or convert WP4 or WP5.
-- **Git Context**: Active branch `protocol-storage`, HEAD commit `ebcfc5907a5de17dad2c6643f86730bd52643daf` with KAMI-51 WP-A working tree implementation.
+      - **Historical Terminology Reconciliation**: Original WP4 (runtime and delivery, covering KAMI-24 through KAMI-32) and WP5 (qualification and evidence, covering KAMI-33 through KAMI-39) are high-level internal planning groups. WP-A, WP-B, WP-C, and WP-D belong strictly to KAMI-51 and do not replace or convert WP4 or WP5.
+- **Git Context**: Active branch `protocol-storage`, HEAD commit `c76a10eb5d1efaca93c62e5bce2778d9c9a0f074` with KAMI-51 WP-C working tree implementation.
 
 ---
 
@@ -217,11 +217,12 @@ Introduced in **KAMI-51 WP-B** to stage Olm account lifecycle and prekey invento
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **WP-A & WP-B Accepted with Limitations**
+  - *Milestone Status*: **WP-A, WP-B & WP-C Accepted with Limitations**
     - WP1, WP2-A2, WP3, WP2-B: Implemented and owner accepted within quarantined scope.
     - WP-A: Accepted with limitations (runs 187, 188, 189, Kanban comment 176). Corrects native AAD boundary and validates canonical inner envelopes.
     - WP-B: Accepted with limitations (runs 204, 205, 206, 207, 208, 211). Implements account lifecycle, bounded OTKs (32 initial, 50 cap), 5-minute validity, and fallback key rotation.
-    - Remaining gates: Durable mutable recovery and rollback anchors (WP-C), integrated qualification (WP-D), and direct message delivery (KAMI-28).
+    - WP-C: Accepted with limitations (implementation `t_e3a1ba25` run 229, independent QA `t_e022f9b4` run 230 PASS, final Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS; workspace 284 passed, 0 failed, 3 existing ignored). Implemented in storage/runtime as default-deny worker authority and exact-artifact recovery; refuses unsafe restoration.
+    - Remaining gates: Integrated qualification (WP-D), direct application message delivery (KAMI-28), and full KAMI-51 / M1 completion.
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
   - **Implemented Behavior**: Vodozemac 0.11.1 adapter, NativeAadProvider interface, fail-closed AAD, canonical 64 KB inner envelope, staged outbound/inbound text, same-session receipt generation and consumption, OTK and fallback prekey accounting, exact retransmission reconciliation, opaque commit handoff to storage, and `AccountLifecycle` prekey staging.
@@ -229,11 +230,11 @@ Introduced in **KAMI-51 WP-B** to stage Olm account lifecycle and prekey invento
   - **Missing Behavior & Explicit Limitations**:
     - **No Live Network Provenance**: Pure E2EE code validates structural inputs (context, timestamps, Peer IDs), but cannot prove that a supplied snapshot is live or fresh. Real KAMI-27 authenticated connection provenance is not yet connected to the E2EE production boundary.
     - **Trusted Custody Limits**: The in-process snapshot custodian consumes full provider pickles, including private prekeys. This is trusted custody, not protection against a malicious custodian or in-process compromise.
-    - **No External Rollback Anchor**: `ProfileRestore` fails closed (`RollbackAnchorUnsupported`) because no external rollback authority exists.
+    - **No External Rollback Anchor / Transparent Restore**: `ProfileRestore` fails closed (`RollbackAnchorUnsupported`) because no external rollback authority exists. The accepted WP-C foundation refuses unsafe mutable restoration on reopened workers rather than providing transparent ratchet restoration or independent rollback detection.
     - **Upstream Ratchet Limits**: Upstream `vodozemac = 0.11.1` Olm v1 pins a **40-key retention cap for skipped keys** and a **2,000-message gap ceiling** on the receiver chain.
     - **Truncated MAC**: Olm v1 uses an 8-byte truncated MAC.
     - **No Wire Interoperability**: Does not support Signal or Matrix wire interoperability.
-- **Runtime Host Boundary (KAMI-26 & WP-B)**: In [[kami-runtime]], all `QuarantinedSession` staging, authenticated commits, prekey maintenance, and receipt handoffs occur strictly on the dedicated single-thread blocking worker. No Olm ratchet state or mutable crypto reference crosses an asynchronous Tokio `.await` boundary.
+- **Runtime Host Boundary (KAMI-26, WP-B & WP-C)**: In [[kami-runtime]], all `QuarantinedSession` staging, authenticated commits, prekey maintenance, recovery checks, and receipt handoffs occur strictly on the dedicated single-thread blocking worker. No Olm ratchet state or mutable crypto reference crosses an asynchronous Tokio `.await` boundary.
 
 ### Exact Verification Commands
 

@@ -175,16 +175,34 @@ Introduced in **KAMI-51 WP-B** for batch signing of prekey selections:
 
 ---
 
+---
+
+### 13. WP-C Native One-Use FreshEnrollment Handoff
+
+Introduced in **KAMI-51 WP-C** to bind native identity enrollment directly to storage worker authority:
+- **Capability**: `FreshEnrollment`
+  - An opaque, non-cloneable capability holding the fresh canonical enrollment row before native completion.
+  - Consumed exclusively by `kami-storage` (`Storage::enroll_fresh`) on the dedicated blocking worker.
+- **Worker-Local Admission Protocol**:
+  - Requires `create == true` and verifies that the database has zero prior cryptographic state (`e2ee_account`, `e2ee_session`, `e2ee_frame`, `enrollment_complete`).
+  - Tests database connection under the newly provisioned native encryption key.
+  - Commits the canonical row, calls `complete_fresh_enrollment(&native, fresh, &committed)` to finalize native OS keyring custody, and verifies exact readback parity.
+  - Grants `RecoveryStatus::FreshEnrollment` to that specific worker instance only.
+- **Refusal on Restart**:
+  - Every subsequent reopen or restart yields `RecoveryStatus::Disabled`. Ordinary `VerifiedEnrollment` or completed native keyring entries **cannot** readmit mutable account/prekey/session authority after restart or quarantine.
+
+---
+
 ## Completion and Verification
 
 - **Milestone 1 Completion Estimate**: **Not estimable**
-  - *Milestone Status*: **Functionally Implemented** (KAMI-23 identity custody, KAMI-50 contact trust/fingerprints, KAMI-51 WP2-A1 signed Olm bindings, and KAMI-51 WP-B per-selection signing are fully implemented and verified on Linux; Windows/macOS native runtime qualification, cross-process lease integration, and live transport provenance remain release gates).
+  - *Milestone Status*: **Functionally Implemented** (KAMI-23 identity custody, KAMI-50 contact trust/fingerprints, KAMI-51 WP2-A1 signed Olm bindings, KAMI-51 WP-B per-selection signing, and KAMI-51 WP-C fresh enrollment handoff are implemented and verified on Linux; Windows/macOS native runtime qualification, cross-process lease integration, and live transport provenance remain release gates).
 - **Whole-Project Completion Estimate**: **Not estimable**
 - **Status Breakdown**:
-  - **Implemented Behavior**: 3-stage enrollment lifecycle (`Fresh` -> `Pending` -> `Enrolled`), dual-namespace slot management, OS CSPRNG key generation, fingerprint calculation, Peer-ID binding, Olm prekey binding, per-selection batch signing (1..=52), and contact trust state transitions.
-  - **Tested Behavior**: Linux is fully verified via automated tests, absent-slot probes, disposable GNOME Keyring daemon integration tests, KAMI-50/WP2-A1 binding test suites, and WP-B per-selection signing (`t_d364301b` run 204, QA `t_0dcc13ac` run 205 PASS, Evaluator `t_250e6416` run 206 PASS-WITH-CONDITIONS). macOS and Windows targets pass cross-compilation and strict Clippy checks.
+  - **Implemented Behavior**: 3-stage enrollment lifecycle (`Fresh` -> `Pending` -> `Enrolled`), dual-namespace slot management, OS CSPRNG key generation, fingerprint calculation, Peer-ID binding, Olm prekey binding, per-selection batch signing (1..=52), native one-use `FreshEnrollment` worker handoff, and contact trust state transitions.
+  - **Tested Behavior**: Linux is fully verified via automated tests, absent-slot probes, disposable GNOME Keyring daemon integration tests, KAMI-50/WP2-A1 binding test suites, WP-B per-selection signing, and WP-C fresh enrollment storage tests. Reused independent QA workspace evidence: 284 passed, 0 failed, 3 existing ignored (implementation run 229, QA run 230 PASS, Evaluator run 231 PASS-WITH-CONDITIONS).
   - **Missing Behavior**: Native host execution tests on physical Windows and macOS machines.
-  - **Known Limitations**: Detached signatures prove binding; they do not establish live transport network connections (handled by transport layers).
+  - **Known Limitations**: Detached signatures prove binding; they do not establish live transport network connections (handled by transport layers). Cross-target check commands (`x86_64-pc-windows-msvc`, `x86_64-apple-darwin`) failed historically with `E0463` (target `core`/`std` unavailable in this local toolchain) and were not requalified by this documentation task.
 
 ### Exact Verification Commands
 

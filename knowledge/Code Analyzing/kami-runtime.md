@@ -126,6 +126,11 @@ Introduced in **KAMI-51 WP-B** to manage local prekey inventory and execute live
 - `engine.refresh_prekeys(cap: Arc<AuthenticatedConnection>).await -> Result<[u8; 32], Error>`: Performs a live `/kami/prekey-exchange/1` request-response exchange with an authenticated peer, returning the 32-byte request challenge upon exact reconciliation.
 - `engine.retry_prekeys(cap: Arc<AuthenticatedConnection>, request: [u8; 32]).await -> Result<(), Error>`: Re-attempts an exact durable prekey exchange across reconnect without creating a new query or re-allocating keys.
 
+#### WP-C Recovery Authority APIs
+Introduced in **KAMI-51 WP-C** to inspect worker-level recovery authority:
+- `engine.recovery_status().await -> Result<RecoveryStatus, Error>`: Queries the dedicated blocking worker's process-local `RecoveryStatus` (`Disabled`, `FreshEnrollment`, `Quarantined`). Reports internal worker admission status, not production readiness.
+- Reopened and restarted profiles always report `RecoveryStatus::Disabled`, permitting exact committed artifact reconciliation while fencing all new cryptographic transitions.
+
 ---
 
 ## 4. Ingress Boundary & Private Mock Seam (`src/ingress.rs`)
@@ -167,10 +172,11 @@ During KAMI-26 development and evaluator verification, an environmental dependen
 ## 6. Verification Evidence & Quality Profile
 
 Verified on Linux (`protocol-storage` branch):
-- **Focused Test Suite**: 21 passing tests (17 unit/integration tests, 2 cross-process ownership tests, 1 privacy probe, 1 real SQLCipher reopen test).
+- **Focused Test Suite**: 26 passing tests (unit/integration tests, cross-process ownership tests, privacy probe, transport tests, real SQLCipher reopen tests; 1 ignored native transport test).
+- **Workspace Test Suite**: Reused independent QA evidence from KAMI-51 WP-C run 230: **284 passed, 0 failed, 3 existing ignored**.
 - **Clippy**: Clean with `-D warnings`.
 - **Formatting**: Verified via `cargo fmt --all -- --check`.
-- **Ignored Tests**: Two pre-existing native secure-store tests in `kami-identity` remain ignored due to environment-dependent D-Bus/gnome-keyring prerequisites.
+- **Ignored Tests**: Pre-existing native secure-store and endpoint tests remain ignored due to environment-dependent D-Bus/gnome-keyring prerequisites.
 
 ---
 
@@ -180,6 +186,7 @@ Verified on Linux (`protocol-storage` branch):
 | :--- | :--- | :--- |
 | Direct Transport | Implemented (KAMI-27) | Bounded authenticated libp2p direct transport (QUIC/TCP/Noise/Yamux) supervised in Tokio JoinSet (Linux localhost qualified). |
 | Prekey Exchange | Implemented (KAMI-51 WP-B) | Bounded `/kami/prekey-exchange/1` subprotocol, 5s deadline, single-stream concurrency, and engine orchestration APIs (`refresh_prekeys`, `retry_prekeys`, `replenish_prekeys`). |
+| Recovery Foundation | Implemented (KAMI-51 WP-C) | Bounded fail-closed recovery foundation (accepted with limitations, runs 229, 230, 231). Process-local default-deny mutable authority (`Disabled` on restart/reopen); exact-artifact recovery without re-encryption; refuses unsafe restoration. No transparent mutable session restoration or independent rollback detection. |
 | Application Messaging / Ingress | Deferred (KAMI-28) | Bridging live transport connection provenance into production E2EE sessions and transmitting application message payloads. |
 | Functioning Relay | Deferred | Relay network connection, reservations, and packet forwarding belong to KAMI-29/30. |
 | Local IPC / CLI | Deferred | Named pipes, Unix domain sockets, and daemon rendering belong to KAMI-32. |

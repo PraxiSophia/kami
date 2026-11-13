@@ -1,5 +1,7 @@
 use super::*;
 use kami_key_provider::test_provider::TestKeyProvider;
+#[path = "../../tests/common/native.rs"]
+mod native;
 
 fn wp3_fixture(incoming: bool) -> crate::session_state::Commit {
     use crate::session_state::*;
@@ -43,15 +45,25 @@ fn wp3_profile(path: &std::path::Path, create: bool) -> Storage {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
-    let profile = ProfileKeyId::new("0123456789abcdef0123456789abcdef").unwrap();
-    let provider = Arc::new(TestKeyProvider::seeded(profile.clone(), [42; 32]));
+    let profile = if create {
+        native::new_profile(path)
+    } else {
+        native::profile(path)
+    };
+    let custody = kami_identity::NativeCustody::open();
+    let fresh = create.then(|| kami_identity::begin_fresh_native(&custody, &profile).unwrap());
+    let provider = Arc::new(custody);
     let lease = ProfileLease::acquire(path).unwrap();
-    if create {
+    let storage = if create {
         Storage::create(lease, profile, provider, Config::default())
     } else {
         Storage::open(lease, profile, provider, Config::default())
     }
-    .unwrap()
+    .unwrap();
+    if let Some(fresh) = fresh {
+        storage.enroll_fresh(fresh).unwrap();
+    }
+    storage
 }
 fn wp3_seed(storage: &Storage) {
     storage
@@ -74,6 +86,9 @@ fn wp3_seed(storage: &Storage) {
 
 #[test]
 fn wp3_worker_lost_reply_reopen_and_legacy_paths_fail_closed() {
+    let Some(_native) = native::isolated() else {
+        return;
+    };
     let exe = std::env::current_exe().unwrap();
     let dir = tempfile::tempdir_in(exe.parent().unwrap()).unwrap();
     let storage = wp3_profile(dir.path(), true);
@@ -127,6 +142,9 @@ fn wp3_crash_child() {
 }
 #[test]
 fn wp3_process_kill_atomicity_and_encrypted_artifacts() {
+    let Some(_native) = native::isolated() else {
+        return;
+    };
     struct Child(std::process::Child);
     impl Drop for Child {
         fn drop(&mut self) {
@@ -549,6 +567,9 @@ fn wp3_bounds_corruption_and_same_generation_digest_forks_fail_closed() {
 
 #[test]
 fn wp3_stale_concurrent_candidates_and_old_frame_retry_after_advancement() {
+    let Some(_native) = native::isolated() else {
+        return;
+    };
     let exe = std::env::current_exe().unwrap();
     let dir = tempfile::tempdir_in(exe.parent().unwrap()).unwrap();
     let storage = wp3_profile(dir.path(), true);
@@ -613,6 +634,9 @@ fn wp3_stale_concurrent_candidates_and_old_frame_retry_after_advancement() {
 
 #[test]
 fn wp3_does_not_promote_legacy_outbox_to_ratchet_evidence() {
+    let Some(_native) = native::isolated() else {
+        return;
+    };
     let exe = std::env::current_exe().unwrap();
     let dir = tempfile::tempdir_in(exe.parent().unwrap()).unwrap();
     let storage = wp3_profile(dir.path(), true);

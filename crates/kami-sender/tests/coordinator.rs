@@ -86,6 +86,9 @@ fn endpoint(account: &Account, seed: u8) -> (Endpoint, ContactTrust, DeviceId) {
 }
 #[test]
 fn enqueue_and_restart_resubmission_do_not_encrypt_twice() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let mut alice = Account::new();
     alice.generate_one_time_keys(1);
     let mut bob = Account::new();
@@ -114,7 +117,7 @@ fn enqueue_and_restart_resubmission_do_not_encrypt_twice() {
     )
     .unwrap();
     let dir = common::directory();
-    let storage = common::create(&dir);
+    let storage = common::fresh_create(&dir);
     storage
         .compare_and_swap_contact(
             None,

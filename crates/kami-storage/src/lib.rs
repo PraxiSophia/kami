@@ -3,6 +3,8 @@ mod contact_trust;
 pub mod prekeys;
 pub use contact_trust::{ContactTrustRow, TrustState, MAX_CONTACT_DESCRIPTOR_BYTES};
 mod enrollment;
+mod recovery;
+pub use recovery::{RecoveryStatus, ReestablishmentPreconditions};
 mod error;
 mod inbox;
 mod lease;

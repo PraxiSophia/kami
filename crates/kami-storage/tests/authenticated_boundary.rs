@@ -1,5 +1,7 @@
 //! External-crate boundary probes without adding test dependencies.
 use std::{path::PathBuf, process::Command};
+#[path = "common/native.rs"]
+mod native;
 
 fn library(name: &str) -> PathBuf {
     // Cargo chooses one coherent normal-dependency graph, rather than whichever
@@ -114,6 +116,9 @@ fn probe(source: &str, run: bool) -> std::process::Output {
 
 #[test]
 fn authenticated_positive_boundary() {
+    let Some(_native) = native::isolated() else {
+        return;
+    };
     let result = probe(POSITIVE, true);
     assert!(
         result.status.success(),
@@ -211,7 +216,7 @@ fn lifecycle_handshake(publisher:&Storage,receiver:&Storage,owner:&kami_e2ee::pr
 #[test]
 fn lifecycle_global_otk_race_exact_freeze_and_ack_conflicts() {
     use kami_storage::prekeys::{PrekeyOperation as O,PrekeyOutcome as R}; use kami_protocol::prekey_exchange::{self as w,Exchange as E,Acknowledgement};
-    let ta=lifecycle_trust(7); let tc=lifecycle_trust(9); let dir=common::directory(); let s=common::create(&dir);
+    let ta=lifecycle_trust(7); let tc=lifecycle_trust(9); let dir=common::directory(); let s=common::fresh_create(&dir);
     seed(&s,&ta,DeviceId::from_bytes(*ta.pinned().unwrap().device_key())); seed(&s,&tc,DeviceId::from_bytes(*tc.pinned().unwrap().device_key()));
     let (owner,proofs)=lifecycle_owner(8,&s); let proof=proofs.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();
     let (a,c)=std::thread::scope(|scope| {let a=scope.spawn(||lifecycle_freeze(&s,&owner,proof,&ta,31));let c=scope.spawn(||lifecycle_freeze(&s,&owner,proof,&tc,32));(a.join().unwrap(),c.join().unwrap())});
@@ -229,7 +234,7 @@ fn lifecycle_faults_freshness_relabel_and_fallback_bounds() {
     use kami_storage::prekeys::{PrekeyOperation as O,PrekeyOutcome as R};
     use kami_protocol::prekey_exchange::Exchange as E;
     let ta=lifecycle_trust(7);let tb=lifecycle_trust(8);
-    let da=common::directory();let db=common::directory();let sa=common::create(&da);let sb=common::create(&db);
+    let da=common::directory();let db=common::directory();let sa=common::fresh_create(&da);let sb=common::fresh_create(&db);
     seed(&sa,&tb,DeviceId::from_bytes(*tb.pinned().unwrap().device_key()));seed(&sb,&ta,DeviceId::from_bytes(*ta.pinned().unwrap().device_key()));
     let (owner,proofs)=lifecycle_owner(8,&sb);
     let proof=proofs.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();
@@ -279,7 +284,7 @@ fn lifecycle_faults_freshness_relabel_and_fallback_bounds() {
 #[test]
 fn lifecycle_first_message_consumption_is_atomic_and_exact_retry_is_idempotent() {
     use kami_protocol::prekey_exchange::Exchange as E;
-    let ta=lifecycle_trust(7);let tb=lifecycle_trust(8);let da=common::directory();let db=common::directory();let sa=common::create(&da);let sb=common::create(&db);
+    let ta=lifecycle_trust(7);let tb=lifecycle_trust(8);let da=common::directory();let db=common::directory();let sa=common::fresh_create(&da);let sb=common::fresh_create(&db);
     seed(&sa,&tb,DeviceId::from_bytes(*tb.pinned().unwrap().device_key()));seed(&sb,&ta,DeviceId::from_bytes(*ta.pinned().unwrap().device_key()));
     let (ao,ap)=lifecycle_owner(7,&sa);let (bo,bp)=lifecycle_owner(8,&sb);
     let ap=ap.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();let bp=bp.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();
@@ -321,7 +326,7 @@ fn committed_sender_messages(count: u128) -> (tempfile::TempDir, Storage, kami_s
     let (a,_)=endpoint(&alice,7,false); let (b,tb)=endpoint(&bob,8,false);
     let aid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([7;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
     let bid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
-    let dir=common::directory(); let s=common::create(&dir); seed(&s,&tb,bid);
+    let dir=common::directory(); let s=common::fresh_create(&dir); seed(&s,&tb,bid);
     let request=kami_storage::SendRequest::new(MessageId::from_u128(91),ConversationId::from_u128(1),aid,bid,1000,"WP2B-PRIVATE-TEXT".into()).unwrap();
     let kami_storage::Preparation::Prepared(reserved)=s.prepare_send(request.clone(),1000).unwrap() else { panic!() };
     let source=QuarantinedSession::outbound(alice,a,b,ConversationId::from_u128(1),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
@@ -454,7 +459,7 @@ fn sender_prepared_commit_recovery_preserves_exact_frame() {
     let (a,_)=endpoint(&alice,7,false); let (b,tb)=endpoint(&bob,8,false);
     let aid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([7;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
     let bid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
-    let dir=common::directory(); let s=common::create(&dir); seed(&s,&tb,bid);
+    let dir=common::directory(); let s=common::fresh_create(&dir); seed(&s,&tb,bid);
     let request=kami_storage::SendRequest::new(MessageId::from_u128(91),ConversationId::from_u128(1),aid,bid,1000,"WP2B-PRIVATE-TEXT".into()).unwrap();
     let kami_storage::Preparation::Prepared(reserved)=s.prepare_send(request.clone(),1000).unwrap() else { panic!() };
     let source=QuarantinedSession::outbound(alice,a,b,ConversationId::from_u128(1),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
@@ -484,7 +489,7 @@ fn outbound_inbound_atomic_retry_cas_prekey_and_receipt_boundaries() {
     let (a, ta) = endpoint(&alice, 7, fallback); let (b, tb) = endpoint(&bob, 8, fallback);
     let aid = DeviceId::from_bytes(Keypair::ed25519_from_bytes([7;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
     let bid = DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
-    let ad = common::directory(); let bd = common::directory(); let sa = common::create(&ad); let sb = common::create(&bd);
+    let ad = common::directory(); let bd = common::directory(); let sa = common::fresh_create(&ad); let sb = common::fresh_create(&bd);
     seed(&sa, &tb, bid); seed(&sb, &ta, aid);
     let source = QuarantinedSession::outbound(alice, a.clone(), b.clone(), ConversationId::from_u128(1), &tb, &tb.pinned().unwrap().binding().peer_id(), 1000).unwrap();
     let (c, advanced) = prepared(&source, 1, 1, &tb); let facts = c.facts();
@@ -534,12 +539,12 @@ fn stale_trust_and_quota_failure_leave_no_bootstrap_or_ack() {
     let (a, _) = endpoint(&alice, 7, false); let (b, tb) = endpoint(&bob, 8, false);
     let bid = DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
     let source = QuarantinedSession::outbound(alice, a, b, ConversationId::from_u128(1), &tb, &tb.pinned().unwrap().binding().peer_id(), 1000).unwrap();
-    let dir = common::directory(); let s = common::create(&dir); seed(&s, &tb, bid);
+    let dir = common::directory(); let s = common::fresh_create(&dir); seed(&s, &tb, bid);
     let (c, _) = prepared(&source, 1, 1, &tb);
     s.compare_and_swap_contact(Some(tb.generation()), ContactTrustRow::new(*bid.as_bytes(), TrustState::Blocked, tb.generation()+1, Some(tb.pinned().unwrap().to_bytes()), tb.candidate().to_bytes()).unwrap()).unwrap();
     assert_eq!(s.commit_authenticated(c), Err(StorageError::Conflict)); assert_eq!(counts(&dir), [0;4]); s.shutdown().unwrap();
     let dir = common::directory();
-    let s = Storage::create(kami_storage::ProfileLease::acquire(dir.path()).unwrap(), common::profile(), std::sync::Arc::new(common::Provider(Ok(42))), kami_storage::Config { outbox_bytes: 0, ..Default::default() }).unwrap(); seed(&s, &tb, bid);
+    let s = common::fresh_create_with_config(&dir, kami_storage::Config { outbox_bytes: 0, ..Default::default() }); seed(&s, &tb, bid);
     let (c, _) = prepared(&source, 1, 1, &tb); assert!(s.commit_authenticated(c).is_err()); assert_eq!(counts(&dir), [0;4]); s.shutdown().unwrap();
 }
 #[test]
@@ -558,7 +563,7 @@ fn authenticated_fault_phases_roll_back_first_inbound_and_outbound() {
         let expected = kami_protocol::ExpectedContext { message_id: facts.message_id(), conversation_id: facts.conversation_id(), sender: aid, recipient: bid, receipt_target: None };
         QuarantinedSession::inbound(bob, b, a, ConversationId::from_u128(1), &frame, &expected, &ta, &ta.pinned().unwrap().binding().peer_id(), 1000).unwrap().0
       } else { outbound };
-      let dir = common::directory(); let s = common::create(&dir);
+      let dir = common::directory(); let s = common::fresh_create(&dir);
       seed(&s, if incoming {&ta} else {&tb}, if incoming {aid} else {bid});
       common::raw(&dir).execute_batch(&format!("CREATE TRIGGER injected BEFORE INSERT ON {table} BEGIN SELECT RAISE(ABORT, 'injected'); END;")).unwrap();
       assert!(s.commit_authenticated(candidate).is_err(), "phase {table}");
@@ -592,7 +597,7 @@ fn typed_stale_durable_generation_pin_context_and_digest_never_write() {
     let (a, _) = endpoint(&alice, 7, false); let (b, tb) = endpoint(&bob, 8, false);
     let bid = DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
     let source = QuarantinedSession::outbound(alice, a, b, ConversationId::from_u128(1), &tb, &tb.pinned().unwrap().binding().peer_id(), 1000).unwrap();
-    let dir = common::directory(); let s = common::create(&dir); seed(&s, &tb, bid);
+    let dir = common::directory(); let s = common::fresh_create(&dir); seed(&s, &tb, bid);
     let (first, advanced) = prepared(&source, 1, 1, &tb); s.commit_authenticated(first).unwrap();
     let (next, _) = prepared(&advanced, 2, 2, &tb);
     common::raw(&dir).execute_batch(mutation).unwrap();
@@ -604,17 +609,21 @@ fn typed_stale_durable_generation_pin_context_and_digest_never_write() {
 }
 #[test]
 fn receiver_delivery_and_receipt_commit_are_atomic_and_recoverable() {
+  for constrained in [true, false] {
     let mut alice=Account::new(); alice.generate_one_time_keys(1);
     let mut bob=Account::new(); bob.generate_one_time_keys(1);
     let (a,ta)=endpoint(&alice,7,false); let (b,tb)=endpoint(&bob,8,false);
     let aid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([7;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
     let bid=DeviceId::from_bytes(Keypair::ed25519_from_bytes([8;32]).unwrap().public().try_into_ed25519().unwrap().to_bytes());
     let ad=common::directory(); let bd=common::directory();
-    let sa=common::create(&ad); let sb=common::create(&bd); seed(&sa,&tb,bid); seed(&sb,&ta,aid);
     let source=QuarantinedSession::outbound(alice,a.clone(),b.clone(),ConversationId::from_u128(1),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let (sent,sender)=prepared(&source,41,1,&tb); let facts=sent.facts();
+    let size=sender.prepare_retry(&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap().into_material().frame().len();
+    let sa=common::fresh_create_with_config(&ad,kami_storage::Config {outbox_bytes:if constrained {size as u64} else {16*1024*1024},..Default::default()});
+    let sb=common::fresh_create(&bd); seed(&sa,&tb,bid); seed(&sb,&ta,aid);
     let request=kami_storage::SendRequest::new(MessageId::from_u128(41),ConversationId::from_u128(1),aid,bid,1000,"WP2B-PRIVATE-TEXT".into()).unwrap();
     let kami_storage::Preparation::Prepared(reserved)=sa.prepare_send(request,1000).unwrap() else {panic!()};
-    let (sent,sender)=prepared(&source,41,reserved.sequence().value(),&tb); let facts=sent.facts();
+    assert_eq!(reserved.sequence().value(),1);
     let frame=sa.commit_prepared(reserved,sent,1000).unwrap();
     let expected=kami_protocol::ExpectedContext {message_id:facts.message_id(),conversation_id:facts.conversation_id(),sender:aid,recipient:bid,receipt_target:None};
     let (delivery,receiver)=QuarantinedSession::inbound_delivery(bob,b,a,ConversationId::from_u128(1),&frame,&expected,MessageId::from_u128(42),&ta,&ta.pinned().unwrap().binding().peer_id(),1000).unwrap();
@@ -629,11 +638,14 @@ fn receiver_delivery_and_receipt_commit_are_atomic_and_recoverable() {
     let recovered=sb.recover_delivery(permit,frame.clone()).unwrap().unwrap(); assert_eq!(recovered.receipt(),ack);
     let expected_ack=kami_protocol::ExpectedContext {message_id:MessageId::from_u128(42),sender:bid,recipient:aid,receipt_target:Some(facts.message_id()),..expected};
     let (receipt,_)=sender.prepare_receipt(&ack,&expected_ack,facts,&frame,&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
-    sa.shutdown().unwrap();
-    let sa=Storage::open(kami_storage::ProfileLease::acquire(ad.path()).unwrap(),common::profile(),std::sync::Arc::new(common::Provider(Ok(42))),kami_storage::Config {outbox_bytes:0,..Default::default()}).unwrap();
-    assert_eq!(sa.commit_delivery_receipt(receipt),Err(StorageError::Full));
-    sa.shutdown().unwrap(); let sa=common::open(&ad);
-    let (receipt,_)=sender.prepare_receipt(&ack,&expected_ack,facts,&frame,&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    if constrained {
+        assert_eq!(sa.commit_delivery_receipt(receipt),Err(StorageError::Full));
+        assert_eq!(sa.sender_record(aid,facts.message_id()).unwrap().state(),kami_storage::SendState::Queued);
+        sa.shutdown().unwrap(); let sa=common::open(&ad);
+        let (receipt,_)=sender.prepare_receipt(&ack,&expected_ack,facts,&frame,&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+        assert_eq!(sa.commit_delivery_receipt(receipt),Err(StorageError::EnrollmentRequired));
+        sa.shutdown().unwrap(); sb.shutdown().unwrap(); continue;
+    }
     common::raw(&ad).execute_batch("CREATE TRIGGER receipt_fault BEFORE INSERT ON receipt BEGIN SELECT RAISE(ABORT,'injected'); END").unwrap();
     assert!(sa.commit_delivery_receipt(receipt).is_err());
     assert_eq!(sa.sender_record(aid,facts.message_id()).unwrap().state(),kami_storage::SendState::Queued);
@@ -647,10 +659,92 @@ fn receiver_delivery_and_receipt_commit_are_atomic_and_recoverable() {
     let (duplicate,_)=sender.prepare_receipt(&ack,&expected_ack,facts,&frame,&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
     assert_eq!(sa.commit_delivery_receipt(duplicate).unwrap(),kami_storage::Acceptance::Duplicate);
     assert_eq!(common::raw(&ad).query_row("SELECT generation FROM e2ee_session",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    sa.shutdown().unwrap(); let sa=common::open(&ad);
+    assert_eq!(sa.recovery_status().unwrap(),kami_storage::RecoveryStatus::Disabled);
+    assert_eq!(sa.sender_record(aid,facts.message_id()).unwrap().state(),kami_storage::SendState::Delivered);
+    let permit=kami_e2ee::ReplayPermit::new(&tb,&tb.pinned().unwrap().binding().peer_id(),bid,aid,facts.conversation_id()).unwrap();
+    assert_eq!(sa.recover_delivery_receipt(permit,ack).unwrap(),Some(facts));
     sa.shutdown().unwrap(); sb.shutdown().unwrap();
+  }
 }
 #[test]
 fn typed_surface_exists() {
     let _: fn(&kami_storage::Storage, AuthenticatedCommit) -> Result<Vec<u8>, kami_storage::StorageError> = kami_storage::Storage::commit_authenticated;
+}
+#[test]
+fn coherent_db_wal_rollback_never_reactivates_exposed_consumed_or_retired_authority() {
+    use kami_storage::prekeys::{PrekeyOperation as O, PrekeyOutcome as R};
+    use kami_protocol::prekey_exchange::Query;
+    fn snapshot(dir:&tempfile::TempDir)->tempfile::TempDir {
+        common::raw(dir).execute_batch("PRAGMA wal_checkpoint(FULL)").unwrap();
+        let copy=common::directory();
+        for file in ["messages.db","messages.db-wal"] {
+            if dir.path().join(file).exists() {std::fs::copy(dir.path().join(file),copy.path().join(file)).unwrap();}
+        }
+        copy
+    }
+    let ta=lifecycle_trust(7); let tb=lifecycle_trust(8);
+    let da=common::directory(); let db=common::directory();
+    let sa=common::fresh_create(&da); let sb=common::fresh_create(&db);
+    seed(&sa,&tb,DeviceId::from_bytes(*tb.pinned().unwrap().device_key()));
+    seed(&sb,&ta,DeviceId::from_bytes(*ta.pinned().unwrap().device_key()));
+    let (ao,ap)=lifecycle_owner(7,&sa); let (bo,bp)=lifecycle_owner(8,&sb);
+    let ap=ap.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();
+    let bp=bp.iter().find(|p|p.data().prekey_kind==OlmPrekeyKind::OneTime).unwrap();
+    let before_exposure=snapshot(&db);
+    let ab=lifecycle_handshake(&sb,&sa,&bo,bp,&ta,&tb,71);
+    let _ba=lifecycle_handshake(&sa,&sb,&ao,ap,&tb,&ta,72);
+    let before_consumption=snapshot(&db);
+    let a=Endpoint::new(DeviceId::from_bytes(*ap.device_key()),ta.pinned().unwrap().binding().clone(),ap.clone(),ap.data().clone());
+    let b=Endpoint::new(DeviceId::from_bytes(*bp.device_key()),tb.pinned().unwrap().binding().clone(),bp.clone(),bp.data().clone());
+    let sender=ao.prepare_outbound(a.clone(),b.clone(),&ab,ConversationId::from_u128(7),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let (sent,_)=sender.prepare_text(MessageId::from_u128(701),SenderSequence::new(1),1000,"rollback fixture",&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let facts=sent.facts(); let frame=sa.commit_authenticated(sent).unwrap();
+    let expected=kami_protocol::ExpectedContext {message_id:facts.message_id(),conversation_id:facts.conversation_id(),sender:facts.sender(),recipient:facts.recipient(),receipt_target:None};
+    let (candidate,received,_)=bo.prepare_inbound(b,a,&ab,facts.conversation_id(),&frame,&expected,&ta,&ta.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    sb.commit_authenticated(candidate).unwrap();
+    let after_consumption=snapshot(&db);
+    sb.prekey(O::Invalidate {device:None,through:1,retire:true,now_ms:1000}).unwrap();
+    sb.shutdown().unwrap();
+    for (phase,copy) in [before_exposure,before_consumption,after_consumption].into_iter().enumerate() {
+        for file in ["messages.db-wal","messages.db-shm"] {
+            if db.path().join(file).exists() { std::fs::remove_file(db.path().join(file)).unwrap(); }
+        }
+        for file in ["messages.db","messages.db-wal"] {
+            if copy.path().join(file).exists() { std::fs::copy(copy.path().join(file),db.path().join(file)).unwrap(); }
+        }
+        let restored=common::open(&db);
+        assert_eq!(restored.recovery_status().unwrap(),kami_storage::RecoveryStatus::Disabled);
+        let prior=counts(&db);
+        let R::State(state)=restored.prekey(O::State {fence:lifecycle_fence(&ta,1000),request:[99;32]}).unwrap() else {panic!()};
+        assert!(state.available.is_empty(),"phase {phase} cannot publish old inventory");
+        let query=Query {request:[99;32],requester:*ta.pinned().unwrap().device_key(),publisher:*tb.pinned().unwrap().device_key(),minimum_generation:1};
+        assert!(restored.prekey(O::Freeze {fence:lifecycle_fence(&ta,1000),query,proof:Box::new(bp.clone()),account_generation:1,account_digest:bo.snapshot_digest().unwrap()}).is_err());
+        let exact=received.prepare_retry(&ta,&ta.pinned().unwrap().binding().peer_id(),1000).unwrap();
+        if phase==2 { assert_eq!(restored.commit_authenticated(exact).unwrap(),frame); }
+        else { assert!(restored.commit_authenticated(exact).is_err()); }
+        let next=received.prepare_text(MessageId::from_u128(702),SenderSequence::new(1),1000,"must not transition",&ta,&ta.pinned().unwrap().binding().peer_id(),1000).unwrap().0;
+        assert!(restored.commit_authenticated(next).is_err());
+        assert_eq!(counts(&db),prior,"rollback reads must not advance account/session/frame");
+        restored.shutdown().unwrap();
+    }
+    sa.shutdown().unwrap();
+}
+#[test]
+fn generic_worker_refuses_valid_opaque_crypto_and_prekey_stages() {
+    let mut alice=Account::new(); alice.generate_one_time_keys(1);
+    let mut bob=Account::new(); bob.generate_one_time_keys(1);
+    let (a,_)=endpoint(&alice,7,false); let (b,tb)=endpoint(&bob,8,false);
+    let dir=common::directory(); let storage=common::create(&dir);
+    seed(&storage,&tb,DeviceId::from_bytes(*tb.pinned().unwrap().device_key()));
+    let source=QuarantinedSession::outbound(alice,a,b,ConversationId::from_u128(1),&tb,&tb.pinned().unwrap().binding().peer_id(),1000).unwrap();
+    let (candidate,_)=prepared(&source,1,1,&tb);
+    assert!(storage.commit_authenticated(candidate).is_err());
+    let pin=tb.pinned().unwrap();
+    let owner=kami_e2ee::prekeys::AccountLifecycle::create(*pin.device_key(),pin.binding().peer_id(),1,1,100_000).unwrap();
+    let stage=owner.prepare_commit(None,|d|Ok(lifecycle_sign(d,8))).unwrap();
+    assert!(matches!(storage.prekey(kami_storage::prekeys::PrekeyOperation::Install(stage)),Err(StorageError::EnrollmentRequired)));
+    assert_eq!(counts(&dir),[0;4]);
+    assert_eq!(storage.recovery_status().unwrap(),kami_storage::RecoveryStatus::Disabled);
 }
 "#;

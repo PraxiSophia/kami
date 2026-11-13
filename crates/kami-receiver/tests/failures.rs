@@ -17,6 +17,9 @@ struct Pair {
 }
 impl Pair {
     fn new() -> Self {
+        Self::with_config(Default::default())
+    }
+    fn with_config(config: kami_storage::Config) -> Self {
         let mut alice = Account::new();
         alice.generate_one_time_keys(1);
         let mut bob = Account::new();
@@ -25,8 +28,8 @@ impl Pair {
         let (b, tb, bid) = endpoint(&bob, 8);
         let ad = common::directory();
         let bd = common::directory();
-        let sa = common::create(&ad);
-        let sb = common::create(&bd);
+        let sa = common::fresh_create(&ad);
+        let sb = common::fresh_create_with_config(&bd, config);
         seed(&sa, &tb, bid);
         seed(&sb, &ta, aid);
         let sender = QuarantinedSession::outbound(
@@ -113,6 +116,9 @@ impl Pair {
 }
 #[test]
 fn receiver_faults_roll_back_prekey_session_inbox_and_receipt_together() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     for table in [
         "e2ee_account",
         "e2ee_session",
@@ -139,6 +145,9 @@ fn receiver_faults_roll_back_prekey_session_inbox_and_receipt_together() {
 }
 #[test]
 fn concurrent_duplicates_keep_one_artifact_and_no_losing_ratchet() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let p = Pair::new();
     let (frame, _) = p.frame(1, 1, "one message");
     let stages: Vec<_> = (0..6).map(|_| p.stage(&frame)).collect();
@@ -174,6 +183,9 @@ fn concurrent_duplicates_keep_one_artifact_and_no_losing_ratchet() {
 }
 #[test]
 fn conflicting_content_and_alternate_ciphertext_never_replace_first_material() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let p = Pair::new();
     let (frame, advanced) = p.frame(1, 1, "original");
     let accepted = p.sb.commit_delivery(p.stage(&frame)).unwrap();
@@ -209,6 +221,9 @@ fn conflicting_content_and_alternate_ciphertext_never_replace_first_material() {
 }
 #[test]
 fn trust_race_fences_commit_and_reack_resumes_only_for_original_pin() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let p = Pair::new();
     let (frame, _) = p.frame(1, 1, "trusted");
     let stage = p.stage(&frame);
@@ -307,6 +322,9 @@ fn trust_race_fences_commit_and_reack_resumes_only_for_original_pin() {
 }
 #[test]
 fn permanent_gap_reconciles_a_late_predecessor_without_new_presentation_identity() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let mut p = Pair::new();
     let (first, sender) = p.frame(1, 1, "first");
     let (stage, receiver) = p.stage_pair(&first);
@@ -391,6 +409,9 @@ fn permanent_gap_reconciles_a_late_predecessor_without_new_presentation_identity
 }
 #[test]
 fn process_kill_before_and_after_commit_preserves_ack_boundary() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     use std::process::{Command, Stdio};
     struct Child(std::process::Child);
     impl Drop for Child {
@@ -430,8 +451,8 @@ fn process_kill_before_and_after_commit_preserves_ack_boundary() {
         );
         let storage = Storage::open(
             kami_storage::ProfileLease::acquire(&profile).unwrap(),
-            common::profile(),
-            std::sync::Arc::new(common::Provider(Ok(42))),
+            common::native::profile(&profile),
+            std::sync::Arc::new(kami_identity::NativeCustody::open()),
             Default::default(),
         )
         .unwrap();
@@ -506,6 +527,9 @@ fn crash_child() {
 }
 #[test]
 fn receiver_byte_and_count_limits_roll_back_without_losing_prior_data() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     for config in [
         kami_storage::Config {
             outbox_bytes: 0,
@@ -516,16 +540,8 @@ fn receiver_byte_and_count_limits_roll_back_without_losing_prior_data() {
             ..Default::default()
         },
     ] {
-        let mut p = Pair::new();
+        let p = Pair::with_config(config);
         let (frame, _) = p.frame(1, 1, "quota");
-        p.sb.shutdown().unwrap();
-        p.sb = Storage::open(
-            kami_storage::ProfileLease::acquire(p.bd.path()).unwrap(),
-            common::profile(),
-            std::sync::Arc::new(common::Provider(Ok(42))),
-            config,
-        )
-        .unwrap();
         assert_eq!(
             p.sb.commit_delivery(p.stage(&frame)).unwrap_err(),
             StorageError::Full
@@ -535,6 +551,9 @@ fn receiver_byte_and_count_limits_roll_back_without_losing_prior_data() {
 }
 #[test]
 fn corrupted_canonical_facts_never_authorize_exact_frame_reack() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let p = Pair::new();
     let (frame, _) = p.frame(1, 1, "bound facts");
     p.sb.commit_delivery(p.stage(&frame)).unwrap();
@@ -553,6 +572,9 @@ fn corrupted_canonical_facts_never_authorize_exact_frame_reack() {
 }
 #[test]
 fn receipt_recovery_requires_coherent_durable_generation_and_account_links() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     for mutation in [
         "UPDATE delivery_artifact SET session_generation=1",
         "PRAGMA foreign_keys=OFF; DELETE FROM e2ee_account",
@@ -574,6 +596,9 @@ fn receipt_recovery_requires_coherent_durable_generation_and_account_links() {
 }
 #[test]
 fn legacy_inbox_rows_cannot_be_promoted_to_authenticated_delivery() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let p = Pair::new();
     let (frame, _) = p.frame(1, 1, "legacy content");
     let outer = kami_protocol::decode_frame(&frame).unwrap();
@@ -604,6 +629,9 @@ fn legacy_inbox_rows_cannot_be_promoted_to_authenticated_delivery() {
 }
 #[test]
 fn per_contact_and_conversation_caps_include_retained_history() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     for contact_limit in [false, true] {
         let p = Pair::new();
         let n = if contact_limit { 1024 } else { 512 };
@@ -634,6 +662,9 @@ fn per_contact_and_conversation_caps_include_retained_history() {
 }
 #[test]
 fn concurrent_trust_change_is_atomic_with_delivery_commit() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let p = Pair::new();
     let (frame, _) = p.frame(1, 1, "trust race");
     let stage = p.stage(&frame);
@@ -677,6 +708,9 @@ fn concurrent_trust_change_is_atomic_with_delivery_commit() {
 }
 #[test]
 fn full_gap_budget_still_admits_a_predecessor_that_resolves_a_gap() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let p = Pair::new();
     for i in 0..128 {
         let facts = kami_core::MessageFacts::new(
@@ -710,6 +744,9 @@ fn full_gap_budget_still_admits_a_predecessor_that_resolves_a_gap() {
 }
 #[test]
 fn excessive_gap_is_rejected_without_bootstrap_or_ack() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let p = Pair::new();
     let (frame, _) = p.frame(1, 4097, "too far");
     assert_eq!(

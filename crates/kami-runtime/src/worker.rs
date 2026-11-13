@@ -14,6 +14,7 @@ impl Drop for Authority {
 #[cfg(test)]
 type TestWork = Box<dyn FnOnce(&Storage) -> Result<usize, Error> + Send>;
 pub(crate) enum Work {
+    RecoveryStatus(oneshot::Sender<Result<kami_storage::RecoveryStatus, Error>>),
     MaintainPrekey(Option<usize>),
     InvalidatePrekey(Option<[u8; 32]>, u64, bool),
     IncomingPrekey(kami_transport::IncomingPrekeyExchange),
@@ -100,11 +101,7 @@ pub(crate) fn run(
         }
         .map_err(Error::Storage)?;
         if let Some(fresh) = fresh {
-            let committed = storage
-                .commit_fresh_enrollment(fresh.canonical_row())
-                .map_err(Error::Storage)?;
-            kami_identity::complete_fresh_enrollment(&native, fresh, &committed)
-                .map_err(Error::Identity)?;
+            storage.enroll_fresh(fresh).map_err(Error::Storage)?;
         }
         let credentials = if direct {
             let row = enrollment_row(&storage)?;
@@ -161,6 +158,12 @@ pub(crate) fn run(
             }
         }
         let result = match work {
+            Work::RecoveryStatus(reply) => {
+                let status = storage.recovery_status().map_err(Error::Storage);
+                let result = status.map(|_| 0);
+                let _ = reply.send(status);
+                result
+            }
             Work::MaintainPrekey(count) => {
                 maintain_prekeys(&storage, &key_id, local.as_ref(), &mut prekeys, count)
             }

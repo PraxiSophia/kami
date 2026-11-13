@@ -1,7 +1,7 @@
 ---
 last_analyzed_branch: "protocol-storage"
-last_analyzed_commit: "438d466"
-last_analyzed_timestamp: "2026-11-11T22:45:00Z"
+last_analyzed_commit: "c76a10eb5d1efaca93c62e5bce2778d9c9a0f074"
+last_analyzed_timestamp: "2026-11-13T00:36:00Z"
 milestone_1_completion_overall: "Not estimable"
 whole_project_completion_overall: "Not estimable"
 ---
@@ -60,7 +60,16 @@ Milestone 1 focuses on ten core foundations:
       - **Owner-Observed QUIC Exchange (Terminal Evidence)**: Live two-terminal loopback run demonstrated authenticated QUIC exchange: `PREKEY_LAST_ATTEMPT=completed`, `QUERY=durable`, `SIGNED_KIND=OneTime`, `FRESHNESS=valid-at-retention`, `RETENTION_BEFORE_ACK=committed`, `PUBLICATION_ACK_RESULT=exact-result-reconciled`. An initial `Transport(Expired)` failure and subsequent successful reconnect were observed and preserved as authentic qualification evidence.
       - **Owner-Reported Scenarios (Pending Log Archival)**: Subsequent TCP, reverse, and retry command sequences reported successful by owner; awaiting local test log archival.
       - **Antigravity Execution Boundary**: Antigravity did **not** execute, simulate, or fabricate interactive manual tests.
-  - **Remaining KAMI-51 Dependencies**: WP-C (durable mutable session recovery & external rollback anchor), WP-D (integrated qualification), KAMI-28 (unimplemented application messaging), and production E2EE / M1 remain incomplete.
+  - **WP-C (Bounded Recovery Foundation & Refusal of Unsafe Restoration)**: **Accepted with Limitations** (implementation `t_e3a1ba25` run 229, independent QA `t_e022f9b4` run 230 PASS, final Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS; workspace 284 passed, 0 failed, 3 existing ignored).
+    - **Default-Deny Mutable Authority**: Every storage-worker create/open starts in `RecoveryStatus::Disabled`. Generic `Storage::create/open`, fixture keys, `create=true`, empty database rows, ordinary `VerifiedEnrollment`, database generation counters, digests, and persisted clean-shutdown or quarantine/retirement records confer **no mutable account, prekey, or session authority**.
+    - **Native One-Use `FreshEnrollment` Handoff**: The worker can only transition to `RecoveryStatus::FreshEnrollment` via `Storage::enroll_fresh`, consuming identity's native one-use `FreshEnrollment` capability. Admission verifies profile binding, absolute absence of prior cryptographic state (`e2ee_account`, `e2ee_session`, `e2ee_frame`, `enrollment_complete`), connects to the actual encrypted database under the newly provisioned native key, commits and reads back the enrollment record, completes native custody, and verifies exact readback before granting process-local authority to that worker only.
+    - **Refusal of Unsafe Restoration vs. Rollback Detection**:
+      - **Rollback detection is NOT available**: There is no independent witness, external timestamp anchor, or distributed ledger to determine which coherent SQLite DB+WAL is newest.
+      - **Safety is achieved by refusing unsafe mutable restoration**: Restart always returns to `RecoveryStatus::Disabled`. Ambiguous I/O or corruption during guarded operations transitions the worker to `RecoveryStatus::Quarantined`. Coherent older DB+WAL copies (even those predating key exposure, retirement, or quarantine) cannot regain mutable authority.
+    - **Exact-Artifact Recovery**: Disabled and quarantined workers can reconcile exact committed request/frame bytes, inbox/receipt/retry records, and Delivered projections through coherent read transactions and existing trust/pin/context checks **without re-encryption, ratchet advancement, or missing-row repair**. All new crypto transitions are fenced; available prekey inventory is hidden and new publication, retention, and ACK transitions are denied.
+    - **Typed Re-establishment Preconditions**: `ReestablishmentPreconditions` struct (`independently_fresh_enrollment`, `fresh_account_and_prekeys`, `new_session_identity`, `independently_verified_contact`). These are explicit contract requirements, **not** a capability or live fresh-session exchange.
+    - **Qualification Limits**: Linux private-D-Bus/native only. Windows/macOS, cross-network, interoperability, sustained fuzz/DoS, load, and owner-operated WP-C endpoint evidence remain unqualified.
+  - **Remaining KAMI-51 Dependencies**: WP-D (integrated qualification), KAMI-28 (unimplemented application messaging), and full KAMI-51 / M1 completion remain open.
 - **KAMI-24 (Outbound Sender Coordination & Persistence)**:
   - **Owner-Accepted Bounded Implementation** (`t_3caec9e9`, QA `t_d1b015bb` PASS, Evaluator `t_4c8b8ad4` PASS).
   - Consumes accepted WP3 and WP2-B storage foundations.
@@ -115,12 +124,12 @@ Milestone 1 focuses on ten core foundations:
 | [[kami-core]] | Pure domain facts, state machine transitions, and queue limits (no I/O or dependencies). | **100%** of domain scope | Verified (unit tests, 5 proptests, 7 golden vectors, 99.6% coverage) |
 | [[kami-protocol]] | Bounded Protobuf encoding/decoding, structural frame validation (up to 64 KB), and prekey exchange framing (16 KiB limit). | **100%** of wire frame scope | Verified (unit tests, vectors, fuzz/proptests, prekey exchange framing tests) |
 | [[kami-key-provider]] | Synchronous database key custody contract and memory-zeroizing key type. | **100%** of contract scope | Verified (unit tests, fault injection, restart/loss tests) |
-| [[kami-identity]] | OS keyring custody, contact trust (KAMI-50), and bounded per-selection signed Olm prekey bindings (WP-B). | **Not estimable** *(Functionally Implemented)* | Verified on Linux (single and batch Olm binding proofs, custody checks); Windows/macOS compiled & Clippy-checked; native qualification pending |
-| [[kami-storage]] | SQLCipher encrypted local database, profile leasing, migrations 001-007, E2EE commits, sender state, receiver state, and prekey lifecycle. | **Not estimable** *(Functionally Implemented & Owner-Accepted Foundations)* | Verified on Linux (migrations 001-007, crash-kill checkpoints, CAS, WAL, sender state, receiver migration, prekey reservation CAS, exact-byte retry reconciliation); native qualification pending |
-| [[kami-e2ee]] | Vodozemac Double Ratchet adapter, NativeAadProvider contract, inner envelope, receipt boundaries, and prekey lifecycle staging (WP-B). | **Not estimable** *(WP-A & WP-B Accepted with Limitations)* | Verified on Linux (unit tests, context contracts, qualification suites, prekey lifecycle tests); runtime/network deferred |
-| [[kami-sender]] | Synchronous outbound message coordination, sequence reservations, attempt leases, crash recovery, and receipt consumption. | **Not estimable** *(Owner-Accepted Bounded Implementation)* | Verified on Linux (coordinator race tests, exponential retry tests); runtime/network transport deferred |
-| [[kami-receiver]] | Synchronous inbound frame coordination, duplicate deduplication, presentation ordering, same-session receipt staging, and delivery artifact persistence. | **Not estimable** *(Owner-Accepted Bounded Implementation)* | Verified on Linux (16 receive tests, failure suites, joint storage tests); runtime/network transport deferred |
-| [[kami-runtime]] | Tokio async actor engine, bounded channel backpressure, dedicated blocking worker, profile lease retention, supervised relay seam, and prekey engine orchestration. | **Not estimable** *(Owner-Accepted Bounded Implementation)* | Verified on Linux (21 unit/integration tests, ownership/privacy tests, join/reconcile suites, transport tests); live transport capability supervised |
+| [[kami-identity]] | OS keyring custody, contact trust (KAMI-50), bounded signed Olm prekey bindings (WP-B), and native one-use `FreshEnrollment` worker handoff (WP-C). | **Not estimable** *(Functionally Implemented)* | Verified on Linux (single and batch Olm binding proofs, fresh enrollment lifecycle, custody checks); Windows/macOS compiled & Clippy-checked; native qualification pending |
+| [[kami-storage]] | SQLCipher encrypted local database, profile leasing, migrations 001-007, E2EE commits, sender/receiver state, prekey lifecycle, and recovery module (`recovery.rs`, WP-C). | **Not estimable** *(Functionally Implemented & Owner-Accepted Foundations)* | Verified on Linux (migrations 001-007, crash checkpoints, CAS, WAL, sender/receiver state, prekey reservation CAS, recovery tests, exact-artifact recovery without re-encryption); native qualification pending |
+| [[kami-e2ee]] | Vodozemac Double Ratchet adapter, NativeAadProvider contract, inner envelope, receipt boundaries, and prekey lifecycle staging (WP-B). | **Not estimable** *(WP-A, WP-B & WP-C Accepted with Limitations)* | Verified on Linux (unit tests, context contracts, qualification suites, prekey lifecycle tests); storage/runtime implements WP-C recovery fence refusing unsafe restoration; runtime/network deferred |
+| [[kami-sender]] | Synchronous outbound message coordination, sequence reservations, attempt leases, crash recovery, receipt consumption, and exact-request recovery under WP-C. | **Not estimable** *(Owner-Accepted Bounded Implementation)* | Verified on Linux (coordinator race tests, exponential retry tests, exact request recovery without re-encryption); runtime/network transport deferred |
+| [[kami-receiver]] | Synchronous inbound frame coordination, duplicate deduplication, presentation ordering, same-session receipt staging, and exact delivery artifact reconciliation under WP-C. | **Not estimable** *(Owner-Accepted Bounded Implementation)* | Verified on Linux (16 receive tests, failure suites, joint storage tests, exact artifact recovery); runtime/network transport deferred |
+| [[kami-runtime]] | Tokio async actor engine, bounded channel backpressure, dedicated blocking worker, profile lease retention, supervised relay seam, prekey orchestration, and recovery worker fence. | **Not estimable** *(Owner-Accepted Bounded Implementation)* | Verified on Linux (26 unit/integration tests, ownership/privacy tests, join/reconcile suites, transport tests); live transport capability supervised |
 | [[kami-transport]] | Authenticated libp2p QUIC/TCP direct transport, expected-peer dial binding, fresh contact trust checks, revocable connection capabilities, and `/kami/prekey-exchange/1` subprotocol. | **Not estimable** *(Owner-Accepted Bounded Implementation)* | Verified on Linux (automated direct and prekey suites, compile-fail doctests, owner-operated manual two-process harness); relay/application E2EE deferred |
 | [[kami-cli]] | Command-line client and background service daemon. | **Scaffold only** *(15% placeholder)* | Scaffold tests only; IPC and commands pending |
 
@@ -200,7 +209,7 @@ Explore the individual crate documentation:
 - [[kami-cli]]: User commands and daemon scaffold
 
 Architecture & Pattern Synthesis:
-- [[KAMI Design Patterns and Algorithms]]: Comprehensive architectural inventory of 34 design patterns and algorithms implemented across all 11 Kami crates
+- [[KAMI Design Patterns and Algorithms]]: Comprehensive architectural inventory of 35 design patterns and algorithms implemented across all 11 Kami crates
 
 ---
 
@@ -224,9 +233,9 @@ The Kami codebase includes source-backed, standalone interactive Archify archite
 ## Analysis Baseline & Working Tree Manifest
 
 - **Git Branch**: `protocol-storage`
-- **Git Commit (HEAD)**: `438d466` ("feat(kami): complete KAMI-51 WP-A authenticated context boundary")
-- **Working Tree State**: Accepted KAMI-51 WP-B implementation sitting on top of the `438d466` baseline
-- **Analysis Timestamp**: `2026-11-11T22:45:00Z`
+- **Git Commit (HEAD)**: `c76a10eb5d1efaca93c62e5bce2778d9c9a0f074` (`c76a10e` — "chore(kami): optimize agent instructions and task handoffs")
+- **Working Tree State**: Accepted KAMI-51 WP-C bounded recovery foundation sitting on top of `c76a10e`
+- **Analysis Timestamp**: `2026-11-13T00:36:00Z`
 - **Toolchain**: Rust 2021 Edition / Cargo workspace
 
 ### Working Tree Source Manifest (Uncommitted & Untracked Baseline)
@@ -234,48 +243,32 @@ To ensure incremental re-analysis reliably detects modifications even when `HEAD
 
 | File Path | Working Tree Status | SHA-256 Digest |
 | :--- | :--- | :--- |
-| `Cargo.lock` | Tracked (Modified) | `cfcc7578ba1549c838d019556095e924ce0412f1821a439a9de12d89b9ca2536` |
-| `README.md` | Tracked (Modified) | `5e086dc048bb3322b6632490b99f8904663d42c16f213bea7617c0a66418b311` |
-| `crates/kami-e2ee/README.md` | Tracked (Modified) | `38aa6c765aa732d14b718bb8dbed8b66ab6a8bef1789004609f07793d0cfe31d` |
-| `crates/kami-e2ee/src/authenticated.rs` | Tracked (Modified) | `15ace1406afb4cf072392d3f56ed8abd9c20a01c30123b81be23cff789b5b747` |
-| `crates/kami-e2ee/src/lib.rs` | Tracked (Modified) | `3319afb43a4459b8aaf4317a9f6359655a7eca7858c7bf6d4e8f8968bac88a6c` |
-| `crates/kami-e2ee/src/persistence.rs` | Tracked (Modified) | `8d63ef7f7e19b8feed67c9022577a1b4f1231dbb7cb8d3a0fbb2505c4323c7fd` |
-| `crates/kami-e2ee/src/prekeys.rs` | Untracked | `ddad86def783c83a615338ae5d219e02aa6dd9dfdda8a3bf1ccde4d206358f1a` |
-| `crates/kami-e2ee/tests/prekeys.rs` | Untracked | `1a3bac31dd0d72782c81c22c480a1e91d61f1ea970d67e55534134f45c68fabe` |
-| `crates/kami-e2ee/tests/privacy.rs` | Tracked (Modified) | `8e75ff7a92af6c24bac8f696b6aa5c24be3e73055ba1972c84544000c7b3292c` |
-| `crates/kami-e2ee/tests/qualification/authenticated.rs` | Tracked (Modified) | `b50df233eb14579b6220989325647d9ef5d10d67c858dcdbeb58dec267366aa1` |
-| `crates/kami-identity/README.md` | Tracked (Modified) | `85fb2db861d560496062574b6564a51beb816debdf90270e1dd0f47539ef0446` |
-| `crates/kami-identity/src/custody.rs` | Tracked (Modified) | `8a925905de665adc1299e6ed8ec76732f2beea1ab6262e2f6d8a335e127b335e` |
-| `crates/kami-identity/src/olm_binding.rs` | Tracked (Modified) | `08f8bd78016405f92968c18e5863703e845d17e1e7ef81d6c0d7d1aa676617fa` |
-| `crates/kami-protocol/README.md` | Tracked (Modified) | `4655307ffcddc32665794a5eeed3471350fcd908aa2576a837dec348c39fc6f6` |
-| `crates/kami-protocol/proto/kami/m1/prekey_exchange.proto` | Untracked | `1d95145fea71f8c27f6f9b4cf82886c69a28bb7d62c169df2130fca6d1b12054` |
-| `crates/kami-protocol/src/lib.rs` | Tracked (Modified) | `552ddae132113937b9a2746bc5f55b914603160a78babe8f11bde44b22c2bdee` |
-| `crates/kami-protocol/src/prekey_exchange.rs` | Untracked | `af41159ad12c516353e21e663ec234dfcd4ed143cbabcd18ef70ac28f6424308` |
-| `crates/kami-protocol/tests/prekey_exchange.rs` | Untracked | `60126f55ad7ed745e1fd9da372f51404d7add437d799303a8348156db9e3cd4b` |
-| `crates/kami-runtime/README.md` | Tracked (Modified) | `9c024bcda35a6a55a50d990c2784415eeae6d11361553a512a832bd584c2d0a7` |
-| `crates/kami-runtime/src/engine.rs` | Tracked (Modified) | `cb4944c1ad95c51f8515c6b179d5bdd32a985a6690e73da398fd82d140c0e121` |
-| `crates/kami-runtime/src/transport_tests.rs` | Tracked (Modified) | `7082bbdf40f3f5b7697405e82ab2ef7b6b6e44021f8a77e14404f08e53655589` |
-| `crates/kami-runtime/src/worker.rs` | Tracked (Modified) | `f2a3ac761dd3f4a2fd0cfd66ab4ff4d86e59793ab983c62c7cde3c7d49f4c83b` |
-| `crates/kami-storage/README.md` | Tracked (Modified) | `744f05dfab0014caa2ef99af762e8fae56112fd404d77a6d8ad81f9d38220e82` |
-| `crates/kami-storage/migrations/007_prekey_lifecycle.sql` | Untracked | `a6eab465cd1b4de71b905c76a6d818dfca5ac4e3f6fe8e038b38cd5c0aa9bc05` |
-| `crates/kami-storage/src/lib.rs` | Tracked (Modified) | `2470ae6c0bf470f4aaaacfb3c1dc9850b0b9b4e814106811f13e49563a599b1f` |
-| `crates/kami-storage/src/migrations.rs` | Tracked (Modified) | `f37bff14e17ef4f33cf8178f41c489ee99fd1c2104da8d4a044dbacf02adff5f` |
-| `crates/kami-storage/src/prekeys.rs` | Untracked | `48253e26e19cee7ebf16e92a094350679e178278a232d85a67785fb179bbe51f` |
-| `crates/kami-storage/src/session_state.rs` | Tracked (Modified) | `05f8527179eb42cce70b240b63282175819fb3345841d6e4c376445ac6c12bd8` |
-| `crates/kami-storage/src/worker.rs` | Tracked (Modified) | `7395a2e33237bfc920dcdec90c62c86b5ccc4c8724fb8ddd347ac3b7825a32a1` |
-| `crates/kami-storage/tests/authenticated_boundary.rs` | Tracked (Modified) | `b31bd56f021335dc6f04756f93d8db4e374c6e484b8dcccf4eebe25cfe0fc0e6` |
-| `crates/kami-storage/tests/contact_trust.rs` | Tracked (Modified) | `9af97fa074bed3a6fe55e025d1d9428144416492cca066539b46b77c6f902699` |
-| `crates/kami-storage/tests/e2ee_state.rs` | Tracked (Modified) | `07c46f33d98acb4578deac460a846b8aeeb118d6c8dabf143379431219ff0996` |
-| `crates/kami-storage/tests/prekeys.rs` | Untracked | `dccec6404269e7a158e7edbe8bc3eeefbf14d8ba2cc9e00526e7b3fc515a99a7` |
-| `crates/kami-storage/tests/receiver_migration.rs` | Tracked (Modified) | `2d50595ca3cab50ece207f7db6de7791365ef766014cb82333fed3cb2d8004c0` |
-| `crates/kami-storage/tests/sender_state.rs` | Tracked (Modified) | `d33f59ad4674fd9c364e725cc74623b6f863072e98e5cc84e17fab3596986148` |
-| `crates/kami-transport/Cargo.toml` | Tracked (Modified) | `b1f7d7bdfe32eb0260764ff18a350d08e3af8904efb1b4316c55c921da05da4d` |
-| `crates/kami-transport/README.md` | Tracked (Modified) | `b6f6aeb98a0dcae3dc5a681d0fd4ea9b991968f6747c236e3f117b74b69ec141` |
-| `crates/kami-transport/src/connection.rs` | Tracked (Modified) | `4790822b95e883d5565612ca18c81eea546c2ea7192b10bd3e8f420f9465afc6` |
-| `crates/kami-transport/src/driver.rs` | Tracked (Modified) | `2fa4855176108c945ffda0f2dfd96602206fa2b4a2cd15421c2fbd8cfe891761` |
-| `crates/kami-transport/src/lib.rs` | Tracked (Modified) | `8bc53550454a703876cac113f079584b5e721b41931d7bd988488c9f37dfee6c` |
-| `crates/kami-transport/src/prekey_exchange.rs` | Untracked | `7105f011cc598a1d8eaa516d2d5a33af32ea40badf3f0934123e81eedc62186f` |
-| `crates/kami-transport/tests/direct.rs` | Tracked (Modified) | `c938447e22415029352409d6dbb1f304bba40ffefdd7f18b5ab151e257083069` |
-| `docs/KAMI_DEVELOPMENT_ROADMAP.md` | Tracked (Modified) | `f3b4c58cafbed39a307c0fe5eca33e45b35e020f605109953659acd29688da04` |
-| `scripts/kami51-wpb-manual/README.md` | Untracked | `a00302b6e7df61412d48a77e01aeffd1dd92cda73253e400f34ffd935bb4a10b` |
-| `scripts/kami51-wpb-manual/verify.sh` | Untracked | `b32c4674b86da200ec82618daab293cfdc7290f7bb69908a5f742c393561b802` |
+| `README.md` | Tracked (Modified) | `9e6a0ca51d1e978289995460b285f9270dc1b502e7b8292e76becf68f083d69b` |
+| `crates/kami-e2ee/README.md` | Tracked (Modified) | `9af220e723afa7a6067c14e926a579a3a37e63413a291f551620c0b27f0a7168` |
+| `crates/kami-identity/README.md` | Tracked (Modified) | `6be5974a8febfc9e5fd8f03e1e0ce67375c95bc646caaba80b769d437e4173a7` |
+| `crates/kami-protocol/README.md` | Tracked (Modified) | `2558ab2eed163568ebcefe7f055982d3481d0b1b270ed695ea23da19ec67d001` |
+| `crates/kami-receiver/README.md` | Tracked (Modified) | `a009f9ad628f1944e31f241c4126b9596664ed7a686552eb51257c3babe82217` |
+| `crates/kami-receiver/tests/failures.rs` | Tracked (Modified) | `f0964121da7112c612417bbeb93e38f7226b750568001f3cee246ff4bfb284de` |
+| `crates/kami-receiver/tests/receive.rs` | Tracked (Modified) | `bf098caaa0a92ed7975c1ef93c3ed2342a64542e72932d3f19c122934815dee0` |
+| `crates/kami-runtime/README.md` | Tracked (Modified) | `3ba655875c3f16163137475ae8feaaf76b5fd345792fa1d0f368fe683ce87179` |
+| `crates/kami-runtime/src/engine.rs` | Tracked (Modified) | `2c8d16f24b747b03262cf46e5d86397f5543a4dc527cbd625f2b4dfcb534a387` |
+| `crates/kami-runtime/src/integration_tests.rs` | Tracked (Modified) | `d2bd5d0c0263b28a80874724f6a5ae81dc429e9e88a67eb5e31809aae3c5127e` |
+| `crates/kami-runtime/src/worker.rs` | Tracked (Modified) | `e28d95587594d6a3f8b08a3f108b6a49e9b89277665e38b68c55dfbefe706dfb` |
+| `crates/kami-sender/README.md` | Tracked (Modified) | `e2f97c90f58fb998667b2e3be9a08cb3d0d937e2898156089c0eab12b28002c8` |
+| `crates/kami-sender/tests/coordinator.rs` | Tracked (Modified) | `75ca6dcf90db9fc6b022b45393336341e2a351746039d62204f8b1f78853cba9` |
+| `crates/kami-storage/README.md` | Tracked (Modified) | `cf16813dab9e6eb7d9f6ac99c759a619304eb1cfdd0e729228ea51ee02e3827f` |
+| `crates/kami-storage/src/lib.rs` | Tracked (Modified) | `2d33714d5baba8a1c71d649fb06768da7989f7613cc024570b91f6ffc3044531` |
+| `crates/kami-storage/src/prekeys.rs` | Tracked (Modified) | `b45a3b95784cc002e5e2ed87b177d5d4480f4fcd99aa3327b6ba6c3b075b894d` |
+| `crates/kami-storage/src/recovery.rs` | Untracked | `5d06583d3b4fbad8fbfe954d95573827456162d924192ae829074a639804112b` |
+| `crates/kami-storage/src/worker.rs` | Tracked (Modified) | `8c13cf651114313afc37ece3e9d508be0b2f80ee4213c89e4781e7db38970264` |
+| `crates/kami-storage/src/worker/tests.rs` | Tracked (Modified) | `3c872388e0e491e345f83a34976cbde1648f5d0382f96f08b96557f48110e2cb` |
+| `crates/kami-storage/tests/authenticated_boundary.rs` | Tracked (Modified) | `5584648793e89c4acaa2790a56fce1f766eb04b5d68e3c7804ea9260b32b5621` |
+| `crates/kami-storage/tests/common/mod.rs` | Tracked (Modified) | `bce17ec095130635899ed0b8d6bf59dae27e7ed831391385f75825f5ab0bce21` |
+| `crates/kami-storage/tests/common/native.rs` | Untracked | `a45ee70e53e4b514f23e9f9cadc611494a575dee6b45a9284f5e10f79fd81999` |
+| `crates/kami-storage/tests/recovery.rs` | Untracked | `8e9b1c9444754572160ad4ca566cf966fedb43582c82f63ff4e571af7b17aaf5` |
+| `crates/kami-storage/tests/sender_input.rs` | Tracked (Modified) | `669251655dabd082dac65f07a82c550379d1f8e15fe183906cd7d7a8ec008acf` |
+| `crates/kami-storage/tests/sender_state.rs` | Tracked (Modified) | `3eb046eedfa9641bd53cac47447a1e48c498915aa8aac0f2cc0093688abf242c` |
+| `crates/kami-transport/README.md` | Tracked (Modified) | `35c6c8cf2c012c75ed296740cb16b53aec76927c96da1ee22120692e97b3a14e` |
+| `docs/architecture/Identity_And_Encryption.md` | Tracked (Modified) | `778dd26997dd53d8080b6cf1319e5941c5991ffd434f8f29b596398b6920ea65` |
+| `docs/KAMI_DEVELOPMENT_ROADMAP.md` | Tracked (Modified) | `33781da19b5c76a7cd06cb73e14d8e1b1336fbb8fe4f8619aac66fffc886788c` |
+| `scripts/kami51-wpb-manual/README.md` | Tracked (Modified) | `e62f9636421f788ff5e69735635f0d609b78ebee5defd1e5607648c7dc68af39` |

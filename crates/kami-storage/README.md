@@ -29,6 +29,53 @@ and reconciles durable outcomes after restart. Production network, receipt/Deliv
 activation, external rollback anchoring, and cross-platform qualification remain
 downstream work.
 
+## WP-C bounded recovery foundation — accepted with limitations
+
+Implementation `t_e3a1ba25` run 229, independent QA `t_e022f9b4` run 230 PASS,
+and final Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS qualify only this
+bounded foundation. `recovery` exposes process-local
+`RecoveryStatus::{Disabled,FreshEnrollment,Quarantined}` and
+`ReestablishmentPreconditions`; `Storage::recovery_status` reports the worker's
+status, not production readiness. Every create/open starts Disabled. Generic
+`Storage::create/open`, fixture keys, `create=true`, empty rows, ordinary
+`VerifiedEnrollment`, DB generations/digests and persisted quarantine/retirement
+records confer no mutable account, prekey or session authority.
+
+`Storage::enroll_fresh` consumes identity's native one-use `FreshEnrollment` on
+the worker. Admission checks the profile and absence of prior crypto/enrollment
+state, opens the actual encrypted database under the freshly provisioned native
+key, commits/readbacks enrollment, completes native custody, and verifies exact
+readback before granting authority to that worker only. Failure quarantines the
+worker; ambiguous I/O/corrupt outcomes on guarded operations also quarantine it.
+Restart always returns to Disabled, even if a coherent old DB+WAL predates
+exposure, consumption, retirement or quarantine. This refuses unsafe restoration;
+it does **not detect rollback** or determine which coherent database is newest.
+
+Disabled/quarantined workers can reconcile exact committed request/frame,
+inbox/receipt/retry and Delivered evidence using coherent read transactions and
+existing trust/pin/context checks, without re-encryption, ratchet advancement or
+missing-row repair. New delivery/receipt/account/session transitions are fenced;
+available prekey inventory is hidden and new publication/retention/ACK transitions
+are denied. Operational sender controls and neutral metadata are not a grant of
+cryptographic authority. No migration 008 was needed: schema v7 and ephemeral
+worker authority suffice, and persisting the fence would not prove freshness.
+
+Typed re-establishment preconditions require independently fresh enrollment,
+fresh account/prekeys, a new session identity and independently verified contact;
+they are requirements, not a capability or live fresh-session exchange. There is
+no independent rollback witness, transparent mutable-session restoration,
+production E2EE/application messaging, KAMI-28, WP-D or M1 completion.
+
+Reused run-230 evidence: `cargo test --locked -p kami-storage --test recovery`
+6 passed; authenticated positive boundary 1 passed; E2EE 54 passed; runtime
+26 passed, 1 ignored; workspace **284 passed, 0 failed, 3 existing ignored**.
+Formatting, locked all-target check, warnings-denied Clippy and diff checks passed.
+Run 231 independently reran focused recovery/boundary/E2EE/runtime checks and
+reconciled QA's workspace result. These are Linux private-D-Bus/native fixtures,
+not Windows/macOS, cross-network, interoperability, sustained fuzz/DoS, load or
+owner-operated WP-C endpoint qualification. No Rust tests were rerun for this
+documentation synchronization.
+
 ## Modules and interfaces
 
 - `lease`: `ProfileLease::acquire(&Path)` requires an existing absolute private
@@ -415,9 +462,10 @@ public fence assertions—establish actual authenticated same-swarm provenance,
 
 WP-B is bounded accepted with conditions: implementation `t_d364301b` run 204,
 QA `t_0dcc13ac` run 205 PASS and final Evaluator `t_250e6416` run 206
-PASS-WITH-CONDITIONS. After process restart valid frozen exchanges may reconcile,
-but new publication from a persisted account blocks without WP-C mutable restore
-authority. SQLCipher cannot detect a coherent old DB/WAL rollback. No production
+PASS-WITH-CONDITIONS. Under the later bounded WP-C fence, valid exact frozen
+exchanges may reconcile after restart, but new publication from a persisted account
+remains blocked; WP-C supplies no mutable restore authority. SQLCipher cannot
+detect a coherent old DB/WAL rollback. No production
 E2EE, KAMI-28 message producer or WP-D qualification is implied. Snapshot custodians
 remain trusted consumers of full private provider state; never log those transfers.
 
@@ -428,8 +476,10 @@ cargo test --locked -p kami-storage --test prekeys
 cargo test --locked -p kami-storage --test authenticated_boundary authenticated_positive_boundary -- --exact --nocapture
 ```
 
-The [fixture-only runner](../../scripts/kami51-wpb-manual/README.md) is not a
-two-process human-verified WP-B endpoint interface or owner manual acceptance.
+The [WP-B runner](../../scripts/kami51-wpb-manual/README.md) separates automated
+fixtures from the now-implemented ignored two-process prekey/status/retry interface.
+Neither interface availability nor automated PASS establishes owner manual acceptance
+or WP-C restart qualification.
 
 ## Bounds and local protection
 

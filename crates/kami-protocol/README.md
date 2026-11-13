@@ -61,9 +61,22 @@ exact response/reservation before send and retains selection before publication
 ACK. Exact duplicate ACK/result reconcile, conflicting bytes reject. Publication
 ACK is not provider-global mark-published or DEVICE_DELIVERED.
 
-WP-C mutable restore/external rollback authority and WP-D integrated qualification
-remain outstanding. The [fixture-only runner](../../scripts/kami51-wpb-manual/README.md)
-does not create a two-process owner interface or claim manual qualification.
+Later WP-C is owner-accepted only as a bounded recovery foundation with conditions/
+limitations (implementation `t_e3a1ba25` run 229; QA `t_e022f9b4` run 230 PASS;
+Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS). It adds storage/runtime
+process-local default-deny mutable authority, native one-use FreshEnrollment
+worker-local admission bound to the actual encrypted DB, exact-artifact recovery
+and restart/quarantine fencing. A decoded frame supplies none of that authority.
+WP-C refuses unsafe restoration, not coherent rollback detection; no independent
+witness, transparent mutable-session restoration or live fresh-session establishment
+is supplied. No protocol source/wire change was needed. Reused QA workspace result:
+284 passed, 0 failed, 3 existing ignored; Linux private-D-Bus/native only, no Cargo
+rerun here. Windows/macOS, cross-network, interoperability, fuzz/DoS, load,
+owner-operated WP-C evidence and WP-D integrated qualification remain open.
+Production E2EE/application messaging, KAMI-28, full KAMI-51 and M1 remain incomplete.
+The [WP-B runner](../../scripts/kami51-wpb-manual/README.md) separates automated
+fixtures from the now-implemented ignored two-process prekey/status/retry interface;
+neither establishes owner manual qualification.
 
 ## M1 structural profile
 
