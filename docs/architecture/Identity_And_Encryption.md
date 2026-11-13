@@ -78,6 +78,51 @@ Security qualification must include:
 
 These tests verify a security design; they do not establish resistance to a fully compromised endpoint or anonymity from relay metadata.
 
-## 9. Engineering-controlled design details
+## 9. Current bounded WP-C implementation contract
+
+The requirements above remain M1 targets, not a claim that restart restores a
+production ratchet. WP-C is owner-accepted only as a bounded recovery foundation
+with conditions/limitations: implementation `t_e3a1ba25` run 229; independent QA
+`t_e022f9b4` run 230 PASS; final Evaluator `t_10759b1a` run 231
+PASS-WITH-CONDITIONS. The [development roadmap](../KAMI_DEVELOPMENT_ROADMAP.md)
+separates this acceptance from WP-A, WP-B and the incomplete KAMI-51 parent.
+
+- Mutable account/prekey/session authority is process-local and default-deny on
+  every storage-worker create/open. SQLCipher rows, generation counters, digests,
+  clean-shutdown or quarantine/retirement records, ordinary `VerifiedEnrollment`,
+  `create=true`, a new session ID or a new transport connection cannot prove freshness.
+- Only identity's native one-use `FreshEnrollment` worker-local handoff can admit
+  a freshly enrolled worker. It checks profile binding and absence of prior crypto/
+  enrollment state, verifies the actual encrypted database under its new native
+  key, durably commits/readbacks enrollment, completes native custody and verifies
+  exact readback before admission. Failure quarantines that worker; guarded
+  ambiguous I/O/corrupt outcomes also quarantine it. Native completion records
+  alone cannot readmit it after restart.
+- Exact committed ciphertext, inbox/frame records, receipts, retry artifacts and
+  Delivered projections can reconcile from coherent durable evidence with current
+  trust/pin/context checks, without re-encryption, duplicate ratchet advancement
+  or missing-row repair. New crypto transitions remain fenced; recovery does not
+  grant new publication/retention/ACK authority or expose available prekey inventory.
+- A coherent older DB+WAL, including one predating exposure, consumption,
+  retirement or quarantine, still starts Disabled. **Rollback detection is not
+  available:** no independent freshness witness establishes the newest coherent
+  database. Safety is implemented by refusing unsafe mutable restoration, not by
+  pretending database-local evidence detects rollback.
+- Typed `ReestablishmentPreconditions` require independently fresh enrollment,
+  fresh account/prekeys, new session identity and independently verified contact.
+  They are requirements, not live fresh-session establishment or authorization to
+  repair an old profile. E2EE `ProfileRestore`/epoch fences remain fail-closed.
+
+Reused independent QA evidence is 284 workspace passes, 0 failures and 3 existing
+ignored tests; focused recovery has 6 passes. Formatting, locked all-target check,
+warnings-denied Clippy and diff checks passed. Final evaluation independently
+checked focused recovery/E2EE/runtime behavior and accepted only this bounded
+contract. Native positives use disposable Linux private-D-Bus stores; Windows/
+macOS, cross-network, interoperability, sustained fuzz/DoS, load and owner-operated
+WP-C endpoint evidence remain unqualified. No independent rollback witness,
+transparent mutable-session restoration, live fresh-session establishment,
+production E2EE/application messaging, KAMI-28, WP-D or M1 completion is supplied.
+
+## 10. Engineering-controlled design details
 
 The Architect owns the explicit selected Rust crypto implementation, key formats, fingerprint encoding, binding proof, key-store adapters, nonce/message-key handling, persistent state transitions, and threat-model tests. Any proposed weakening of explicit verification, E2EE, platform coverage, or ratcheting requires escalation rather than silent substitution.

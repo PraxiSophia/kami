@@ -172,17 +172,31 @@ unexpected mismatch/failure/ambiguity as FAIL; rejection-only runs demonstrate
 rejection, never successful exchange. **Implementation checks, independent QA and
 final security evaluation remain separate from owner manual acceptance.**
 
-This extension is scoped to implementation task `t_a328ea09`, following architecture
+This extension was scoped to implementation task `t_a328ea09`, following architecture
 `t_879e6a9f` and feasibility/security `t_6c1bfeb6`. Earlier bounded WP-B implementation
 `t_d364301b`, QA `t_0dcc13ac` and evaluator `t_250e6416` results do not establish this
 new interface's independent QA/final security gate or owner's manual acceptance.
+Subsequent independent QA `t_c21848ef` PASS and final Evaluator `t_78919fc8`
+PASS-WITH-CONDITIONS qualify the bounded interface only, not an owner manual PASS.
 The `scripts/kami27-manual/` files are unchanged.
 
 Still absent: arbitrary durable historical/publisher-side status and restartable
-manual profiles, WP-C mutable account/session restoration and an external rollback
-anchor. Frozen exchanges may reconcile after restart through existing runtime
-APIs, but new publication from an existing persisted account fails closed; this
-temporary-profile manual launcher does **not** qualify restart recovery. Ledger caps
+manual profiles, transparent mutable account/session restoration and an independent
+rollback witness. Later WP-C is owner-accepted only as a bounded recovery foundation
+with conditions/limitations: implementation `t_e3a1ba25` run 229; independent QA
+`t_e022f9b4` run 230 PASS; Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS.
+Every worker starts with process-local default-deny mutable authority; only native
+one-use `FreshEnrollment` consumed through its worker-local handoff, bound to the
+actual encrypted DB and completed/readback-verified, admits that worker. Restart/
+quarantine cannot restore authority from persisted rows/counters/completion records.
+Exact committed artifacts and valid frozen exchanges may reconcile without
+ratchet advancement; new publication from an existing persisted account remains
+blocked. This refuses unsafe restoration, not coherent rollback detection. Typed
+preconditions do not implement live fresh-session establishment. Reused QA evidence:
+284 workspace passes, 0 failures, 3 existing ignored; Linux private-D-Bus/native
+fixtures only, no Cargo rerun by this synchronization. Owner-operated WP-C endpoint
+evidence remains unqualified. This temporary-profile launcher does **not** qualify
+restart recovery or convert WP-B manual checks into WP-C evidence. Ledger caps
 have no compaction. No KAMI-28/application messages, production E2EE, CLI/IPC,
 relay/NAT/server/mailbox, cross-network, Windows/macOS, interoperability, sustained
 fuzz/DoS or production/M1 acceptance is introduced. Full KAMI-51 remains incomplete.

@@ -60,6 +60,28 @@ following authenticated receipt validation.
 
 ## Deduplication and restart recovery
 
+KAMI-25 is an implemented bounded/quarantined receiver/receipt seam, not a full
+runtime/network delivery acceptance. Later WP-C is owner-accepted only as a
+bounded recovery foundation with conditions/limitations: implementation
+`t_e3a1ba25` run 229; independent QA `t_e022f9b4` run 230 PASS; final Evaluator
+`t_10759b1a` run 231 PASS-WITH-CONDITIONS. Every storage worker starts with
+process-local default-deny authority; only a native one-use `FreshEnrollment`
+worker-local handoff bound to the actual encrypted DB admits mutable authority.
+Restart or quarantine leaves new delivery/receipt/account/session transitions
+fenced even with an older coherent DB+WAL. Exact committed inbox/frame/receipt
+and Delivered recovery remains available without a new ratchet transition.
+This refuses unsafe restoration, not rollback detection. There is no independent
+rollback witness, transparent mutable-session restoration or live fresh-session
+establishment; typed preconditions are not authority. See the
+[storage contract](../kami-storage/README.md#wp-c-bounded-recovery-foundation--accepted-with-limitations).
+
+Reused QA workspace result: 284 passed, 0 failed, 3 existing ignored, including
+the adapted receiver fault/atomicity/replay regressions through genuine native
+enrollment in disposable Linux private-D-Bus stores. No Cargo rerun here. Windows/
+macOS, cross-network, interoperability, sustained fuzz/DoS, load and owner-operated
+WP-C endpoint evidence remain unqualified; no production E2EE/application messaging,
+KAMI-28, WP-D, full KAMI-51 or M1 completion is implied.
+
 Authenticated sender plus logical message ID identifies the durable message;
 immutable facts, sequence, content binding, original frame, receipt artifact and
 account/session links must agree. Same-ID conflicting content or **alternate

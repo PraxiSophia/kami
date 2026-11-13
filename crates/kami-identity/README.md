@@ -206,6 +206,29 @@ security qualification is claimed.
 
 `transport_credentials` contains the restricted bridge used by the direct transport. It does not expose the identity seed. Live connection validation is performed by `kami-transport` against the authenticated remote PeerId; production orchestration belongs to `kami-runtime`.
 
+### WP-C native one-use enrollment handoff
+
+The later WP-C foundation is owner-accepted only with bounded conditions/limitations
+(implementation `t_e3a1ba25` run 229; independent QA `t_e022f9b4` run 230 PASS;
+Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS). It reuses identity's existing
+non-forgeable one-use `FreshEnrollment`; no identity production-source change or
+new key-export interface was needed. Storage consumes the capability on its worker,
+binds it to the profile and actual encrypted DB under the new native key, durably
+commits/readbacks enrollment, completes native custody and verifies exact readback
+before process-local admission. Every create/open otherwise starts Disabled;
+ordinary `VerifiedEnrollment` or native completion records cannot readmit mutable
+account/prekey/session authority after restart/quarantine.
+
+Exact-artifact recovery is not transparent mutable-session restoration, coherent
+rollback detection or an independent rollback witness. Typed re-establishment
+preconditions require fresh enrollment/account/prekeys, a new session identity
+and verified contact; live fresh-session establishment is absent. Reused QA
+workspace evidence is 284 passed, 0 failed, 3 existing ignored, with all required
+fmt/check/Clippy/diff gates passing; no Cargo rerun here. Linux private-D-Bus/native
+qualification does not establish Windows/macOS, cross-network, interoperability,
+sustained fuzz/DoS, load or owner-operated WP-C endpoint evidence. Production E2EE/
+application messaging, KAMI-28, WP-D, full KAMI-51 and M1 remain open.
+
 `EnrollmentJournal` is a **trusted service integration trait**, not a user-input
 DTO. Its implementer MUST retain the actual OS-enforced exclusive canonical
 profile lease across the entire call, harden paths/ownership, provide accurate
@@ -294,12 +317,13 @@ cargo test --locked -p kami-identity --test fingerprint --test binding --test in
 cargo test --locked -p kami-storage --test contact_trust --test identity_trust
 ```
 
-Linux tests/build/check/fmt/strict Clippy and the focused storage trust tests were
-repeated for this documentation update. Earlier native/cross-target evidence in
-the table is historical: both cross-target check commands below currently fail
-with `E0463` (target `core`/`std` unavailable in this toolchain), so they were not
-requalified. The two ignored native probes remain separate, opt-in qualification
-and were not run by this documentation task.
+Historical documentation-update evidence recorded Linux tests/build/check/fmt/
+strict Clippy and focused storage trust tests passing. In that earlier run the
+cross-target commands below failed with `E0463` (target `core`/`std` unavailable),
+so neither target was requalified. These are historical observations, not fresh
+commands or a current toolchain probe by this WP-C documentation synchronization.
+The two ignored native probes remain separate opt-in qualification; this task
+reruns no Cargo tests and reuses the explicitly identified WP-C QA evidence above.
 
 ```sh
 cargo check --locked -p kami-key-provider -p kami-identity --all-targets --all-features

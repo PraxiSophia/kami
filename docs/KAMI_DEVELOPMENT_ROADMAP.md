@@ -1,7 +1,7 @@
 # Kami Development Roadmap
 
-Status: synchronized with bounded KAMI-27, KAMI-51 WP-A acceptance and WP-B bounded acceptance with conditions; no production or M1 completion claim
-Last repository inspection: 2026-11-11 (WP-B source, implementation run 204, QA run 205, final Evaluator run 206, manual-path limits and Git state)
+Status: synchronized with bounded KAMI-24/25/26/27, WP-A acceptance, WP-B bounded acceptance with conditions and WP-C bounded recovery foundation acceptance with conditions/limitations; no production or M1 completion claim
+Last repository inspection: 2026-11-13 (WP-C source, implementation run 229, QA run 230 PASS, final Evaluator run 231 PASS-WITH-CONDITIONS, README inventory and Git state; documentation checks only, no Cargo rerun)
 Last Jira evidence read: 2026-11-08 (KAMI-27 through KAMI-32 and KAMI-51; read-only manager path)
 Implementation language: Rust only
 
@@ -129,7 +129,7 @@ Jira status: last manager evidence read 2026-11-08; Jira was not silently change
 
 Recorded work-package status and evidence:
 
-The actual implementation order was **WP1 -> WP2-A1 -> WP2-A2 -> WP3 -> WP2-B -> WP-A -> WP-B**.
+The actual implementation order was **WP1 -> WP2-A1 -> WP2-A2 -> WP3 -> WP2-B -> WP-A -> WP-B -> bounded WP-C**.
 WP4 and WP5 are downstream planning groups, not prerequisites for accepting these
 foundations.
 
@@ -139,7 +139,8 @@ foundations.
 - WP3: implemented, independently QA-verified, independently security-evaluated, and owner accepted as a bounded private storage foundation. Implementation `t_fd283614`; QA `t_2d834cf1`; Evaluator `t_82d8776a`. Acceptance covers the quarantined storage scope, not production rollback protection or runtime activation.
 - WP2-B: implemented and independently reviewed within the conditional quarantined scope. Implementation run 126 on task `t_b8cb3f89`; QA task `t_48119cc5`, run 127; Evaluator task `t_21f65076`, run 128. The owner-facing recommendation was **ACCEPT WITH CONDITIONS** for WP2-B only.
 - WP-A: implemented and accepted with limitations as the bounded authenticated-context/provider-contract package. Implementation `t_b295f09f`, run 187; independent QA `t_d92abbc2`, run 188; final security Evaluator `t_e03aec4f`, run 189; acceptance checkpoint Kanban comment 176. It retains vodozemac 0.11.1, makes `NativeAadProvider` explicit while preserving `E2eeProvider` compatibility, retains `supports_aad=false`/`AadUnsupported`, preserves canonical Olm-authenticated `InnerEnvelopeV1` context checks, and keeps public production encryption fail-closed.
-- WP-B: bounded accepted with conditions for prekey lifecycle/direct prekey-only exchange. Implementation `t_d364301b`, run 204; independent QA `t_0dcc13ac`, run 205 PASS (38/38 prior changed paths authorized); final security Evaluator `t_250e6416`, run 206 PASS-WITH-CONDITIONS. These reviewed the uncommitted tree at baseline `438d466603f180efcd02816ed8a69be6aaa17391`, not a new production release. Historical tasks `t_73a8b888` and `t_d4b11df9` remain preserved history, not active implementation dependencies.
+- WP-B: bounded accepted with conditions for prekey lifecycle/direct prekey-only exchange. Implementation `t_d364301b`, run 204; independent QA `t_0dcc13ac`, run 205 PASS (38/38 prior changed paths authorized); final security Evaluator `t_250e6416`, run 206 PASS-WITH-CONDITIONS. These reviewed the then-uncommitted tree at baseline `438d466603f180efcd02816ed8a69be6aaa17391`, not a new production release. Historical tasks `t_73a8b888` and `t_d4b11df9` remain preserved history, not active implementation dependencies.
+- WP-C: owner-accepted only as a bounded recovery foundation with conditions/limitations. Implementation `t_e3a1ba25` run 229; independent QA `t_e022f9b4` run 230 PASS; final Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS, on the uncommitted tree at baseline `c76a10eb5d1efaca93c62e5bce2778d9c9a0f074`. Process-local default-deny authority and exact-artifact recovery refuse unsafe restoration; no independent rollback detection/witness, transparent mutable-session restoration or live fresh-session establishment is supplied. Full WP-C and KAMI-51 are not complete.
 
 WP2-B consumes the accepted WP3 storage foundation and the preceding WP1/WP2-A
 contracts. WP-A corrects and qualifies the provider/context boundary; it does not
@@ -148,11 +149,11 @@ KAMI-24 may consume this accepted KAMI-51 foundation without waiting for the ful
 KAMI-51 parent issue, WP4, or WP5 to be complete. None of these bounded acceptances
 marks the full KAMI-51 Jira issue complete.
 
-Pending: WP-C durable account/session recovery and external rollback authority, WP-D integrated qualification, production orchestration of KAMI-25 receipt/Delivered and its live provenance/race guards, cross-platform/interoperability and production security review. WP-B now supplies live revocable provenance and serialized checks only for its bounded prekey-only protocol, not for application messages.
+Pending: WP-C's independent freshness/rollback authority, mutable-session restoration and live fresh-session establishment limitations; WP-D integrated qualification; production orchestration of KAMI-25 receipt/Delivered and its live provenance/race guards; cross-platform/interoperability and production security review. WP-B supplies live revocable provenance and serialized checks only for its bounded prekey-only protocol, not for application messages.
 
 ### KAMI-51 WP-A — accepted with limitations
 
-WP-A is the current owner-accepted bounded milestone for the authenticated-context and provider-contract correction. It builds on the earlier WP1/WP2-A1/WP2-A2/WP3 and quarantined WP2-B evidence but does not re-accept or replace those work packages. The retained `vodozemac = 0.11.1` adapter implements the explicit
+WP-A is the earlier owner-accepted bounded milestone for the authenticated-context and provider-contract correction. It builds on the earlier WP1/WP2-A1/WP2-A2/WP3 and quarantined WP2-B evidence but does not re-accept or replace those work packages. The retained `vodozemac = 0.11.1` adapter implements the explicit
 `NativeAadProvider` contract while remaining compatible with `E2eeProvider`; its
 `supports_aad()` is false and public calls remain fail-closed with `AadUnsupported`.
 The bounded path instead authenticates a canonical `InnerEnvelopeV1` inside Olm,
@@ -176,7 +177,7 @@ workspace tests, diff check, and focused KAMI-27 direct-transport regression pas
 three existing native/owner-operated tests remained ignored by design.
 
 WP-B's later bounded lifecycle acceptance is separate from WP-A. Remaining KAMI-51
-work includes WP-B's residual conditions, WP-C durable recovery/rollback authority,
+work includes WP-B's residual conditions, WP-C's deferred mutable restoration/independent freshness authority,
 and WP-D integrated qualification and production security evidence.
 KAMI-28 first-message delivery remains downstream of these gates. The
 original WP4 runtime/delivery and WP5 qualification/evidence groupings below remain
@@ -215,17 +216,66 @@ account fails closed. Exposure/tombstone evidence is retained under finite ledge
 caps, without compaction. Snapshot custodians remain trusted in-process consumers.
 WP-D cross-network, Windows/macOS, interoperability, sustained fuzz/DoS and native
 load qualification remain outstanding. Production E2EE, KAMI-28 and M1 stay disabled/
-incomplete. See the [fixture-only alternative](../scripts/kami51-wpb-manual/README.md):
-the existing KAMI-27 `manual_session` lacks prekey/ACK commands or evidence display;
-two-process WP-B owner qualification requires separately authorized Rust test-interface
-work. No fake endpoint wrapper is supplied and no owner manual result is claimed.
+incomplete. The [WP-B runner](../scripts/kami51-wpb-manual/README.md) now provides
+an ignored two-process prekey/status/exact-retry interface in addition to fixtures.
+Implementation `t_a328ea09`, independent QA `t_c21848ef` PASS and final Evaluator
+`t_78919fc8` PASS-WITH-CONDITIONS qualify only the interface, not owner manual
+acceptance. Independent full fingerprint comparison and explicit VERIFY/REJECT
+remain mandatory. No fake endpoint wrapper or owner manual result is claimed.
 
-### WP-C — durable session recovery and rollback policy
+### WP-C — bounded recovery foundation accepted with conditions/limitations
 
-Internal planning group, not a Jira issue. Scope is durable mutable session restoration,
-crash-safe CAS, restart reconciliation, deduplication/conflict policy, and an
-independent rollback anchor. It depends on WP-B lifecycle semantics and must preserve
-fail-closed restore behavior when rollback authority is unavailable.
+Internal work package, not a Jira issue or full WP-C completion. Original planning
+included durable mutable session restoration and an independent rollback anchor;
+that is historical design context, **not current capability**. The accepted bounded
+foundation instead implements process-local default-deny mutable authority and
+exact-artifact recovery while refusing unsafe restoration.
+
+Every storage-worker create/open starts `RecoveryStatus::Disabled`. Only the native
+one-use `FreshEnrollment` worker-local handoff can admit that freshly enrolled
+worker: profile/absence checks, actual encrypted DB validation under the new native
+key, durable enrollment commit/readback, native completion and exact verification
+must all succeed. Ordinary `VerifiedEnrollment`, generic `Storage::create/open`,
+fixture keys, `create=true`, empty rows, generations, digests and clean-shutdown/
+quarantine/retirement records never confer mutable account/prekey/session authority.
+Admission failure and guarded ambiguous I/O/corrupt outcomes quarantine the worker;
+restart still starts Disabled, even with a coherent older DB+WAL predating exposure,
+consumption, retirement or quarantine. No database-local record proves freshness.
+
+Exact committed ciphertext, inbox/frame records, receipts, retry artifacts and
+Delivered projections reconcile through coherent read transactions and existing
+trust/pin/context checks, without re-encryption, ratchet advancement or missing-row
+repair. New crypto transitions are fenced; available prekey inventory is hidden
+and new publication/retention/ACK transitions are refused. Operational sender
+controls/neutral metadata do not grant cryptographic authority. No migration 008
+or dependency change was needed; schema v7 plus ephemeral authority suffice.
+
+`ReestablishmentPreconditions` requires independently fresh enrollment, fresh
+account/prekeys, a new session identity and independently verified contact. This
+typing is not a live fresh-session exchange. **Rollback detection is unavailable**:
+there is no independent witness establishing the newest coherent database. Safety
+is refusal of unsafe restoration, not transparent mutable-session restoration.
+
+Accepted evidence: implementation `t_e3a1ba25` run 229; independent QA `t_e022f9b4`
+run 230 PASS; final Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS with no
+mandatory fix in this bounded scope. Reused exact run-230 results:
+
+- `cargo test --locked -p kami-storage --test recovery`: 6 passed, 0 failed.
+- `cargo test --locked -p kami-storage --test authenticated_boundary authenticated_positive_boundary -- --exact --nocapture`: 1 passed, 0 failed, 1 filtered out; nested probes are checked by the outer test, not added twice.
+- `cargo test --locked -p kami-e2ee`: 54 passed, 0 failed.
+- `cargo test --locked -p kami-runtime`: 26 passed, 0 failed, 1 ignored.
+- `cargo test --locked --workspace`: **284 passed, 0 failed, 3 existing ignored**.
+- `cargo fmt --all -- --check`, `cargo check --locked --workspace --all-targets`,
+  `cargo clippy --locked --workspace --all-targets -- -D warnings`, and
+  `git diff --check`: all exit 0. Final Evaluator independently reran the focused
+  recovery/boundary/E2EE/runtime checks, verified all 17 implementation hashes and
+  reconciled QA's workspace gates. This documentation task reruns no Rust tests.
+
+Qualification is Linux private-D-Bus/native only. Windows/macOS, cross-network,
+interoperability, sustained fuzz/DoS, load and owner-operated WP-C endpoint evidence
+remain unqualified. No independent rollback witness, transparent mutable-session
+restoration, live fresh-session establishment, production E2EE/application messaging,
+KAMI-28, WP-D, full KAMI-51 or M1 completion is supplied.
 
 ### WP-D — integrated qualification
 
@@ -351,12 +401,13 @@ exists.
 
 Evidence: implementation `t_277bb59e`, independent QA `t_e9419e05`, and final
 security Evaluator `t_fda1ffe3`, all on `protocol-storage` at HEAD `0de16c9`.
-Recorded verification passed formatting, locked workspace checking, warnings-denied
+Historical KAMI-26 verification passed formatting, locked workspace checking, warnings-denied
 Clippy, 21 focused runtime tests, and 236 workspace tests with two pre-existing
 native secure-store tests ignored for unavailable D-Bus/keyring prerequisites.
 
-KAMI-26 is a reusable runtime library, not a complete messaging service. It does
-not implement KAMI-27 direct transport, a functioning relay network, KAMI-32
+The original KAMI-26 acceptance is for a reusable runtime library, not a complete
+messaging service. That scope did not implement KAMI-27 direct transport (accepted
+separately later), a functioning relay network, KAMI-32
 IPC/CLI, production authenticated end-peer evidence, fresh mutable session
 restoration, cross-platform qualification, or real-network qualification.
 
@@ -536,12 +587,12 @@ The following remain open and must not be bypassed:
 1. Public/production encryption remains disabled until the maintained provider/profile and runtime integration are independently accepted.
 2. A valid local or detached signature is not live end-peer possession, freshness, revocation, or durable prekey lifecycle proof.
 3. KAMI-26 must provide actual authenticated end-peer provenance and serialize trust checks with enqueue, retry, receive, and ACK operations.
-4. WP-B implements bounded prekey lifecycle and authenticated direct exchange, not a production-ready service; valid frozen exchanges may reconcile after restart, but new publication from persisted accounts blocks without WP-C restoration. Exposure evidence/ledgers are finite and not compacted.
+4. WP-B implements bounded prekey lifecycle and authenticated direct exchange, not a production-ready service; under bounded WP-C, valid exact frozen exchanges may reconcile after restart but new publication from persisted accounts remains blocked. WP-C supplies no mutable restoration authority. Exposure evidence/ledgers are finite and not compacted.
 5. `ProfileRestore` fails closed because no external non-rollbackable anchor exists. Database-only generations/digests cannot detect coherent old DB/WAL copies.
 6. The approved snapshot custodian can technically consume full provider pickles, including private prekeys. Zeroizing containers do not prevent malicious-custodian, native, allocator, dump, or endpoint-compromise exposure.
 7. Comprehensive zeroization is not claimed.
 8. Storage and E2EE tests are not live network tests, not interoperability vectors, and not cross-platform qualification.
-9. Two ignored native secure-store probes require external DBus/keyring prerequisites; Windows/macOS native runtime qualification remains pending.
+9. Current reused WP-C workspace evidence has three existing ignored tests: two opt-in native secure-store probes and the owner-operated endpoint. Linux private-D-Bus positives do not qualify Windows/macOS native runtime or owner-operated WP-C endpoints.
 10. Relay forwarding, socket/network success, reservation success, and ACK transmission never independently establish Delivered.
 11. M1 requires real separate-network direct and authorized-live-relay evidence, restart/ACK-loss/duplicate/conflict/order evidence, supported OS evidence, redacted diagnostics, and independent review.
 12. No offline server mailbox, silent identity replacement, plaintext fallback, automatic startup, universal NAT guarantee, exactly-once network guarantee, anonymity guarantee, or production SLA is promised.
@@ -553,7 +604,7 @@ The following remain open and must not be bypassed:
 
 ## 10. Branch and Git integration strategy
 
-Current repository observation (2026-11-11): branch `protocol-storage` is at `438d466603f180efcd02816ed8a69be6aaa17391`. WP-B source/tests/manifest changes remain uncommitted alongside this documentation/fixture-runner follow-on. Remote state was not refreshed or reconciled by this task. No commit, branch change, push, merge or GitHub mutation is performed by this synchronization.
+Current repository observation (2026-11-13): branch `protocol-storage` is at `c76a10eb5d1efaca93c62e5bce2778d9c9a0f074`. The accepted bounded WP-C implementation remains uncommitted in 17 source/test paths; this synchronization modifies only authorized existing Markdown and preserves those implementation hashes. No WP-C manifest, lockfile, dependency or migration change exists. Remote state was not refreshed or reconciled. No commit, branch/index change, push, merge or GitHub mutation is performed by this synchronization.
 
 The historical integration plan below remains guidance for owner-managed synchronization, not an instruction to reset or merge automatically:
 
@@ -598,8 +649,9 @@ Jira statuses below were last read on 2026-11-08. `Functionally implemented` and
 | KAMI-51 WP3 | Implemented; owner accepted as bounded private foundation | Implementation `t_fd283614`; QA `t_2d834cf1`; Evaluator `t_82d8776a` | Runtime restore, external rollback, cross-platform | KAMI-22/WP1/WP2-A | `kami-storage/README.md`; original WP3 task/reviews |
 | KAMI-51 WP2-B | Implemented; owner accepted with conditions for quarantined scope only | Implementation task `t_b8cb3f89`, run 126; QA `t_48119cc5`, run 127; Evaluator `t_21f65076`, run 128 | No public activation, ACK authority, rollback anchor, or production qualification | WP2-A2 + accepted WP3/KAMI-22/23/50 | Acceptance report; WP2-B task/reviews |
 | KAMI-51 WP-A | Implemented; owner accepted with limitations for bounded authenticated-context/provider-contract scope | Implementation `t_b295f09f`, run 187; QA `t_d92abbc2`, run 188 PASS; Evaluator `t_e03aec4f`, run 189 PASS; Kanban comment 176 | WP-B separately supplies bounded prekey lifecycle/live provenance; application provenance, durable recovery/rollback, integrated qualification, production E2EE and KAMI-28 remain deferred | WP2-B and prior KAMI-51 foundations; WP-A alone does not consume KAMI-27 capability | `crates/kami-e2ee/README.md`; WP-A task/reviews |
-| KAMI-51 WP-B | Bounded accepted with conditions; no production activation | Implementation `t_d364301b` run 204; QA `t_0dcc13ac` run 205 PASS; Evaluator `t_250e6416` run 206 PASS-WITH-CONDITIONS | WP-C restore/external rollback authority, finite evidence caps, WP-D qualification; two-process owner WP-B test blocked by missing manual command/evidence interface | WP-A + KAMI-27 + identity/storage custody | Crate READMEs; `scripts/kami51-wpb-manual/README.md`; exact reviewed uncommitted tree at `438d466603f180efcd02816ed8a69be6aaa17391` |
-| KAMI-51 overall | Incomplete | Bounded foundations, WP-A acceptance and WP-B bounded acceptance with conditions; full issue not accepted | WP-B residual conditions, WP-C/WP-D, application live provenance, production security, interoperability and M1 gates | KAMI-22/23/27/50 and downstream KAMI-24..39 | This roadmap and KAMI-51 Jira record |
+| KAMI-51 WP-B | Bounded accepted with conditions; no production activation | Implementation `t_d364301b` run 204; QA `t_0dcc13ac` run 205 PASS; Evaluator `t_250e6416` run 206 PASS-WITH-CONDITIONS | Mutable restore/external freshness, finite evidence caps, WP-D; ignored manual interface exists but owner-operated WP-B acceptance remains pending | WP-A + KAMI-27 + identity/storage custody | Crate READMEs; `scripts/kami51-wpb-manual/README.md`; prior baseline `438d466603f180efcd02816ed8a69be6aaa17391`; interface `t_a328ea09`, QA `t_c21848ef`, Evaluator `t_78919fc8` |
+| KAMI-51 WP-C | Owner-accepted bounded recovery foundation with conditions/limitations; not full WP-C | Implementation `t_e3a1ba25` run 229; QA `t_e022f9b4` run 230 PASS; Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS; workspace 284 passed, 0 failed, 3 existing ignored | No independent rollback witness/detection, transparent mutable-session restore or live fresh-session establishment; Linux private-D-Bus/native only, no owner-operated WP-C evidence; WP-D/production/M1 remain open | WP-B + identity native FreshEnrollment + storage/runtime worker boundary | Source/hash audit at `c76a10eb5d1efaca93c62e5bce2778d9c9a0f074`; storage/runtime/E2EE READMEs; canonical security specification |
+| KAMI-51 overall | Incomplete | Bounded foundations, WP-A acceptance, WP-B bounded acceptance and WP-C bounded recovery acceptance with conditions/limitations; full issue not accepted | WP-B residual conditions, WP-C deferred capabilities, WP-D, application live provenance, production security, interoperability and M1 gates | KAMI-22/23/27/50 and downstream KAMI-24..39 | This roadmap and KAMI-51 Jira record |
 
 ## 12. Maintenance procedure
 
@@ -648,6 +700,9 @@ Recorded implementation/review evidence:
 - Revised architecture review `t_c0dec1dd`.
 - Independent security review `t_38ff1f2f`.
 - KAMI-24 readiness/Git integration audit, 2026-11-03.
+- WP-C implementation `t_e3a1ba25` run 229; independent QA `t_e022f9b4` run 230 PASS;
+  final Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS. Their exact reused
+  commands/counts and bounded acceptance conditions are recorded in section 4.
 
 Jira evidence:
 

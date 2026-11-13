@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+pub mod native;
 use kami_core::{
     ContentBinding, ConversationId, DeviceId, MessageFacts, MessageId, SenderSequence,
 };
@@ -36,6 +37,15 @@ pub fn create(dir: &tempfile::TempDir) -> Storage {
     .unwrap()
 }
 pub fn open(dir: &tempfile::TempDir) -> Storage {
+    if dir.path().join("fixture-profile").exists() {
+        return Storage::open(
+            ProfileLease::acquire(dir.path()).unwrap(),
+            native::profile(dir.path()),
+            Arc::new(kami_identity::NativeCustody::open()),
+            Config::default(),
+        )
+        .unwrap();
+    }
     Storage::open(
         ProfileLease::acquire(dir.path()).unwrap(),
         profile(),
@@ -59,10 +69,46 @@ pub fn message(f: MessageFacts) -> StoredMessage {
 }
 pub fn raw(dir: &tempfile::TempDir) -> rusqlite::Connection {
     let db = rusqlite::Connection::open(dir.path().join("messages.db")).unwrap();
+    if dir.path().join("fixture-profile").exists() {
+        let key = kami_identity::NativeCustody::open()
+            .load_database_key(&native::profile(dir.path()))
+            .unwrap();
+        key.with_bytes(|bytes| {
+            use std::fmt::Write;
+            let mut sql = Zeroizing::new(String::from("PRAGMA key=\"x'"));
+            for byte in bytes {
+                write!(&mut *sql, "{byte:02x}").unwrap();
+            }
+            sql.push_str("'\"; PRAGMA cipher_compatibility=4;");
+            db.execute_batch(&sql).unwrap();
+        });
+        return db;
+    }
     db.execute_batch(&format!(
         "PRAGMA key=\"x'{}'\"; PRAGMA cipher_compatibility=4;",
         "2a".repeat(32)
     ))
     .unwrap();
     db
+}
+pub fn fresh_create(dir: &tempfile::TempDir) -> Storage {
+    fresh_create_with_config(dir, Config::default())
+}
+pub fn fresh_create_with_config(dir: &tempfile::TempDir, config: Config) -> Storage {
+    let profile = native::new_profile(dir.path());
+    let native = kami_identity::NativeCustody::open();
+    let fresh = kami_identity::begin_fresh_native(&native, &profile).unwrap();
+    let storage = Storage::create(
+        ProfileLease::acquire(dir.path()).unwrap(),
+        profile,
+        Arc::new(native),
+        config,
+    )
+    .unwrap();
+    assert_eq!(
+        storage.recovery_status().unwrap(),
+        kami_storage::RecoveryStatus::Disabled
+    );
+    storage.enroll_fresh(fresh).unwrap();
+    storage
 }

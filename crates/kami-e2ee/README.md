@@ -156,9 +156,10 @@ production activation.
 The existing trusted in-process custodian can consume full provider/account/session
 snapshots. WP-A adds no new export, but this remains a custody limitation: no total
 private-material non-exportability or protection from a malicious legitimate
-custodian is claimed. WP-B adds bounded lifecycle below; durable recovery and
-external rollback authority, integrated qualification, application delivery and
-production E2EE remain unavailable.
+custodian is claimed. WP-B adds bounded lifecycle below; WP-C adds exact-artifact
+recovery and default-deny worker authority, not transparent mutable restoration.
+External rollback authority, integrated qualification, live application delivery
+and production E2EE remain unavailable.
 
 The WP1 ciphertext JSON input ceiling is 65,536 bytes **before provider parsing**
 in both public entry and private helper; its private plaintext staging ceiling is
@@ -488,14 +489,16 @@ per-peer ACK calls provider-global mark-published. Transport enforces 16 KiB tot
 framing, five-second deadlines/capability expiry, one per peer/direction, 16 global
 and a 16-entry reliable inbound queue; E2EE alone grants none of that provenance.
 
-After process restart only valid exact frozen exchanges may reconcile. There is
-no mutable account/session import or external rollback anchor (WP-C); new
-publication from a persisted account fails closed. Expired/exposed inventory and
+Under the bounded WP-C fence, after process restart only valid exact frozen
+exchanges may reconcile. WP-C supplies no mutable account/session import or
+external rollback anchor; new publication from a persisted account remains blocked.
+Expired/exposed inventory and
 finite ledgers are not recycled/compacted. WP-D native-platform, real-network,
 interoperability, fuzz/DoS and load qualification remain open; public production
 encryption stays fail-closed. The [fixture runner](../../scripts/kami51-wpb-manual/README.md)
-is automated evidence only; the existing two-terminal KAMI-27 interface has no
-prekey/ACK commands and is not an owner-operated WP-B harness.
+separates automated evidence from the now-implemented ignored two-terminal WP-B
+prekey/status/exact-retry interface. Interface availability is not owner manual
+acceptance and temporary profiles do not qualify WP-C restart recovery.
 
 Focused commands passed in WP-B QA run 205 and final evaluation run 206:
 
@@ -503,6 +506,30 @@ Focused commands passed in WP-B QA run 205 and final evaluation run 206:
 cargo test --locked -p kami-e2ee --test prekeys
 cargo test --locked -p kami-storage --test authenticated_boundary authenticated_positive_boundary -- --exact --nocapture
 ```
+
+## WP-C bounded recovery boundary — accepted with limitations
+
+WP-C is implemented in storage/runtime, not a new E2EE snapshot importer. Every
+worker starts with process-local default-deny mutable authority. Only the native
+one-use `FreshEnrollment` worker-local handoff, bound to the actual encrypted DB
+and completed/readback-verified, admits that worker. Restart/ambiguous-outcome
+quarantine cannot be undone by DB counters, digests, retirement or quarantine rows.
+Exact committed artifacts may reconcile without a new ratchet transition; valid
+opaque E2EE stages alone cannot authorize new crypto on a disabled worker.
+`ProfileRestore` and existing epoch fences remain unchanged and fail closed.
+
+This is refusal of unsafe restoration, not independent rollback detection or a
+rollback witness. Typed re-establishment preconditions do not implement live fresh-
+session establishment or transparent mutable-session restoration. Production E2EE,
+application messaging, KAMI-28, WP-D and M1 remain unavailable/incomplete.
+
+Accepted evidence: implementation `t_e3a1ba25` run 229; independent QA `t_e022f9b4`
+run 230 PASS; final Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS. Reused QA
+results: E2EE 54 passed; recovery 6 passed; workspace 284 passed, 0 failed,
+3 existing ignored; fmt/check/Clippy/diff gates passed. Qualification is Linux
+private-D-Bus/native only, not Windows/macOS, cross-network, interoperability,
+sustained fuzz/DoS, load or owner-operated WP-C endpoint evidence. No Cargo rerun
+is claimed by this documentation task.
 
 ## Deferred work and qualification (WP4/WP5)
 

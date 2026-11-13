@@ -27,6 +27,26 @@ backoff policy.
 
 ## Durable behavior
 
+KAMI-24 is owner-accepted only as a bounded runtime-neutral sender lifecycle
+(implementation `t_3caec9e9`, QA `t_d1b015bb`, Evaluator `t_4c8b8ad4`). KAMI-25
+separately adds the implemented receipt/Delivered seam; neither is production
+application messaging. Under the later accepted-with-limitations WP-C foundation,
+every storage worker starts with process-local default-deny mutable authority.
+Only native one-use `FreshEnrollment` completed through the worker-local handoff
+bound to its actual encrypted DB admits that worker. After restart/quarantine,
+new reservations/cryptographic commits are refused; exact committed requests,
+frames, retry artifacts and Delivered evidence may reconcile without ratcheting.
+Ordinary enrollment rows or counters cannot restore authority.
+
+WP-C implementation `t_e3a1ba25` run 229, independent QA `t_e022f9b4` run 230 PASS
+and Evaluator `t_10759b1a` run 231 PASS-WITH-CONDITIONS preserve sender/receiver
+regressions. Reused workspace evidence: 284 passed, 0 failed, 3 existing ignored;
+no Cargo tests rerun here. Linux private-D-Bus/native fixtures do not qualify
+Windows/macOS, cross-network, interoperability, fuzz/DoS, load or owner-operated
+WP-C endpoints. This refuses unsafe restoration, not coherent rollback detection:
+no independent witness, transparent mutable-session restoration or live fresh-
+session establishment is provided. WP-D, KAMI-28, full KAMI-51 and M1 remain open.
+
 The storage-backed flow preserves a stable message identity, request binding,
 sequence reservation, exact authenticated frame, attempt state, and retry
 eligibility across process reopen. A durable reservation prevents competing work in
@@ -97,7 +117,7 @@ remains quarantined and its selected cryptographic/runtime qualification is sepa
 
 Linux-only focused verification was recorded; Windows/macOS, real-network,
 cross-platform, public-encryption, and external rollback-anchor qualification remain
-deferred. KAMI-24 is not a production-readiness or owner-acceptance claim.
+deferred. KAMI-24's bounded owner acceptance is not production-readiness acceptance.
 
 ## Focused commands
 

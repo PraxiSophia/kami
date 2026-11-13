@@ -54,11 +54,24 @@ runtime responsibilities, not authority derived from a parsed frame.
 
 WP-B is bounded accepted with conditions: implementation `t_d364301b` run 204,
 independent QA `t_0dcc13ac` run 205 PASS; final Evaluator `t_250e6416` run 206
-PASS-WITH-CONDITIONS. WP-C account/session restore and external rollback authority,
-WP-D network/platform/interoperability/fuzz/load qualification remain open.
-The [fixture-only alternative](../../scripts/kami51-wpb-manual/README.md) runs real
-automated paths; KAMI-27's existing two-terminal interface cannot request prekeys
-or display selection/ACK evidence. No owner WP-B manual qualification is claimed.
+PASS-WITH-CONDITIONS. Later WP-C is owner-accepted only as a bounded recovery
+foundation with conditions/limitations: implementation `t_e3a1ba25` run 229,
+QA `t_e022f9b4` run 230 PASS, Evaluator `t_10759b1a` run 231
+PASS-WITH-CONDITIONS. Storage defaults to process-local Disabled on every startup;
+only native one-use FreshEnrollment bound to the actual encrypted DB through the
+worker-local handoff admits authority. Restart/quarantine permits exact-artifact
+reconciliation, not new cryptographic transitions. A new authenticated transport
+connection cannot substitute for fresh enrollment. WP-C refuses unsafe restoration,
+not rollback detection; no independent witness, transparent mutable-session
+restoration or live fresh-session establishment is supplied. No transport source
+changed for WP-C. Reused QA workspace evidence: 284 passed, 0 failed, 3 existing
+ignored; Linux private-D-Bus/native only, no Cargo rerun here. WP-D network/platform/
+interoperability/fuzz/DoS/load and owner-operated WP-C qualification remain open;
+production E2EE/application messaging, KAMI-28, full KAMI-51 and M1 remain incomplete.
+The [WP-B runner](../../scripts/kami51-wpb-manual/README.md) now includes an ignored
+two-terminal prekey/status/exact-retry interface as well as real automated fixtures.
+Neither interface availability nor automated review establishes owner WP-B manual
+qualification or WP-C restart qualification.
 
 No generic payload API, application receipt/Delivered state, production E2EE,
 session restoration, relay, NAT traversal/DCUtR, IPC, or CLI activation is

@@ -149,6 +149,12 @@ impl Engine {
     pub fn snapshot(&self) -> Snapshot {
         *self.state.borrow()
     }
+    /// Artifact recovery is not readiness for a new cryptographic transition.
+    pub async fn recovery_status(&self) -> Result<kami_storage::RecoveryStatus, Error> {
+        let (reply, status) = oneshot::channel();
+        self.work(Work::RecoveryStatus(reply)).await?;
+        status.await.map_err(|_| Error::NotRunning)?
+    }
     fn network(&self) -> Result<kami_transport::Handle, Error> {
         if self.snapshot().lifecycle != Lifecycle::Running {
             return Err(Error::NotRunning);

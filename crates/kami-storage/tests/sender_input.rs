@@ -4,17 +4,17 @@ use kami_storage::{SendRequest, StorageError};
 
 #[test]
 fn preparation_quota_retains_conflict_tombstones_and_releases_uncommitted_lanes() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let dir = common::directory();
-    let storage = kami_storage::Storage::create(
-        kami_storage::ProfileLease::acquire(dir.path()).unwrap(),
-        common::profile(),
-        std::sync::Arc::new(common::Provider(Ok(42))),
+    let storage = common::fresh_create_with_config(
+        &dir,
         kami_storage::Config {
             outbox_messages: 1,
             ..Default::default()
         },
-    )
-    .unwrap();
+    );
     let make = |id| {
         SendRequest::new(
             MessageId::from_u128(id),
@@ -48,8 +48,11 @@ fn preparation_quota_retains_conflict_tombstones_and_releases_uncommitted_lanes(
 
 #[test]
 fn modified_request_fields_are_revalidated_at_storage_boundary() {
+    let Some(_native) = common::native::isolated() else {
+        return;
+    };
     let dir = common::directory();
-    let storage = common::create(&dir);
+    let storage = common::fresh_create(&dir);
     let request = || {
         SendRequest::new(
             MessageId::from_u128(1),

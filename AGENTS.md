@@ -193,6 +193,21 @@ Do not modify unrelated repositories or projects.
 - Synchronize relevant crate and root README documentation during an approved implementation when behavior or boundaries change.
 - Before completion, report changed files, actual verification evidence, independent review findings, and remaining security limitations. Passing tests do not establish production, interoperability, cross-platform, rollback-anchor, or public-encryption qualification unless those gates were explicitly verified.
 
+## Mandatory Kanban task packet and efficient execution
+
+Every substantial Kanban card must contain one compact, self-contained packet with these fields:
+
+- `OBJECTIVE`: bounded outcome and role-owned responsibility.
+- `SOURCE_MAP`: exact canonical documents, crates/modules/symbols, tests, and baseline to inspect; use targeted ranges before full files.
+- `AUTHORIZATION_CLOSURE`: repository, exact task ID, every permitted path and operation (including required manifests/lockfiles), prohibited surfaces, dependency/serialization constraints, stop conditions, and the complete recorded owner-approval readback.
+- `APPROVED_DECISIONS`: settled choices and exclusions; do not reopen them without a new decision.
+- `REQUIRED_SKILLS`: only the directly relevant profile-local skills. Do not load debugging, architecture, TDD, or overlapping review skills without a concrete task need or failure.
+- `ACCEPTANCE`: observable criteria, focused and broad verification commands, independent QA/Evaluator gates, and known limitations.
+- `CHECKPOINTS`: first approved edit, first compiling slice, focused verification, final verification, and exact blocker if no edit occurs.
+- `REPORT`: changed paths, actual commands/results, findings, provenance, remaining risks, and next handoff.
+
+The packet must carry the applicable security and authorization rules; an `AGENTS.md` path or digest alone is not a substitute. Scratch workers must not edit until they have both this policy content and a task-scoped approval readback. Before dispatch, close source, dependency, test, review, and provider/quota prerequisites in one bounded review. During execution, use targeted navigation, retain long logs outside active context, checkpoint meaningful progress, stop after confirmed subscription/quota exhaustion, and preserve the task for explicit resume rather than blindly redispatching. Do not repeat unchanged reads, reviews, or failing commands without a new diagnostic purpose. This section changes retrieval and handoff behavior only; it does not authorize source, Git, Jira, GitHub, Obsidian, deployment, or other external changes.
+
 ## Completion Requirements
 The shared Definition of Done for coding issues is:
 
