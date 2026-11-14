@@ -25,6 +25,23 @@ prekey-only exchange, not application messaging or KAMI-51/M1 completion.
 Jira status is authoritative for the issue record and is not
 changed by this documentation.
 
+## WP-D runtime boundary — Slice 1 only
+
+The accepted WP-D Slice 1 work establishes a runtime-owned authenticated-ingress
+foundation around this crate's quarantined composition; it does not implement
+fresh E2EE session establishment. Runtime control must supply the genuine,
+non-forgeable `AuthenticatedConnection` owned by the same `Engine`, and must
+revalidate connection, device/Peer-ID, revocation, expiry, durable trust, and pin
+state for every operation before serialized worker admission. WP-C recovery and
+quarantine fencing remain authoritative, and uncertain worker outcomes remain
+truthfully `Indeterminate`.
+
+Evidence is implementation run 235, independent QA run 236 PASS, and final
+Evaluator run 237 PASS-WITH-CONDITIONS. No application-message delivery, CLI
+messaging, full WP-D, KAMI-28, production E2EE, or M1 claim follows from this
+boundary. Slice 2 remains pending until a future implementation starts from the
+next committed baseline.
+
 ## WP-A provider and API boundary
 
 The pinned `vodozemac = 0.11.1` adapter implements the explicit `NativeAadProvider`

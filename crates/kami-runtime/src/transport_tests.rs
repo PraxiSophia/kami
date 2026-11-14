@@ -96,10 +96,86 @@ mod native {
                     .unwrap();
                 let cap = std::sync::Arc::new(cap);
                 assert!(cap.is_current());
+                // This seam dials on THIS Engine; an external cap is never an input.
+                let conversation = kami_core::ConversationId::from_u128(81);
+                let operation =
+                    crate::ingress::Operation::Claim(kami_core::MessageId::from_u128(82));
+                let ingress = ea
+                    .ingress_peer(*ib.device_key(), addresses.clone(), conversation, operation)
+                    .await
+                    .unwrap();
+                let expected_local = *ia.device_key();
+                let expected_remote = *ib.device_key();
+                assert_eq!(
+                    ea.test_ingress(ingress, move |storage, local, remote| {
+                        assert_eq!(*local.as_bytes(), expected_local);
+                        assert_eq!(*remote.as_bytes(), expected_remote);
+                        assert!(storage.recover_sends(64).unwrap().is_empty());
+                        Ok(7)
+                    })
+                    .await,
+                    Ok(7)
+                );
+                for (operation, action) in [
+                    (
+                        crate::ingress::Operation::Receive(kami_core::MessageId::from_u128(82)),
+                        crate::ingress::Action::Receive {
+                            frame: vec![0; 16],
+                            receipt: kami_core::MessageId::from_u128(84),
+                        },
+                    ),
+                    (
+                        crate::ingress::Operation::Receipt(kami_core::MessageId::from_u128(82)),
+                        crate::ingress::Action::Receipt(vec![0; 16]),
+                    ),
+                ] {
+                    let ingress = ea
+                        .ingress_peer(*ib.device_key(), addresses.clone(), conversation, operation)
+                        .await
+                        .unwrap();
+                    assert!(matches!(
+                        ea.dispatch_ingress(ingress, action).await,
+                        Err(Error::OperationRejected)
+                    ));
+                }
+                assert!(ea
+                    .ingress_peer([0; 32], addresses.clone(), conversation, operation)
+                    .await
+                    .is_err());
+                let foreign = ea
+                    .ingress_peer(*ib.device_key(), addresses.clone(), conversation, operation)
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    eb.test_ingress(foreign, |_, _, _| panic!("foreign Engine authority"))
+                        .await,
+                    Err(Error::LiveTransportUnavailable)
+                );
+                let mismatched = ea
+                    .ingress_peer(*ib.device_key(), addresses.clone(), conversation, operation)
+                    .await
+                    .unwrap();
+                assert!(matches!(
+                    ea.dispatch_ingress(
+                        mismatched,
+                        crate::ingress::Action::Claim(kami_core::MessageId::from_u128(83))
+                    )
+                    .await,
+                    Err(Error::LiveTransportUnavailable)
+                ));
+                let disconnected = ea
+                    .ingress_peer(*ib.device_key(), addresses.clone(), conversation, operation)
+                    .await
+                    .unwrap();
                 let prekey_request = ea.refresh_prekeys(cap.clone()).await.unwrap();
                 ea.retry_prekeys(cap.clone(), prekey_request).await.unwrap();
                 ea.disconnect(*ib.device_key()).await.unwrap();
                 assert!(!cap.is_current());
+                assert_eq!(
+                    ea.test_ingress(disconnected, |_, _, _| panic!("disconnected authority"))
+                        .await,
+                    Err(Error::LiveTransportUnavailable)
+                );
                 assert!(ea.retry_prekeys(cap.clone(), prekey_request).await.is_err());
                 // Both peers explicitly revoke the old connection before TCP admission.
                 eb.disconnect(*ia.device_key()).await.unwrap();
@@ -125,6 +201,11 @@ mod native {
                 ea.refresh_prekeys(cap.clone()).await.unwrap();
                 eb.replenish_prekeys(1).await.unwrap();
                 ea.refresh_prekeys(cap.clone()).await.unwrap();
+                let tcp_ingress = ea
+                    .ingress_peer(*ib.device_key(), tcp.clone(), conversation, operation)
+                    .await
+                    .unwrap();
+                assert_eq!(ea.test_ingress(tcp_ingress, |_, _, _| Ok(1)).await, Ok(1));
                 assert!(kami_storage::ProfileLease::acquire(a.path()).is_err());
                 ea.test_work(|storage| {
                     assert!(storage.recover_sends(64).unwrap().is_empty());
@@ -216,6 +297,7 @@ mod native {
                 ea.wait_stopped().await;
                 assert!(!cap.is_current());
                 assert_eq!(ea.shutdown().await, ShutdownOutcome::Failed);
+                ingress_security_cases(&eb, &ib).await;
                 assert_eq!(eb.shutdown().await, ShutdownOutcome::Clean);
             });
     }
@@ -710,6 +792,512 @@ mod native {
         }
     }
 
+    async fn native_endpoint(
+        engine: &Engine,
+        key_id: ProfileKeyId,
+    ) -> (vodozemac::olm::Account, kami_e2ee::Endpoint) {
+        let mut account = vodozemac::olm::Account::new();
+        account.generate_one_time_keys(1);
+        let invitation = engine.local_invitation().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let data = kami_identity::OlmBindingData {
+            publisher_peer: invitation.binding().peer_id(),
+            olm_ed25519: *account.ed25519_key().as_bytes(),
+            olm_curve25519: *account.curve25519_key().as_bytes(),
+            prekey_kind: kami_identity::OlmPrekeyKind::OneTime,
+            prekey_reference: vec![1],
+            prekey_curve25519: *account.one_time_keys().values().next().unwrap().as_bytes(),
+            binding_generation: 1,
+            bundle_generation: 1,
+            not_before_ms: now - 1000,
+            expires_at_ms: now + 60_000,
+        };
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        engine
+            .test_work(move |storage| {
+                let row = storage.enrollment_snapshot().unwrap().unwrap();
+                let custody = NativeCustody::open();
+                let verified =
+                    kami_identity::verify_enrollment_for_transport(&custody, &key_id, &row)
+                        .unwrap();
+                let proof = custody
+                    .create_olm_binding(&verified, &row, invitation.binding(), data.clone())
+                    .unwrap();
+                tx.send(kami_e2ee::Endpoint::new(
+                    kami_core::DeviceId::from_bytes(*invitation.device_key()),
+                    invitation.binding().clone(),
+                    proof,
+                    data,
+                ))
+                .unwrap_or_else(|_| panic!("endpoint receiver closed"));
+                Ok(0)
+            })
+            .await
+            .unwrap();
+        (account, rx.await.unwrap())
+    }
+    async fn ingress_security_cases(server: &Engine, invitation: &Invitation) {
+        use crate::ingress::{Action, Operation};
+        use kami_core::{ConversationId, MessageId};
+        let addresses = server.direct_addresses().await.unwrap();
+        for case in 0..12 {
+            let directory = tests::directory();
+            let mut profile = tests::profile(&directory, None);
+            profile.key_id = ProfileKeyId::new(&format!("{:032x}", 100 + case)).unwrap();
+            let mut direct = direct();
+            if case == 0 {
+                direct.limits.capability_ttl = Duration::from_secs(1);
+            }
+            let (mut engine, _) = Engine::start_direct(profile, Config::default(), direct).unwrap();
+            engine.wait_running().await.unwrap();
+            let local = engine.local_invitation().unwrap();
+            persist(&engine, trusted(invitation.clone())).await.unwrap();
+            persist(server, trusted(local.clone())).await.unwrap();
+            server.register_contact(*local.device_key()).await.unwrap();
+            let conversation = ConversationId::from_u128(91);
+            let operation = Operation::Claim(MessageId::from_u128(92));
+            if case == 6 {
+                assert_eq!(engine.shutdown().await, ShutdownOutcome::Clean);
+                engine.wait_stopped().await;
+                let mut reopened = tests::profile(&directory, None);
+                reopened.key_id = ProfileKeyId::new(&format!("{:032x}", 100 + case)).unwrap();
+                reopened.create = false;
+                engine = Engine::start_direct(reopened, Config::default(), self::direct())
+                    .unwrap()
+                    .0;
+                engine.wait_running().await.unwrap();
+                assert_eq!(
+                    engine.recovery_status().await.unwrap(),
+                    kami_storage::RecoveryStatus::Disabled
+                );
+            }
+            let peer = engine
+                .ingress_peer(
+                    *invitation.device_key(),
+                    addresses.clone(),
+                    conversation,
+                    operation,
+                )
+                .await
+                .unwrap();
+            match case {
+                0 => {
+                    tokio::time::sleep(Duration::from_millis(1100)).await;
+                    assert_eq!(
+                        engine
+                            .test_ingress(peer, |_, _, _| panic!("expired authority"))
+                            .await,
+                        Err(Error::LiveTransportUnavailable)
+                    );
+                }
+                1 => {
+                    // Durable changes are authoritative even before driver refresh.
+                    let old = engine
+                        .ingress_peer(
+                            *invitation.device_key(),
+                            addresses.clone(),
+                            conversation,
+                            operation,
+                        )
+                        .await
+                        .unwrap();
+                    let trust = trusted(invitation.clone());
+                    let blocked = trust.transition(TrustTransition::Block).unwrap();
+                    update(&engine, blocked.clone(), kami_storage::TrustState::Blocked).await;
+                    assert_eq!(
+                        engine
+                            .test_ingress(peer, |_, _, _| panic!("blocked authority"))
+                            .await,
+                        Err(Error::LiveTransportUnavailable)
+                    );
+                    let changed = blocked.transition(TrustTransition::Unblock).unwrap();
+                    update(&engine, changed.clone(), kami_storage::TrustState::Changed).await;
+                    let evidence = VerificationEvidence::independent_comparison(
+                        &changed,
+                        changed.candidate().fingerprint(),
+                        true,
+                    )
+                    .unwrap();
+                    let verified = changed
+                        .transition(TrustTransition::Verify(evidence))
+                        .unwrap();
+                    update(&engine, verified, kami_storage::TrustState::Verified).await;
+                    assert_eq!(
+                        engine
+                            .test_ingress(old, |_, _, _| panic!("old generation revived"))
+                            .await,
+                        Err(Error::LiveTransportUnavailable)
+                    );
+                    let new = engine
+                        .ingress_peer(
+                            *invitation.device_key(),
+                            addresses.clone(),
+                            conversation,
+                            operation,
+                        )
+                        .await
+                        .unwrap();
+                    assert_eq!(engine.test_ingress(new, |_, _, _| Ok(1)).await, Ok(1));
+                    let wrong_pin = engine
+                        .ingress_peer(
+                            *invitation.device_key(),
+                            addresses.clone(),
+                            conversation,
+                            operation,
+                        )
+                        .await
+                        .unwrap();
+                    let wrong = local.to_bytes();
+                    let remote = *invitation.device_key();
+                    engine
+                        .test_work(move |storage| {
+                            let row = storage.load_contact(remote).unwrap().unwrap();
+                            storage
+                                .compare_and_swap_contact(
+                                    Some(row.generation()),
+                                    kami_storage::ContactTrustRow::new(
+                                        remote,
+                                        kami_storage::TrustState::Verified,
+                                        row.generation() + 1,
+                                        Some(wrong.clone()),
+                                        wrong,
+                                    )
+                                    .unwrap(),
+                                )
+                                .unwrap();
+                            Ok(0)
+                        })
+                        .await
+                        .unwrap();
+                    assert_eq!(
+                        engine
+                            .test_ingress(wrong_pin, |_, _, _| panic!("wrong device/pin authority"))
+                            .await,
+                        Err(Error::LiveTransportUnavailable)
+                    );
+                }
+                2 => {
+                    let (entered, ready) = tokio::sync::oneshot::channel();
+                    let (release, wait) = std::sync::mpsc::channel();
+                    let e = engine.clone();
+                    let blocked = tokio::spawn(async move {
+                        e.test_work(move |_| {
+                            entered.send(()).unwrap();
+                            wait.recv().unwrap();
+                            Ok(0)
+                        })
+                        .await
+                    });
+                    ready.await.unwrap();
+                    let e = engine.clone();
+                    let queued = tokio::spawn(async move {
+                        e.test_ingress(peer, |_, _, _| panic!("queued revoked authority"))
+                            .await
+                    });
+                    tokio::time::timeout(Duration::from_secs(5), async {
+                        while engine.snapshot().active_operations < 2 {
+                            tokio::task::yield_now().await;
+                        }
+                    })
+                    .await
+                    .unwrap();
+                    engine.disconnect(*invitation.device_key()).await.unwrap();
+                    release.send(()).unwrap();
+                    blocked.await.unwrap().unwrap();
+                    assert_eq!(queued.await.unwrap(), Err(Error::LiveTransportUnavailable));
+                }
+                3 | 4 => {
+                    let (entered, ready) = tokio::sync::oneshot::channel();
+                    let (release, wait) = std::sync::mpsc::channel();
+                    let e = engine.clone();
+                    let caller = tokio::spawn(async move {
+                        e.test_ingress(peer, move |storage, _, remote| {
+                            // A real durable mutation followed by loss of transport/reply.
+                            let row = storage.load_contact(*remote.as_bytes()).unwrap().unwrap();
+                            storage
+                                .compare_and_swap_contact(
+                                    Some(row.generation()),
+                                    kami_storage::ContactTrustRow::new(
+                                        *remote.as_bytes(),
+                                        row.state(),
+                                        row.generation() + 1,
+                                        row.pinned().map(|p| p.to_vec()),
+                                        row.candidate().to_vec(),
+                                    )
+                                    .unwrap(),
+                                )
+                                .unwrap();
+                            entered.send(()).unwrap();
+                            wait.recv().unwrap();
+                            Ok(1)
+                        })
+                        .await
+                    });
+                    ready.await.unwrap();
+                    if case == 3 {
+                        engine.disconnect(*invitation.device_key()).await.unwrap();
+                    } else {
+                        caller.abort();
+                    }
+                    release.send(()).unwrap();
+                    if case == 3 {
+                        assert_eq!(caller.await.unwrap(), Err(Error::Indeterminate));
+                    } else {
+                        assert!(caller.await.unwrap_err().is_cancelled());
+                    }
+                    engine.wait_stopped().await;
+                    let mut reopened = tests::profile(&directory, None);
+                    reopened.key_id = ProfileKeyId::new(&format!("{:032x}", 100 + case)).unwrap();
+                    reopened.create = false;
+                    let (again, _) =
+                        Engine::start_direct(reopened, Config::default(), self::direct()).unwrap();
+                    again.wait_running().await.unwrap();
+                    let remote = *invitation.device_key();
+                    assert_eq!(
+                        again
+                            .test_work(move |storage| {
+                                assert_eq!(
+                                    storage.load_contact(remote).unwrap().unwrap().generation(),
+                                    3
+                                );
+                                assert!(storage.recover_sends(64).unwrap().is_empty());
+                                Ok(1)
+                            })
+                            .await,
+                        Ok(1)
+                    );
+                    assert_eq!(again.shutdown().await, ShutdownOutcome::Clean);
+                }
+                5 => {
+                    assert_eq!(
+                        engine
+                            .test_ingress(peer, |_, _, _| panic!("admitted ingress panic"))
+                            .await,
+                        Err(Error::Indeterminate)
+                    );
+                    engine.wait_stopped().await;
+                }
+                6 | 7 => {
+                    if case == 7 {
+                        let fresh = kami_identity::begin_fresh_native(
+                            &NativeCustody::open(),
+                            &ProfileKeyId::new("00000000000000000000000000000777").unwrap(),
+                        )
+                        .unwrap();
+                        engine
+                            .test_work(move |storage| {
+                                assert!(storage.enroll_fresh(fresh).is_err());
+                                assert_eq!(
+                                    storage.recovery_status().unwrap(),
+                                    kami_storage::RecoveryStatus::Quarantined
+                                );
+                                Ok(0)
+                            })
+                            .await
+                            .unwrap();
+                    }
+                    assert_eq!(
+                        engine
+                            .test_ingress(peer, |_, _, _| panic!("disabled recovery authority"))
+                            .await,
+                        Err(Error::Storage(
+                            kami_storage::StorageError::EnrollmentRequired
+                        ))
+                    );
+                }
+                8 => {
+                    // Prepare a test-only quarantined artifact using purpose-limited
+                    // native signatures, never native key export or a live session.
+                    let (alice, a) = native_endpoint(
+                        &engine,
+                        ProfileKeyId::new(&format!("{:032x}", 100 + case)).unwrap(),
+                    )
+                    .await;
+                    let (_, b) = native_endpoint(
+                        server,
+                        ProfileKeyId::new("0123456789abcdef0123456789abcdef").unwrap(),
+                    )
+                    .await;
+                    let trust = trusted(invitation.clone());
+                    let (sent, stored) = tokio::sync::oneshot::channel();
+                    let local_id = kami_core::DeviceId::from_bytes(*local.device_key());
+                    engine
+                        .test_work(move |storage| {
+                            let now = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis() as u64;
+                            let source = kami_e2ee::QuarantinedSession::outbound(
+                                alice,
+                                a,
+                                b,
+                                conversation,
+                                &trust,
+                                &trust.pinned().unwrap().binding().peer_id(),
+                                now,
+                            )
+                            .unwrap();
+                            let request = kami_sender::SendRequest::new(
+                                MessageId::from_u128(92),
+                                conversation,
+                                local_id,
+                                kami_core::DeviceId::from_bytes(
+                                    *trust.pinned().unwrap().device_key(),
+                                ),
+                                now,
+                                "test-only prepared artifact".into(),
+                            )
+                            .unwrap();
+                            let kami_sender::EnqueueOutcome::Committed { message, .. } =
+                                kami_sender::Coordinator::new(storage)
+                                    .enqueue(
+                                        request,
+                                        &source,
+                                        &trust,
+                                        &trust.pinned().unwrap().binding().peer_id(),
+                                        now as i64,
+                                    )
+                                    .unwrap()
+                            else {
+                                panic!("fixture did not commit")
+                            };
+                            sent.send(message.frame().to_vec()).unwrap();
+                            Ok(0)
+                        })
+                        .await
+                        .unwrap();
+                    let expected = stored.await.unwrap();
+                    let outcome = engine
+                        .dispatch_ingress(peer, Action::Claim(MessageId::from_u128(92)))
+                        .await
+                        .unwrap();
+                    let crate::ingress::Outcome::Claim(Some(lease)) = outcome else {
+                        panic!("real claim must return the exact prepared artifact")
+                    };
+                    assert_eq!(lease.message().frame(), expected);
+                    assert_eq!(
+                        engine
+                            .test_work(move |storage| {
+                                let row = storage
+                                    .sender_record(
+                                        kami_core::DeviceId::from_bytes(*local.device_key()),
+                                        MessageId::from_u128(92),
+                                    )
+                                    .unwrap();
+                                assert_eq!(row.frame(), expected);
+                                assert_eq!(row.attempts(), 1);
+                                assert_eq!(row.state(), kami_storage::SendState::InFlight);
+                                Ok(1)
+                            })
+                            .await,
+                        Ok(1)
+                    );
+                    engine.disconnect(*invitation.device_key()).await.unwrap();
+                    // A genuine listener with the wrong secure Peer-ID is not
+                    // authority for the intended, durably verified recipient.
+                    assert!(engine
+                        .ingress_peer(
+                            *invitation.device_key(),
+                            engine.direct_addresses().await.unwrap(),
+                            conversation,
+                            operation
+                        )
+                        .await
+                        .is_err());
+                }
+                9 | 10 => {
+                    let remote = *invitation.device_key();
+                    let replacement = local.to_bytes();
+                    engine
+                        .test_work(move |storage| {
+                            let row = storage.load_contact(remote).unwrap().unwrap();
+                            let (state, pin, candidate) = if case == 9 {
+                                (
+                                    kami_storage::TrustState::Pending,
+                                    None,
+                                    row.candidate().to_vec(),
+                                )
+                            } else {
+                                (
+                                    kami_storage::TrustState::Changed,
+                                    row.pinned().map(|p| p.to_vec()),
+                                    replacement,
+                                )
+                            };
+                            storage
+                                .compare_and_swap_contact(
+                                    Some(row.generation()),
+                                    kami_storage::ContactTrustRow::new(
+                                        remote,
+                                        state,
+                                        row.generation() + 1,
+                                        pin,
+                                        candidate,
+                                    )
+                                    .unwrap(),
+                                )
+                                .unwrap();
+                            Ok(0)
+                        })
+                        .await
+                        .unwrap();
+                    assert_eq!(
+                        engine
+                            .test_ingress(peer, |_, _, _| panic!(
+                                "unverified/replaced identity authority"
+                            ))
+                            .await,
+                        Err(Error::LiveTransportUnavailable)
+                    );
+                }
+                11 => {
+                    let (entered, ready) = tokio::sync::oneshot::channel();
+                    let (release, wait) = std::sync::mpsc::channel();
+                    let e = engine.clone();
+                    let blocked = tokio::spawn(async move {
+                        e.test_work(move |_| {
+                            entered.send(()).unwrap();
+                            wait.recv().unwrap();
+                            Ok(0)
+                        })
+                        .await
+                    });
+                    ready.await.unwrap();
+                    let e = engine.clone();
+                    let queued = tokio::spawn(async move {
+                        e.test_ingress(peer, |_, _, _| panic!("queued shutdown authority"))
+                            .await
+                    });
+                    tokio::time::timeout(Duration::from_secs(5), async {
+                        while engine.snapshot().active_operations < 2 {
+                            tokio::task::yield_now().await;
+                        }
+                    })
+                    .await
+                    .unwrap();
+                    engine.request_shutdown();
+                    release.send(()).unwrap();
+                    blocked.await.unwrap().unwrap();
+                    assert!(matches!(
+                        queued.await.unwrap(),
+                        Err(Error::LiveTransportUnavailable | Error::Indeterminate)
+                    ));
+                }
+                _ => unreachable!(),
+            }
+            if !matches!(
+                engine.snapshot().lifecycle,
+                Lifecycle::Stopped | Lifecycle::Failed
+            ) {
+                let _ = engine.shutdown().await;
+            }
+            engine.wait_stopped().await;
+            assert!(kami_storage::ProfileLease::acquire(directory.path()).is_ok());
+        }
+    }
     fn direct() -> DirectConfig {
         DirectConfig {
             listeners: vec![

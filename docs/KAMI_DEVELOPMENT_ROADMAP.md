@@ -1,7 +1,7 @@
 # Kami Development Roadmap
 
-Status: synchronized with bounded KAMI-24/25/26/27, WP-A acceptance, WP-B bounded acceptance with conditions and WP-C bounded recovery foundation acceptance with conditions/limitations; no production or M1 completion claim
-Last repository inspection: 2026-11-13 (WP-C source, implementation run 229, QA run 230 PASS, final Evaluator run 231 PASS-WITH-CONDITIONS, README inventory and Git state; documentation checks only, no Cargo rerun)
+Status: synchronized with bounded KAMI-24/25/26/27, WP-A acceptance, WP-B bounded acceptance with conditions, WP-C bounded recovery foundation acceptance with conditions/limitations, and WP-D Slice 1 acceptance; no production or M1 completion claim
+Last repository inspection: 2026-11-13 (WP-D Slice 1 source, implementation run 235, QA run 236 PASS, final Evaluator run 237 PASS-WITH-CONDITIONS, README inventory and Git state; documentation checks only, no Cargo rerun)
 Last Jira evidence read: 2026-11-08 (KAMI-27 through KAMI-32 and KAMI-51; read-only manager path)
 Implementation language: Rust only
 
@@ -283,6 +283,23 @@ Internal planning group, not a Jira issue. Scope is runtime/transport/E2EE integ
 production-boundary qualification, cross-platform and interoperability evidence,
 failure/retry/restart testing, and final security review. It depends on WP-B, WP-C,
 actual runtime-owned end-peer provenance, and the relevant original WP4/WP5 evidence.
+
+#### WP-D Slice 1 — accepted bounded runtime-authenticated ingress foundation
+
+Slice 1 is owner-accepted as a non-activated runtime foundation. The same
+`Engine` that owns a genuine, non-forgeable `AuthenticatedConnection` controls
+operation admission; callers cannot supply or forge equivalent connection,
+device/Peer-ID, revocation, expiry, durable-trust, or pin facts. Each operation
+revalidates those live and durable conditions before entering the serialized
+worker. WP-C recovery/quarantine fencing remains in force, and lost or ambiguous
+worker outcomes return truthful `Indeterminate`.
+
+Evidence: implementation run 235, independent QA run 236 PASS, and final
+Evaluator run 237 PASS-WITH-CONDITIONS. This is not fresh E2EE session
+establishment, application-message delivery, CLI messaging, full WP-D, KAMI-28,
+production E2EE, or M1. Slice 2 remains pending and must begin from the next
+committed baseline; its stopped tasks are not active dependencies for this
+documentation synchronization.
 
 ## 5. KAMI-51 full work-package sequence
 

@@ -7,6 +7,54 @@ use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot, watch};
 
 type Reply = oneshot::Sender<Result<usize, Error>>;
+/// Sealed origin: only this module can wrap the result of its own direct dial.
+/// Neither an external AuthenticatedConnection nor a trust snapshot is accepted.
+#[allow(dead_code)]
+pub(crate) struct IngressConnection {
+    cap: kami_transport::AuthenticatedConnection,
+    local: DeviceId,
+    owner: mpsc::Sender<Command>,
+    stop: watch::Sender<bool>,
+}
+#[allow(dead_code)]
+impl IngressConnection {
+    pub(crate) fn local(&self) -> DeviceId {
+        self.local
+    }
+    pub(crate) fn remote(&self) -> [u8; 32] {
+        self.cap.remote_device()
+    }
+    pub(crate) fn current(&self) -> bool {
+        !*self.stop.borrow() && self.cap.is_current()
+    }
+    pub(crate) fn belongs_to(&self, engine: &Engine) -> bool {
+        self.owner.same_channel(&engine.commands)
+    }
+    pub(crate) fn authenticated_peer(
+        &self,
+        trust: &kami_identity::ContactTrust,
+    ) -> Result<libp2p_identity::PeerId, Error> {
+        if !self.current() {
+            return Err(Error::LiveTransportUnavailable);
+        }
+        self.cap
+            .authenticated_peer(trust)
+            .map_err(|_| Error::LiveTransportUnavailable)
+    }
+}
+// Dropping an admitted future is not a rollback oracle. Stop further admission
+// and invalidate every live cap even if the blocking operation has already begun.
+struct IngressCancellation<'a> {
+    engine: &'a Engine,
+    armed: bool,
+}
+impl Drop for IngressCancellation<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.engine.request_shutdown();
+        }
+    }
+}
 // Only the Linux ignored manual endpoint consumes this last-observed public view.
 // It is not a storage status API, provenance constructor, or production diagnostic.
 #[cfg(all(test, target_os = "linux"))]
@@ -369,8 +417,89 @@ impl Engine {
     pub async fn cancel(&self, sender: DeviceId, id: MessageId) -> Result<(), Error> {
         self.work(Work::Cancel(sender, id)).await.map(|_| ())
     }
-    /// Request data is not authority. No production connection producer exists
-    /// until KAMI-27; fail closed rather than accepting an asserted PeerId.
+    /// Private foundation only: not wired to CLI, application wire or public enqueue.
+    #[allow(dead_code)]
+    pub(crate) async fn ingress_peer(
+        &self,
+        device: [u8; 32],
+        addresses: Vec<kami_transport::Multiaddr>,
+        conversation: kami_core::ConversationId,
+        operation: crate::ingress::Operation,
+    ) -> Result<crate::ingress::AuthenticatedPeer, Error> {
+        if *self.stop.borrow() {
+            return Err(Error::NotRunning);
+        }
+        let local = DeviceId::from_bytes(*self.local_invitation()?.device_key());
+        let cap = self.connect(device, addresses).await?;
+        if *self.stop.borrow() || !cap.is_current() {
+            return Err(Error::LiveTransportUnavailable);
+        }
+        Ok(crate::ingress::AuthenticatedPeer::from_runtime(
+            IngressConnection {
+                cap,
+                local,
+                owner: self.commands.clone(),
+                stop: self.stop.clone(),
+            },
+            conversation,
+            operation,
+        ))
+    }
+    #[allow(dead_code)]
+    pub(crate) async fn dispatch_ingress(
+        &self,
+        peer: crate::ingress::AuthenticatedPeer,
+        action: crate::ingress::Action,
+    ) -> Result<crate::ingress::Outcome, Error> {
+        if !peer.owned_by(self) || !peer.live() {
+            return Err(Error::LiveTransportUnavailable);
+        }
+        let monitor = peer.monitor().ok_or(Error::LiveTransportUnavailable)?;
+        let (reply, response) = oneshot::channel();
+        let (done, completed) = oneshot::channel();
+        self.send(Command::Work(
+            Box::new(Work::Ingress(Box::new(peer), action, reply)),
+            done,
+        ))?;
+        let mut cancellation = IngressCancellation {
+            engine: self,
+            armed: true,
+        };
+        // Done only accounts for queue occupancy. The typed worker reply is the
+        // sole operation result; failure after submission is conservatively unknown.
+        let result = match completed.await {
+            Ok(Ok(_)) => response.await.unwrap_or(Err(Error::Indeterminate)),
+            _ => Err(Error::Indeterminate),
+        };
+        let result = if result.is_ok() && !monitor.current() {
+            Err(Error::Indeterminate)
+        } else {
+            result
+        };
+        if matches!(result, Err(Error::Indeterminate)) {
+            self.request_shutdown();
+        }
+        cancellation.armed = false;
+        result
+    }
+    #[cfg(test)]
+    pub(crate) async fn test_ingress(
+        &self,
+        peer: crate::ingress::AuthenticatedPeer,
+        f: impl FnOnce(&kami_storage::Storage, DeviceId, DeviceId) -> Result<usize, Error>
+            + Send
+            + 'static,
+    ) -> Result<usize, Error> {
+        match self
+            .dispatch_ingress(peer, crate::ingress::Action::Probe(Box::new(f)))
+            .await?
+        {
+            crate::ingress::Outcome::Probe(n) => Ok(n),
+            _ => Err(Error::OperationRejected),
+        }
+    }
+    /// Request data is not authority. Application delivery is still disabled;
+    /// the private provenance foundation does not activate public messaging.
     pub async fn enqueue(&self, _request: kami_sender::SendRequest) -> Result<(), Error> {
         Err(Error::LiveTransportUnavailable)
     }

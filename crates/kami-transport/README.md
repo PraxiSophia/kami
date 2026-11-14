@@ -24,6 +24,20 @@ transport does not access identity seed material. `kami-runtime` owns production
 startup and supervision; transport is not coupled to storage or the message,
 sender, receiver, or E2EE crates.
 
+## WP-D Slice 1 runtime boundary
+
+The accepted WP-D Slice 1 foundation consumes transport evidence only through the
+runtime-owned `AuthenticatedConnection` boundary. The same `Engine` that owns the
+capability controls admission; callers cannot forge a connection, device/Peer-ID,
+revocation, expiry, durable-trust, or pin fact. Per-operation revalidation and
+serialized worker admission belong to `kami-runtime`, not this transport crate.
+
+Evidence is bounded to implementation run 235, QA run 236 PASS, and final
+Evaluator run 237 PASS-WITH-CONDITIONS. This does not add application payloads,
+fresh E2EE session establishment, delivery receipts, CLI messaging, production
+E2EE, KAMI-28, or M1. WP-D Slice 2 remains pending from the next committed
+baseline.
+
 ## Behavior and limits
 
 The direct path uses exact IP socket candidates, a cap of eight candidates per

@@ -61,6 +61,10 @@ fn production_api_has_no_capability_factory_or_bare_authority_submission() {
         ("impl kami_runtime::TrustedTransport for () {}", Some("E0405")),
         ("pub fn bad(e: &kami_runtime::Engine) { e.submit_receive(loop {}, loop {}); }", Some("E0599")),
         ("use kami_runtime::worker::Work;", Some("E0603")),
+        ("use kami_runtime::engine::IngressConnection;", Some("E0603")),
+        ("use kami_runtime::ingress::{Action, Outcome};", Some("E0603")),
+        ("pub fn bad(e: &kami_runtime::Engine) { let _ = e.ingress_peer(loop {}, loop {}, loop {}, loop {}); }", Some("E0624")),
+        ("pub fn bad(e: &kami_runtime::Engine) { let _ = e.dispatch_ingress(loop {}, loop {}); }", Some("E0624")),
     ] {
         let input = dir.path().join("probe.rs"); std::fs::write(&input, source).unwrap();
         let output = Command::new("rustc").args(["--edition=2021", "--crate-type=lib", "--crate-name=runtime_probe"])

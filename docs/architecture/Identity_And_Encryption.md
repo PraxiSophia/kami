@@ -123,6 +123,23 @@ WP-C endpoint evidence remain unqualified. No independent rollback witness,
 transparent mutable-session restoration, live fresh-session establishment,
 production E2EE/application messaging, KAMI-28, WP-D or M1 completion is supplied.
 
-## 10. Engineering-controlled design details
+## 10. Current bounded WP-D Slice 1 runtime-ingress foundation
+
+WP-D Slice 1 is accepted only as a bounded, non-activated runtime-authenticated-
+ingress foundation. A genuine `AuthenticatedConnection` is non-forgeable and is
+retained by the same `Engine` that owns the runtime capability; caller-supplied
+Peer IDs, device claims, signatures, hashes, or database generations cannot
+substitute for it. Every operation revalidates the live connection, device/Peer-ID
+binding, revocation, expiry, durable trust, and pin state before serialized worker
+admission. WP-C's default-deny recovery/quarantine fence remains in force, and a
+lost or potentially mutating worker boundary returns truthful `Indeterminate`.
+
+Evidence is implementation run 235, independent QA run 236 PASS, and final
+Evaluator run 237 PASS-WITH-CONDITIONS. This foundation does not establish a
+fresh E2EE session, application-message delivery, CLI messaging, full WP-D,
+KAMI-28, production E2EE, or M1. WP-D Slice 2 remains pending and must start
+from the next committed baseline.
+
+## 11. Engineering-controlled design details
 
 The Architect owns the explicit selected Rust crypto implementation, key formats, fingerprint encoding, binding proof, key-store adapters, nonce/message-key handling, persistent state transitions, and threat-model tests. Any proposed weakening of explicit verification, E2EE, platform coverage, or ratcheting requires escalation rather than silent substitution.

@@ -10,6 +10,12 @@ KAMI-27 adds a supervised direct-only connection substrate: the runtime retains 
 
 Live authenticated end-peer evidence is minted only within the KAMI-27 transport/runtime boundary. The runtime does not accept caller-supplied `PeerId`, booleans, DTOs, claimed signatures, hashes, or database generations as proof of a live connection.
 
+### KAMI-51 WP-D Slice 1 — accepted bounded ingress foundation
+
+WP-D Slice 1 adds the runtime-owned ingress boundary for authenticated operations without activating production messaging. A genuine, non-forgeable `AuthenticatedConnection` remains owned by the same `Engine` that admitted it; callers cannot manufacture an equivalent capability. Before each operation, runtime control revalidates the live connection, device/Peer-ID binding, revocation, expiry, durable trust, and pin state. Admission then crosses the serialized blocking worker, while WP-C recovery/quarantine fencing remains in force and lost or ambiguous worker outcomes return `Indeterminate` rather than guessed success or failure.
+
+Evidence: implementation run 235, independent QA run 236 PASS, and final Evaluator run 237 PASS-WITH-CONDITIONS. This foundation does not establish fresh E2EE sessions, application-message delivery, CLI/IPC messaging, full WP-D, KAMI-28, production E2EE, or M1. Slice 2 remains pending until work resumes from the next committed baseline.
+
 ## Architecture
 
 The runtime owns mutable lifecycle state in one Tokio task. Child work reports typed completions and faults; it does not mutate engine state directly.

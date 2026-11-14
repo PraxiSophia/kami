@@ -14,6 +14,12 @@ impl Drop for Authority {
 #[cfg(test)]
 type TestWork = Box<dyn FnOnce(&Storage) -> Result<usize, Error> + Send>;
 pub(crate) enum Work {
+    #[allow(dead_code)]
+    Ingress(
+        Box<crate::ingress::AuthenticatedPeer>,
+        crate::ingress::Action,
+        oneshot::Sender<Result<crate::ingress::Outcome, Error>>,
+    ),
     RecoveryStatus(oneshot::Sender<Result<kami_storage::RecoveryStatus, Error>>),
     MaintainPrekey(Option<usize>),
     InvalidatePrekey(Option<[u8; 32]>, u64, bool),
@@ -158,6 +164,37 @@ pub(crate) fn run(
             }
         }
         let result = match work {
+            Work::Ingress(peer, action, reply) => {
+                if reply.is_closed() {
+                    authority.1.revoke();
+                    authority.0.send_replace(false);
+                    break;
+                }
+                let result = ingress(&storage, &key_id, local.as_ref(), &peer, action);
+                let uncertain = matches!(result, Err(Error::Indeterminate));
+                let fenced = matches!(
+                    result,
+                    Err(
+                        Error::Storage(kami_storage::StorageError::EnrollmentRequired)
+                            | Error::Identity(_)
+                    )
+                );
+                // A failed reply may follow a committed operation. Revoke before
+                // the next job; never infer rollback or retry a new logical ID.
+                if reply.send(result).is_err() || uncertain {
+                    authority.1.revoke();
+                    authority.0.send_replace(false);
+                    let _ = done.blocking_send(Completion::Done(id, Err(Error::Indeterminate)));
+                    break;
+                }
+                if fenced {
+                    authority.1.revoke();
+                    authority.0.send_replace(false);
+                    let _ = done.blocking_send(Completion::Done(id, Ok(0)));
+                    break;
+                }
+                Ok(0)
+            }
             Work::RecoveryStatus(reply) => {
                 let status = storage.recovery_status().map_err(Error::Storage);
                 let result = status.map(|_| 0);
@@ -250,6 +287,63 @@ pub(crate) fn run(
     // jobs only after transport children stopped, so lease outlives the swarm.
     let result = storage.shutdown().map_err(Error::Storage);
     let _ = done.blocking_send(Completion::Closed(result));
+}
+fn ingress(
+    storage: &Storage,
+    key_id: &kami_key_provider::ProfileKeyId,
+    local: Option<&kami_identity::Invitation>,
+    peer: &crate::ingress::AuthenticatedPeer,
+    action: crate::ingress::Action,
+) -> Result<crate::ingress::Outcome, Error> {
+    ingress_fence(storage, key_id, local, peer)?;
+    // Load again on the serialized worker immediately before the operation, not
+    // from the Engine's contact lookup or the driver's diagnostic contact cache.
+    let before = contact(storage, *peer.remote().as_bytes())?;
+    let now = now_ms()? as u64;
+    peer.check(storage, now)?;
+    let result = peer.execute(storage, action, now);
+    // Revocation is not atomic with SQLite. Once execution may have begun, any
+    // failed final fence is uncertain even if the underlying write returned Ok.
+    if ingress_fence(storage, key_id, local, peer).is_err()
+        || !contact(storage, *peer.remote().as_bytes()).is_ok_and(|after| {
+            after.generation() == before.generation() && after.pinned() == before.pinned()
+        })
+    {
+        return Err(Error::Indeterminate);
+    }
+    match result {
+        Err(Error::Storage(
+            kami_storage::StorageError::Io
+            | kami_storage::StorageError::Closed
+            | kami_storage::StorageError::WrongKeyOrCorrupt,
+        )) => Err(Error::Indeterminate),
+        other => other,
+    }
+}
+fn ingress_fence(
+    storage: &Storage,
+    key_id: &kami_key_provider::ProfileKeyId,
+    local: Option<&kami_identity::Invitation>,
+    peer: &crate::ingress::AuthenticatedPeer,
+) -> Result<(), Error> {
+    if !peer.live()
+        || local.is_none_or(|invitation| invitation.device_key() != peer.local().as_bytes())
+    {
+        return Err(Error::LiveTransportUnavailable);
+    }
+    if storage.recovery_status().map_err(Error::Storage)?
+        != kami_storage::RecoveryStatus::FreshEnrollment
+    {
+        return Err(Error::Storage(
+            kami_storage::StorageError::EnrollmentRequired,
+        ));
+    }
+    let row = enrollment_row(storage)?;
+    // This re-verifies the exact native anchor and key of the worker's startup
+    // enrollment; a replaced durable row cannot inherit the startup invitation.
+    kami_identity::verify_enrollment_for_transport(&NativeCustody::open(), key_id, &row)
+        .map_err(Error::Identity)?;
+    peer.check(storage, now_ms()? as u64)
 }
 fn maintain_prekeys(
     storage: &Storage,
@@ -518,7 +612,10 @@ fn enrollment_row(storage: &Storage) -> Result<Vec<u8>, Error> {
         .map_err(Error::Storage)?
         .ok_or(Error::Identity(kami_key_provider::KeyError::Missing))
 }
-fn contact(storage: &Storage, device: [u8; 32]) -> Result<kami_identity::ContactTrust, Error> {
+pub(crate) fn contact(
+    storage: &Storage,
+    device: [u8; 32],
+) -> Result<kami_identity::ContactTrust, Error> {
     use kami_identity::ContactTrustState as I;
     use kami_storage::TrustState as S;
     let row = storage
